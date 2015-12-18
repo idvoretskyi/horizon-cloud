@@ -23,25 +23,25 @@ Fusion Ops will likely be based on the following rough architecture:
 
 Foo
 
-### FAQ
+## FAQ
 
-## How will Fusion Ops compare to Compose.io?
+### How will Fusion Ops compare to Compose.io?
 
 Bar
 
-## How does Fusion Ops compare to Firebase/Parse?
+### How does Fusion Ops compare to Firebase/Parse?
 
 Baz
 
-## How does Fusion Ops compare to Heroku?
+### How does Fusion Ops compare to Heroku?
 
 Bam
 
-## How does Fusion Ops compare to Meteor Galaxy?
+### How does Fusion Ops compare to Meteor Galaxy?
 
 Bat
 
-## How will Fusion Ops be priced?
+### How will Fusion Ops be priced?
 
 Bak
 
