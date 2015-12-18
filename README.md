@@ -25,7 +25,7 @@ Foo
 
 ## FAQ
 
-### How will Fusion Ops compare to Compose.io?
+### How does Fusion Ops compare to Compose.io?
 
 Bar
 
