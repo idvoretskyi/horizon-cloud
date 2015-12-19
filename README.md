@@ -105,8 +105,8 @@ just download Fusion/RethinkDB on their laptop.
 
 ### How does Fusion Ops compare to Heroku?
 
-Fusion Ops to Fusion+RethinkDB is basically what Heroku was for Rails
-and MySQL at its inception. The major difference here is that we
+Fusion Ops to Fusion/RethinkDB is basically what Heroku was for
+Rails/MySQL at its inception. The major difference here is that we
 control most of the software stack, so we can have a much tighter
 integration between Fusion/RethinkDB and Fusion Ops, and offer people
 a much more compelling development and operations experience.
