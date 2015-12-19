@@ -125,4 +125,11 @@ _ __SMB 1 plan__ -- $49/RethinkDB node/month; unlimited RethinkDB servers and Fu
 _ __SMB 2 plan__ -- $149/RethinkDB node/month; unlimited RethinkDB servers and Fusion servers, unlimited datacenters.
 - __Enterprise plan__ -- $999/RethinkDB node/month; same as SMB2, but with ability to run on-premise (similar to GitHub enterprise).
 
+|                    | Starter  | SMB1              | SMB2               | Enterprise         |
+| ------------------ |:---------| :-----------------|:-------------------|:-------------------|
+| Fusion nodes       | 1        | unlimited         | unlimited          | unlimited          |
+| RethinkDB nodes    | 1        | unlimited         | unlimited          | unlimited          |
+| Datacenters        | 1        | 1                 | unlimited          | unlimited          |
+| On-prem deployment | no       | no                | no                 | yes                |
+| Price              | $5/month | $49/DB node/month | $149/DB node/month | $999/DB node/month |
 
