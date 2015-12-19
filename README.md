@@ -120,11 +120,6 @@ Fusion Ops is to RethinkDB+Fusion.
 
 There will be four pricing tiers:
 
-- __Starter plan__ -- $5/month; limited to 1 RethinkDB server, 1 Fusion server, 1 datacenter.
-_ __SMB 1 plan__ -- $49/RethinkDB node/month; unlimited RethinkDB servers and Fusion servers; limited to 1 datacenters.
-_ __SMB 2 plan__ -- $149/RethinkDB node/month; unlimited RethinkDB servers and Fusion servers, unlimited datacenters.
-- __Enterprise plan__ -- $999/RethinkDB node/month; same as SMB2, but with ability to run on-premise (similar to GitHub enterprise).
-
 |                    | Starter  | SMB1              | SMB2               | Enterprise         |
 | ------------------ |:---------| :-----------------|:-------------------|:-------------------|
 | Fusion nodes       | 1        | unlimited         | unlimited          | unlimited          |
