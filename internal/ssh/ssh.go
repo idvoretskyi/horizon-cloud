@@ -60,11 +60,7 @@ func (t *Target) sshOpts() []string {
 }
 
 func (t *Target) sshInvocation() string {
-	s := "ssh"
-	for _, arg := range t.sshOpts() {
-		s += " " + shellEscape(arg)
-	}
-	return s
+	return "ssh " + ShellEscapeJoin(t.sshOpts())
 }
 
 func runExecPassthrough(c *exec.Cmd) error {

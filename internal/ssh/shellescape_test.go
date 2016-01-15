@@ -17,9 +17,9 @@ func TestShellEscape(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		out := shellEscape(test.Input)
+		out := ShellEscape(test.Input)
 		if out != test.Output {
-			t.Errorf("shellEscape(%#v) = %#v, but wanted %#v",
+			t.Errorf("ShellEscape(%#v) = %#v, but wanted %#v",
 				test.Input, out, test.Output)
 		}
 	}
