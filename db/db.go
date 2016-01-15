@@ -26,24 +26,23 @@ func New() (*DB, error) {
 	return &DB{session}, nil
 }
 
-func createConfigError(name string) error {
-	return fmt.Errorf("internal error: unable to create config `%s`", name)
+func setConfigError(name string) error {
+	return fmt.Errorf("internal error: unable to set config `%s`", name)
 }
 
 func getConfigError(name string) error {
 	return fmt.Errorf("internal error: unable to get config `%s`", name)
 }
 
-func (d *DB) CreateConfig(c *api.Config) error {
-	res, err := configs.Insert(c).RunWrite(d.session)
+func (d *DB) SetConfig(c *api.Config) error {
+	res, err := configs.Insert(c, r.InsertOpts{Conflict: "replace"}).RunWrite(d.session)
 	if err != nil {
 		// RSI: log
-		// RSI: detect and report "already exists error" specially
-		return createConfigError(c.Name)
+		return setConfigError(c.Name)
 	}
-	if res.Inserted != 1 {
+	if res.Inserted+res.Unchanged+res.Replaced != 1 {
 		// RSI: serious log
-		return createConfigError(c.Name)
+		return setConfigError(c.Name)
 	}
 	return nil
 }
