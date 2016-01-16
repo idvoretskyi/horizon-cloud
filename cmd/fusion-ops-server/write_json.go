@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/rethinkdb/fusion-ops/api"
+	"github.com/rethinkdb/fusion-ops/internal/api"
 )
 
 func writeJSON(rw http.ResponseWriter, code int, i interface{}) {

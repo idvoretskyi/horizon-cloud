@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	r "github.com/dancannon/gorethink"
-	"github.com/rethinkdb/fusion-ops/api"
+	"github.com/rethinkdb/fusion-ops/internal/api"
 )
 
 type DB struct {

@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/rethinkdb/fusion-ops/aws"
+	"github.com/rethinkdb/fusion-ops/internal/aws"
 )
 
 var (

@@ -7,9 +7,9 @@ import (
 	"net/http"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/rethinkdb/fusion-ops/api"
-	awsp "github.com/rethinkdb/fusion-ops/aws"
-	"github.com/rethinkdb/fusion-ops/db"
+	"github.com/rethinkdb/fusion-ops/internal/api"
+	awsp "github.com/rethinkdb/fusion-ops/internal/aws"
+	"github.com/rethinkdb/fusion-ops/internal/db"
 )
 
 func keepIncludes() {
