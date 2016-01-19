@@ -13,9 +13,10 @@ type Client struct {
 }
 
 type SSHOptions struct {
-	Host       string
-	User       string
-	KnownHosts *KnownHosts
+	Host         string
+	User         string
+	KnownHosts   *KnownHosts
+	IdentityFile string
 }
 
 // New constructs a new Client pointing at the given host and username. If
@@ -67,6 +68,9 @@ func (c *Client) sshArgs() []string {
 	}
 	if c.opts.KnownHosts != nil {
 		args = append(args, "-o", "UserKnownHostsFile="+c.opts.KnownHosts.Filename)
+	}
+	if c.opts.IdentityFile != "" {
+		args = append(args, "-i", c.opts.IdentityFile)
 	}
 
 	return args
