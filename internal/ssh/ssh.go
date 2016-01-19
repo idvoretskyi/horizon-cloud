@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 )
@@ -74,6 +75,10 @@ func (c *Client) sshInvocation() string {
 }
 
 func runPassthrough(cmd *exec.Cmd) error {
+	if cmd.Stdout != nil || cmd.Stderr != nil {
+		// TODO: log
+		return errors.New("runPassthrough: command already has stdout or stderr set")
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
