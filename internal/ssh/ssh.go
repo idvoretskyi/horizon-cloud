@@ -60,9 +60,11 @@ func (c *Client) sshArgs() []string {
 	args := []string{
 		"-o", "PasswordAuthentication=no",
 		"-o", "StrictHostKeyChecking=yes",
-		"-o", "User=" + c.opts.User,
 	}
 
+	if c.opts.User != "" {
+		args = append(args, "-o", "User="+c.opts.User)
+	}
 	if c.opts.KnownHosts != nil {
 		args = append(args, "-o", "UserKnownHostsFile="+c.opts.KnownHosts.Filename)
 	}
