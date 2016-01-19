@@ -9,10 +9,10 @@ import (
 // A Client is a remote location where commands can be run through SSH and
 // directories/files copied via rsync.
 type Client struct {
-	opts SSHOptions
+	opts Options
 }
 
-type SSHOptions struct {
+type Options struct {
 	Host         string
 	User         string
 	KnownHosts   *KnownHosts
@@ -22,7 +22,7 @@ type SSHOptions struct {
 // New constructs a new Client pointing at the given host and username. If
 // KnownHosts is non-nil, the ssh command used will use it as a known_hosts
 // file.
-func New(opts SSHOptions) *Client {
+func New(opts Options) *Client {
 	return &Client{opts: opts}
 }
 
