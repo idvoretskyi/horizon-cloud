@@ -42,6 +42,10 @@ func main() {
 
 	if *stop {
 		for _, srv := range servers {
+			if srv.State != "running" {
+				continue
+			}
+
 			log.Printf("Stopping %v", srv.InstanceID)
 			err := a.StopServer(srv.InstanceID)
 			if err != nil {
