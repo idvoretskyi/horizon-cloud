@@ -186,6 +186,7 @@ func (a *AWS) StartServer(instancetype string) (*Server, error) {
 
 	return nil, errors.New("Instance did not start in 5 minutes")
 }
+
 func (a *AWS) StopServer(instanceid string) error {
 	_, err := a.EC2.TerminateInstances(&ec2.TerminateInstancesInput{
 		InstanceIds: []*string{&instanceid},
