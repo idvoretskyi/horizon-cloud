@@ -30,8 +30,18 @@ func ValidateName(name string) error {
 	return nil
 }
 
+func ValidateVersion(version string) error {
+	if version == "" {
+		return errors.New("Version empty")
+	}
+	return nil
+}
+
 func (c *Config) Validate() error {
 	if err := ValidateName(c.Name); err != nil {
+		return err
+	}
+	if err := ValidateVersion(c.Version); err != nil {
 		return err
 	}
 	if c.NumServers == 0 {
