@@ -1,7 +1,9 @@
 package db
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	r "github.com/dancannon/gorethink"
 )
@@ -11,6 +13,8 @@ type DB struct {
 }
 
 var (
+	ErrCanceled = errors.New("canceled")
+
 	configs = r.DB("test").Table("configs")
 )
 
@@ -43,6 +47,48 @@ func (d *DB) GetConfig(name string) (*Config, error) {
 	var c Config
 	err := d.getBasicType(configs, "config", name, &c)
 	return &c, err
+}
+
+func (d *DB) WaitConfigApplied(name string, version string, cancel <-chan struct{}) (*Config, error) {
+	query := configs.Get(name).Changes(r.ChangesOpts{IncludeInitial: true})
+	cur, err := query.Run(d.session)
+	if err != nil {
+		// RSI log
+		return nil, getBasicError("config", name)
+	}
+	defer cur.Close()
+
+	type change struct {
+		NewVal *Config `gorethink:"new_val"`
+	}
+
+	rows := make(chan change)
+	cur.Listen(rows)
+
+	canceled := false
+	for {
+		select {
+		case row, ok := <-rows:
+			if !ok {
+				if !canceled {
+					// early changefeed close!
+					// RSI: log cur.Err
+					return nil, errors.New("internal error: changefeed closed unexpectedly")
+				}
+				return nil, ErrCanceled
+			}
+
+			if row.NewVal != nil && row.NewVal.AppliedVersion == version {
+				// all done
+				return row.NewVal, nil
+			}
+
+		case <-cancel:
+			cur.Close()
+			canceled = true
+			cancel = nil
+		}
+	}
 }
 
 func runOne(query r.Term, session *r.Session, out interface{}) error {

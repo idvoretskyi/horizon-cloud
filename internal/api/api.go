@@ -81,6 +81,26 @@ type GetConfigResp struct {
 	Target Target
 }
 
+type WaitConfigAppliedReq struct {
+	Name    string
+	Version string
+}
+
+func (wca *WaitConfigAppliedReq) Validate() error {
+	if err := ValidateName(wca.Name); err != nil {
+		return err
+	}
+	if err := ValidateVersion(wca.Version); err != nil {
+		return err
+	}
+	return nil
+}
+
+type WaitConfigAppliedResp struct {
+	Config Config
+	Target Target
+}
+
 type Resp struct {
 	Success bool
 	Error   string          `json:",omitempty"`

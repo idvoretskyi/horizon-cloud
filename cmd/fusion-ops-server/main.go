@@ -86,10 +86,46 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 
 	writeJSON(rw, http.StatusOK, api.GetConfigResp{
 		Config: config.Config,
+		// TODO: Target
 	})
 }
 
-func getStateBlocking(rw http.ResponseWriter, req *http.Request) {
+func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
+	var wca api.WaitConfigAppliedReq
+	if !decode(rw, req.Body, &wca) {
+		return
+	}
+
+	// RSI: access limitations a la getConfig
+
+	returned := make(chan struct{})
+	defer close(returned)
+
+	var closeNotify <-chan bool
+	if cnrw, ok := rw.(http.CloseNotifier); ok {
+		closeNotify = cnrw.CloseNotify()
+	}
+
+	cancel := make(chan struct{})
+	go func() {
+		select {
+		case <-returned:
+			// do nothing
+		case <-closeNotify:
+			close(cancel)
+		}
+	}()
+
+	config, err := rdb.WaitConfigApplied(wca.Name, wca.Version, cancel)
+	if err != nil {
+		writeJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(rw, http.StatusOK, api.WaitConfigAppliedResp{
+		Config: config.Config,
+		// TODO: Target
+	})
 }
 
 func main() {
@@ -105,7 +141,7 @@ func main() {
 
 	http.HandleFunc("/v1/config/set", setConfig)
 	http.HandleFunc("/v1/config/get", getConfig)
-	http.HandleFunc("/v1/state/getBlocking", getStateBlocking)
+	http.HandleFunc("/v1/config/waitapplied", waitConfigApplied)
 	log.Printf("Starting...")
 	log.Fatal(http.ListenAndServe(":8000", nil))
 }
