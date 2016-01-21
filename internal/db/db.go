@@ -4,14 +4,15 @@ import (
 	"fmt"
 
 	r "github.com/dancannon/gorethink"
-	"github.com/rethinkdb/fusion-ops/internal/api"
 )
 
 type DB struct {
 	session *r.Session
 }
 
-var configs = r.DB("test").Table("configs")
+var (
+	configs = r.DB("test").Table("configs")
+)
 
 func New() (*DB, error) {
 	session, err := r.Connect(r.ConnectOpts{
@@ -26,38 +27,51 @@ func New() (*DB, error) {
 	return &DB{session}, nil
 }
 
-func setConfigError(name string) error {
-	return fmt.Errorf("internal error: unable to set config `%s`", name)
+func setBasicError(typeName string, objectName string) error {
+	return fmt.Errorf("internal error: unable to set %v `%v`", typeName, objectName)
 }
 
-func getConfigError(name string) error {
-	return fmt.Errorf("internal error: unable to get config `%s`", name)
+func getBasicError(typeName string, name string) error {
+	return fmt.Errorf("internal error: unable to get %v `%s`", typeName, name)
 }
 
-func (d *DB) SetConfig(c *api.Config) error {
-	res, err := configs.Insert(c, r.InsertOpts{Conflict: "replace"}).RunWrite(d.session)
+func (d *DB) SetConfig(c *Config) error {
+	return d.setBasicType(configs, "config", c.Name, c)
+}
+
+func (d *DB) GetConfig(name string) (*Config, error) {
+	var c Config
+	err := d.getBasicType(configs, "config", name, &c)
+	return &c, err
+}
+
+func runOne(query r.Term, session *r.Session, out interface{}) error {
+	cur, err := query.Run(session)
 	if err != nil {
-		// RSI: log
-		return setConfigError(c.Name)
+		return err
 	}
-	if res.Inserted+res.Unchanged+res.Replaced != 1 {
-		// RSI: serious log
-		return setConfigError(c.Name)
+	return cur.One(out)
+}
+
+func (d *DB) getBasicType(table r.Term, typeName string, id string, i interface{}) error {
+	err := runOne(table.Get(id), d.session, i)
+	if err == r.ErrEmptyResult {
+		return fmt.Errorf("%s `%s` does not exist", typeName, id)
+	} else if err != nil {
+		return getBasicError(typeName, id)
 	}
 	return nil
 }
 
-func (d *DB) GetConfig(name string) (*api.Config, error) {
-	res, err := configs.Get(name).Run(d.session)
+func (d *DB) setBasicType(table r.Term, typeName string, id string, i interface{}) error {
+	res, err := table.Insert(i, r.InsertOpts{Conflict: "update"}).RunWrite(d.session)
 	if err != nil {
-		return nil, getConfigError(name)
+		// RSI: log
+		return setBasicError(typeName, id)
 	}
-	var c api.Config
-	err = res.One(&c)
-	if err == r.ErrEmptyResult {
-		return nil, fmt.Errorf("config `%s` does not exist", name)
-	} else if err != nil {
-		return nil, getConfigError(name)
+	if res.Inserted+res.Unchanged+res.Replaced != 1 {
+		// RSI: serious log
+		return setBasicError(typeName, id)
 	}
-	return &c, nil
+	return nil
 }
