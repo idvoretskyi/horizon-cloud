@@ -6,6 +6,8 @@ import (
 	"os/exec"
 )
 
+// KeyScan scans the given host for its host keys and returns them as a list of
+// strings, each one of which represents a line from a known_hosts file.
 func KeyScan(host string) ([]string, error) {
 	var buf bytes.Buffer
 
