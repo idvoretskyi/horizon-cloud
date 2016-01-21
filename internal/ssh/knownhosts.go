@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 )
 
 // A KnownHosts object represents a known_hosts file stored in a temporary file
@@ -20,6 +21,8 @@ func NewKnownHosts(lines []string) (*KnownHosts, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	runtime.SetFinalizer(kh, func(kh *KnownHosts) { kh.Close() })
 
 	return kh, nil
 }
@@ -41,5 +44,11 @@ func (kh *KnownHosts) open() error {
 
 // Close cleans up the temporary file used by the KnownHosts object.
 func (kh *KnownHosts) Close() error {
-	return os.Remove(kh.Filename)
+	if kh.Filename == "" {
+		// already closed
+		return nil
+	}
+	err := os.Remove(kh.Filename)
+	kh.Filename = ""
+	return err
 }
