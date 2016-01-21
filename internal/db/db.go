@@ -20,10 +20,11 @@ var (
 
 func New() (*DB, error) {
 	session, err := r.Connect(r.ConnectOpts{
-		Address:  "localhost:28015",
-		Database: "test",
-		MaxIdle:  10,
-		MaxOpen:  10,
+		Address:           "localhost:28015",
+		Database:          "test",
+		MaxIdle:           10,
+		MaxOpen:           10,
+		HostDecayDuration: time.Second * 10,
 	})
 	if err != nil {
 		return nil, err
