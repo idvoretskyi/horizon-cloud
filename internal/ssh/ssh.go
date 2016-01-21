@@ -38,14 +38,24 @@ func New(opts Options) *Client {
 }
 
 // RunCommand runs the given command as a shell command on the remote host.
+//
+// It passes ssh's stdout and stderr to the Go process's stdout and stderr.
 func (c *Client) RunCommand(cmd string) error {
+	return runPassthrough(c.Command(cmd))
+}
+
+// Command returns an *exec.Cmd that, when executed, will run ssh with the
+// appropriate arguments to run the given shell command remotely.
+func (c *Client) Command(cmd string) *exec.Cmd {
 	args := c.sshArgs()
 	args = append(args, c.opts.Host, cmd)
-	return runPassthrough(exec.Command("ssh", args...))
+	return exec.Command("ssh", args...)
 }
 
 // RsyncTo runs rsync to copy from the given local source to the given remote
 // destination.
+//
+// It passes rsync's stdout and stderr to the Go process's stdout and stderr.
 func (c *Client) RsyncTo(src, dst string) error {
 	cmd := exec.Command(
 		"rsync",
@@ -58,6 +68,8 @@ func (c *Client) RsyncTo(src, dst string) error {
 
 // RsyncFrom runs rsync to copy from the given remote source to the given local
 // destination.
+//
+// It passes rsync's stdout and stderr to the Go process's stdout and stderr.
 func (c *Client) RsyncFrom(src, dst string) error {
 	cmd := exec.Command(
 		"rsync",
