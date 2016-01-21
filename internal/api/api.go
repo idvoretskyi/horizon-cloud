@@ -16,6 +16,7 @@ type Target struct {
 
 type Config struct {
 	Name         string `gorethink:"id"`
+	Version      string
 	NumServers   int
 	InstanceType string
 	PublicSSHKey string
