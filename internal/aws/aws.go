@@ -12,12 +12,14 @@ import (
 )
 
 type AWS struct {
-	EC2 *ec2.EC2
+	EC2     *ec2.EC2
+	Cluster string
 }
 
-func New() *AWS {
+func New(cluster string) *AWS {
 	return &AWS{
-		EC2: ec2.New(session.New(&aws.Config{Region: aws.String("us-east-1")})),
+		EC2:     ec2.New(session.New(&aws.Config{Region: aws.String("us-east-1")})),
+		Cluster: cluster,
 	}
 }
 
@@ -26,7 +28,7 @@ func (a *AWS) ListServers() ([]*Server, error) {
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
 				Name:   aws.String("tag:fusion-cluster"),
-				Values: []*string{aws.String("psuedocluster")}, // TODO
+				Values: []*string{aws.String(a.Cluster)},
 			},
 		},
 	})
@@ -104,16 +106,20 @@ func (a *AWS) StatServer(id string) (*Server, error) {
 	return out, nil
 }
 
-func (a *AWS) StartServer(instancetype string) (*Server, error) {
+func (a *AWS) StartServer(instancetype string, ami string) (*Server, error) {
 	log.Printf("Starting instance (type = %v)", instancetype)
+
 	runResp, err := a.EC2.RunInstances(&ec2.RunInstancesInput{
 		InstanceType: &instancetype,
-		KeyName:      aws.String("fusiondev"),    // RSI
-		ImageId:      aws.String("ami-fc5e7594"), // TODO: lookup table
+		KeyName:      aws.String("fusiondev"), // RSI
+		ImageId:      aws.String(ami),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		// TODO: VPC
-		// TODO: appropriate security group
+		SecurityGroupIds: []*string{ // TODO
+			aws.String("sg-a7be25de"), // ssh_ping
+			aws.String("sg-a56810dc"), // http(s)
+		},
+		SubnetId: aws.String("subnet-4dc43067"),
 	})
 	if err != nil {
 		return nil, err
@@ -138,7 +144,7 @@ func (a *AWS) StartServer(instancetype string) (*Server, error) {
 		Tags: []*ec2.Tag{
 			&ec2.Tag{
 				Key:   aws.String("fusion-cluster"),
-				Value: aws.String("psuedocluster"), // TODO
+				Value: aws.String(a.Cluster),
 			},
 		},
 	})
