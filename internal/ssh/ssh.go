@@ -12,16 +12,27 @@ type Client struct {
 	opts Options
 }
 
+// Options holds parameters for a Client.
 type Options struct {
-	Host         string
-	User         string
-	KnownHosts   *KnownHosts
+	// Host should be set to the hostname of the server to talk to.
+	Host string
+
+	// User should be set to the username desired. If not set (equal to ""),
+	// it defaults to the username of the currently running process.
+	User string
+
+	// KnownHosts will be passed to ssh as the known_hosts file. If nil, the
+	// user's known_hosts file is used.
+	//
+	// It must not be closed while the Client is in use.
+	KnownHosts *KnownHosts
+
+	// IdentityFile will be passed as the -i option to ssh if set. If not set,
+	// the user's identities will be used.
 	IdentityFile string
 }
 
-// New constructs a new Client pointing at the given host and username. If
-// KnownHosts is non-nil, the ssh command used will use it as a known_hosts
-// file.
+// New constructs a new Client pointing at the given host.
 func New(opts Options) *Client {
 	return &Client{opts: opts}
 }
