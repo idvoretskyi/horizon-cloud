@@ -2,26 +2,20 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/fusion-ops/internal/api"
-	awsp "github.com/rethinkdb/fusion-ops/internal/aws"
 	"github.com/rethinkdb/fusion-ops/internal/db"
 )
-
-func keepIncludes() {
-	spew.Dump("fuck you go")
-}
 
 // RSI: find a way to figure out which fields were parsed and which
 // were defaulted so that we can error if we get sent incomplete
 // messages.
 
 var rdb *db.DB
-var aws *awsp.AWS
 
 type validator interface {
 	Validate() error
@@ -39,18 +33,41 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
+type applyConfigRequest struct {
+	Config api.Config
+	Ready  <-chan struct{}
+	DoIt   bool
+}
+
 func setConfig(rw http.ResponseWriter, req *http.Request) {
 	var c api.Config
 	if !decode(rw, req.Body, &c) {
 		return
 	}
 
-	if err := rdb.SetConfig(&c); err != nil {
+	ready := make(chan struct{})
+	defer close(ready)
+
+	r := &applyConfigRequest{
+		Config: c,
+		Ready:  ready,
+	}
+
+	select {
+	case applyConfigCh <- r:
+	default:
+		writeJSONError(rw, http.StatusInternalServerError,
+			errors.New("too many pending configuration changes"))
+		return
+	}
+
+	if err := rdb.SetConfig(&db.Config{Config: c}); err != nil {
 		writeJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
-	// Do AWS configuration
+	r.DoIt = true
+
 	writeJSON(rw, http.StatusOK, c)
 }
 
@@ -68,26 +85,27 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	writeJSON(rw, http.StatusOK, api.GetConfigResp{
-		Config: *config,
+		Config: config.Config,
 	})
+}
+
+func getStateBlocking(rw http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
 	log.SetFlags(log.Lshortfile)
 
-	aws = awsp.New()
-	resp, err := aws.EC2.DescribeInstances(nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	spew.Dump(resp)
-
+	var err error
 	rdb, err = db.New()
 	if err != nil {
 		log.Fatal("unable to connect to RethinkDB: ", err)
 	}
+
+	// RSI: check for instances partially started
+
 	http.HandleFunc("/v1/config/set", setConfig)
 	http.HandleFunc("/v1/config/get", getConfig)
+	http.HandleFunc("/v1/state/getBlocking", getStateBlocking)
 	log.Printf("Starting...")
 	log.Fatal(http.ListenAndServe(":8000", nil))
 }
