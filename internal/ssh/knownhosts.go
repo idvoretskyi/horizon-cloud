@@ -22,7 +22,7 @@ func NewKnownHosts(lines []string) (*KnownHosts, error) {
 		return nil, err
 	}
 
-	runtime.SetFinalizer(kh, func(kh *KnownHosts) { kh.Close() })
+	runtime.SetFinalizer(kh, func(kh *KnownHosts) { _ = kh.Close() })
 
 	return kh, nil
 }
