@@ -22,7 +22,9 @@ func KeyScan(host string) ([]string, error) {
 	var out []string
 	for _, line := range bytes.Split(buf.Bytes(), []byte{'\n'}) {
 		line = bytes.TrimSpace(line)
-		out = append(out, string(line))
+		if len(line) > 0 {
+			out = append(out, string(line))
+		}
 	}
 
 	return out, nil
