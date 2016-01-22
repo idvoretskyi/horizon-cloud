@@ -86,7 +86,6 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 
 	writeJSON(rw, http.StatusOK, api.GetConfigResp{
 		Config: config.Config,
-		// TODO: Target
 	})
 }
 

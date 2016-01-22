@@ -7,11 +7,11 @@ import (
 )
 
 type Target struct {
-	Hostname    string
-	Fingerprint string
-	Username    string
-	DeployDir   string
-	DeployCmd   string
+	Hostname     string
+	Fingerprints []string
+	Username     string
+	DeployDir    string
+	DeployCmd    string
 }
 
 type Config struct {
@@ -60,14 +60,6 @@ func (c *Config) Validate() error {
 
 // RSI: documentation
 
-type CreateResp struct {
-	Target Target
-}
-
-type ReconfigResp struct {
-	Target Target
-}
-
 type GetConfigReq struct {
 	Name string
 }
@@ -78,7 +70,6 @@ func (gc *GetConfigReq) Validate() error {
 
 type GetConfigResp struct {
 	Config Config
-	Target Target
 }
 
 type WaitConfigAppliedReq struct {
