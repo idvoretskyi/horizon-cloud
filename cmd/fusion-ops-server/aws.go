@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/rethinkdb/fusion-ops/internal/api"
@@ -13,7 +15,7 @@ import (
 
 var applyConfigCh = make(chan *applyConfigRequest, 8)
 
-var fusionSeedAMI = "ami-50def93a"
+var fusionSeedAMI = "ami-b7f0d1dd"
 
 func init() {
 	go applyConfigWorker()
@@ -38,6 +40,14 @@ func applyConfig(c api.Config) {
 		// RSI: figure out how to tell the user this update will never happen
 		log.Printf("Couldn't get instance list: %v", err)
 	}
+
+	filtered := make([]*aws.Server, 0, len(servers))
+	for _, srv := range servers {
+		if srv.State == "running" {
+			filtered = append(filtered, srv)
+		}
+	}
+	servers = filtered
 
 	if len(servers) == 0 {
 		srv, err := cluster.StartServer(c.InstanceType, fusionSeedAMI)
@@ -80,7 +90,17 @@ func applyConfig(c api.Config) {
 				// TODO: IdentityFile
 			})
 
-			err = client.RunCommand("sudo rm -f /home/*/.*history /root/.*history")
+			err = client.RsyncTo("instance-scripts/", "instance-scripts/")
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			cmd := client.Command("sudo ./instance-scripts/post-create")
+			cmd.Stdin = strings.NewReader(c.PublicSSHKey)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
 			if err != nil {
 				errs <- err
 				return
