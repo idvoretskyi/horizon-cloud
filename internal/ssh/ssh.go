@@ -60,6 +60,7 @@ func (c *Client) RsyncTo(src, dst string) error {
 	cmd := exec.Command(
 		"rsync",
 		"-avP",
+		"--delete",
 		"-e", c.sshInvocation(),
 		src,
 		c.opts.Host+":"+dst)
@@ -74,6 +75,7 @@ func (c *Client) RsyncFrom(src, dst string) error {
 	cmd := exec.Command(
 		"rsync",
 		"-avP",
+		"--delete",
 		"-e", c.sshInvocation(),
 		c.opts.Host+":"+src,
 		dst)
