@@ -121,9 +121,15 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	target, err := configToTarget(config)
+	if err != nil {
+		writeJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+
 	writeJSON(rw, http.StatusOK, api.WaitConfigAppliedResp{
 		Config: config.Config,
-		// TODO: Target
+		Target: *target,
 	})
 }
 

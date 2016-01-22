@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 	"strings"
@@ -39,6 +40,7 @@ func applyConfig(c api.Config) {
 	if err != nil {
 		// RSI: figure out how to tell the user this update will never happen
 		log.Printf("Couldn't get instance list: %v", err)
+		return
 	}
 
 	filtered := make([]*aws.Server, 0, len(servers))
@@ -130,7 +132,44 @@ func applyConfig(c api.Config) {
 	})
 	if err != nil {
 		log.Printf("Couldn't set config version in db after application: %v", err)
+		return
 	}
 
 	log.Printf("it worked!")
+}
+
+func configToTarget(conf *db.Config) (*api.Target, error) {
+	cluster := aws.New(conf.Name)
+
+	servers, err := cluster.ListServers()
+	if err != nil {
+		return nil, err
+	}
+
+	var chosen *aws.Server
+	for _, srv := range servers {
+		if srv.State != "running" {
+			continue
+		}
+
+		if chosen == nil || chosen.PublicIP < srv.PublicIP {
+			chosen = srv
+		}
+	}
+	if chosen == nil {
+		return nil, errors.New("no applicable servers")
+	}
+
+	keys, err := ssh.KeyScan(chosen.PublicIP)
+	if err != nil {
+		return nil, errors.New("couldn't get public keys from server")
+	}
+
+	return &api.Target{
+		Hostname:     chosen.PublicIP,
+		Fingerprints: keys,
+		Username:     "fusion",
+		DeployDir:    "deploy/$version",
+		DeployCmd:    "./post-deploy $version",
+	}, nil
 }
