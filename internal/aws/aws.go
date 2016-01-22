@@ -11,6 +11,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
+type Server struct {
+	InstanceID string
+
+	Started      time.Time
+	State        string
+	StateReason  string
+	InstanceType string
+	PublicIP     string
+	PrivateIP    string
+}
+
 type AWS struct {
 	EC2     *ec2.EC2
 	Cluster string
@@ -201,15 +212,4 @@ func (a *AWS) StopServer(instanceid string) error {
 	// TODO: consider validating response
 
 	return err
-}
-
-type Server struct {
-	InstanceID string
-
-	Started      time.Time
-	State        string
-	StateReason  string
-	InstanceType string
-	PublicIP     string
-	PrivateIP    string
 }
