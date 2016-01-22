@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+VERSION="$1"
+
+if [ "$VERSION" = "" ]; then
+    echo "Usage: $0 version"
+    exit 1
+fi
+
+if [ ! -e ~/deploy/"$VERSION" ]; then
+    echo "Version $VERSION does not exist in ~/deploy"
+    exit 1
+fi
+
+ln -nsf ~/deploy/"$VERSION" ~/deploy/current
