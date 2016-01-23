@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 type Target struct {
@@ -93,8 +96,47 @@ type WaitConfigAppliedResp struct {
 	Target Target
 }
 
-type Resp struct {
+type resp struct {
 	Success bool
-	Error   string          `json:",omitempty"`
-	Content json.RawMessage `json:",omitempty"`
+	Error   string           `json:",omitempty"`
+	Content *json.RawMessage `json:",omitempty"`
+}
+
+func WriteJSON(rw http.ResponseWriter, code int, i interface{}) {
+	// RSI: log errors from writeJSON.
+	rw.Header().Set("Content-Type", "application/json;charset=utf-8")
+	rw.WriteHeader(code)
+	buf, _ := json.Marshal(i)
+	spew.Dump(buf)
+	json.NewEncoder(rw).Encode(i)
+}
+
+func WriteJSONError(rw http.ResponseWriter, code int, err error) {
+	WriteJSON(rw, code, resp{
+		Success: false,
+		Error:   err.Error(),
+	})
+}
+
+func WriteJSONResp(rw http.ResponseWriter, code int, i interface{}) {
+	r := resp{Success: true}
+	b, err := json.Marshal(i)
+	if err != nil {
+		panic(err)
+	}
+	rm := json.RawMessage(b)
+	r.Content = &rm
+	spew.Dump(r)
+	WriteJSON(rw, code, r)
+}
+
+func ReadJSONResp(hr *http.Response, i interface{}) error {
+	var resp resp
+	json.NewDecoder(hr.Body).Decode(&resp)
+	spew.Dump(resp)
+	if !resp.Success || hr.StatusCode != http.StatusOK {
+		return fmt.Errorf("server error (%s): %s", hr.Status, resp.Error)
+	}
+	json.Unmarshal(*resp.Content, i)
+	return nil
 }

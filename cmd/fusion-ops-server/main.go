@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/fusion-ops/internal/api"
 	"github.com/rethinkdb/fusion-ops/internal/db"
 )
@@ -23,11 +24,11 @@ type validator interface {
 
 func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	if err := json.NewDecoder(r).Decode(body); err != nil {
-		writeJSONError(rw, http.StatusBadRequest, err)
+		api.WriteJSONError(rw, http.StatusBadRequest, err)
 		return false
 	}
 	if err := body.Validate(); err != nil {
-		writeJSONError(rw, http.StatusBadRequest, err)
+		api.WriteJSONError(rw, http.StatusBadRequest, err)
 		return false
 	}
 	return true
@@ -45,13 +46,14 @@ func setConfig(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err := rdb.SetConfig(&db.Config{Config: c}); err != nil {
-		writeJSONError(rw, http.StatusInternalServerError, err)
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(rw, http.StatusOK, c)
+	api.WriteJSON(rw, http.StatusOK, c)
 }
 
 func getConfig(rw http.ResponseWriter, req *http.Request) {
+	spew.Dump("getConfig")
 	var gc api.GetConfigReq
 	if !decode(rw, req.Body, &gc) {
 		return
@@ -60,11 +62,11 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	// RSI: don't let people read other people's configs.
 	config, err := rdb.GetConfig(gc.Name)
 	if err != nil {
-		writeJSONError(rw, http.StatusInternalServerError, err)
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
-	writeJSON(rw, http.StatusOK, api.GetConfigResp{
+	api.WriteJSONResp(rw, http.StatusOK, api.GetConfigResp{
 		Config: config.Config,
 	})
 }
@@ -97,17 +99,17 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 
 	config, err := rdb.WaitConfigApplied(wca.Name, wca.Version, cancel)
 	if err != nil {
-		writeJSONError(rw, http.StatusInternalServerError, err)
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
 	target, err := configToTarget(config)
 	if err != nil {
-		writeJSONError(rw, http.StatusInternalServerError, err)
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
-	writeJSON(rw, http.StatusOK, api.WaitConfigAppliedResp{
+	api.WriteJSON(rw, http.StatusOK, api.WaitConfigAppliedResp{
 		Config: config.Config,
 		Target: *target,
 	})

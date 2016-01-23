@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/rethinkdb/fusion-ops/internal/api"
 )
 
 func autoFindName() string {
@@ -61,6 +64,34 @@ func ensureKey() {
 	}
 }
 
+// RSI: we need a domain name.
+var server = "localhost:8000"
+
+func getConfig(name string) (*api.Config, error) {
+	req := api.GetConfigReq{
+		Name:         name,
+		EnsureExists: false, // RSI: update
+	}
+	buf, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	// RSI: use https.
+	addr := "http://" + server + "/v1/config/get"
+	var resp *http.Response
+	spew.Dump(1)
+	resp, err = http.Post(addr, "application/json", bytes.NewReader(buf))
+	spew.Dump(2)
+	if err != nil {
+		return nil, err
+	}
+	var config api.GetConfigResp
+	if err = api.ReadJSONResp(resp, &config); err != nil {
+		return nil, err
+	}
+	return &config.Config, nil
+}
+
 func main() {
 	log.SetFlags(log.Lshortfile)
 	if len(os.Args) < 2 {
@@ -77,6 +108,11 @@ func main() {
 		}
 		spew.Dump(name)
 		ensureKey()
+		conf, err := getConfig(name)
+		if err != nil {
+			log.Fatalf("failed to deploy: %s", err)
+		}
+		spew.Dump(conf)
 	default:
 		log.Fatalf("Unrecognized subcommand `%s`.", os.Args[1])
 	}
