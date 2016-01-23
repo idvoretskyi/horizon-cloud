@@ -15,11 +15,11 @@ type Target struct {
 }
 
 type Config struct {
-	Name         string `gorethink:"id"`
-	Version      string
-	NumServers   int
-	InstanceType string
-	PublicSSHKey string
+	Name         string `gorethink:"id,omitempty"`
+	Version      string `gorethink:",omitempty"`
+	NumServers   int    `gorethink:",omitempty"`
+	InstanceType string `gorethink:",omitempty"`
+	PublicSSHKey string `gorethink:",omitempty"`
 }
 
 func ValidateName(name string) error {
@@ -61,7 +61,8 @@ func (c *Config) Validate() error {
 // RSI: documentation
 
 type GetConfigReq struct {
-	Name string
+	Name         string
+	EnsureExists bool
 }
 
 func (gc *GetConfigReq) Validate() error {

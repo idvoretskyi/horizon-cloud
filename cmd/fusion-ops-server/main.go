@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 // were defaulted so that we can error if we get sent incomplete
 // messages.
 
+// RSI: make this non-global.
 var rdb *db.DB
 
 type validator interface {
@@ -44,30 +44,10 @@ func setConfig(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &c) {
 		return
 	}
-
-	ready := make(chan struct{})
-	defer close(ready)
-
-	r := &applyConfigRequest{
-		Config: c,
-		Ready:  ready,
-	}
-
-	select {
-	case applyConfigCh <- r:
-	default:
-		writeJSONError(rw, http.StatusInternalServerError,
-			errors.New("too many pending configuration changes"))
-		return
-	}
-
 	if err := rdb.SetConfig(&db.Config{Config: c}); err != nil {
 		writeJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-
-	r.DoIt = true
-
 	writeJSON(rw, http.StatusOK, c)
 }
 
@@ -141,8 +121,7 @@ func main() {
 	if err != nil {
 		log.Fatal("unable to connect to RethinkDB: ", err)
 	}
-
-	// RSI: check for instances partially started
+	go configSync(rdb)
 
 	http.HandleFunc("/v1/config/set", setConfig)
 	http.HandleFunc("/v1/config/get", getConfig)

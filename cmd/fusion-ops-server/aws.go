@@ -14,33 +14,16 @@ import (
 	"github.com/rethinkdb/fusion-ops/internal/util"
 )
 
-var applyConfigCh = make(chan *applyConfigRequest, 8)
-
 var fusionSeedAMI = "ami-b7f0d1dd"
 
-func init() {
-	go applyConfigWorker()
-}
-
-func applyConfigWorker() {
-	for req := range applyConfigCh {
-		<-req.Ready
-		if !req.DoIt {
-			continue
-		}
-
-		applyConfig(req.Config)
-	}
-}
-
-func applyConfig(c api.Config) {
+func applyConfig(c api.Config) bool {
 	cluster := aws.New(c.Name)
 
 	servers, err := cluster.ListServers()
 	if err != nil {
 		// RSI: figure out how to tell the user this update will never happen
 		log.Printf("Couldn't get instance list: %v", err)
-		return
+		return false
 	}
 
 	filtered := make([]*aws.Server, 0, len(servers))
@@ -56,14 +39,14 @@ func applyConfig(c api.Config) {
 		if err != nil {
 			// RSI as above
 			log.Printf("Couldn't start server: %v", err)
-			return
+			return false
 		}
 
 		err = util.WaitConnectable("tcp", srv.PublicIP+":22", time.Minute)
 		if err != nil {
 			log.Printf("Server %v never became accessible over ssh: %v",
 				srv.InstanceID, err)
-			return
+			return false
 		}
 
 		servers = append(servers, srv)
@@ -120,22 +103,7 @@ func applyConfig(c api.Config) {
 			worked = false
 		}
 	}
-
-	if !worked {
-		log.Printf("Didn't initialize, skipping config commit")
-		return
-	}
-
-	err = rdb.SetConfig(&db.Config{
-		Config:         c,
-		AppliedVersion: c.Version,
-	})
-	if err != nil {
-		log.Printf("Couldn't set config version in db after application: %v", err)
-		return
-	}
-
-	log.Printf("it worked!")
+	return worked
 }
 
 func configToTarget(conf *db.Config) (*api.Target, error) {

@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	r "github.com/dancannon/gorethink"
@@ -50,7 +51,36 @@ func (d *DB) GetConfig(name string) (*Config, error) {
 	return &c, err
 }
 
-func (d *DB) WaitConfigApplied(name string, version string, cancel <-chan struct{}) (*Config, error) {
+func (d *DB) configChangesLoop(out chan<- *Config) {
+	query := configs.Changes(r.ChangesOpts{IncludeInitial: true})
+	type change struct {
+		NewVal *Config `gorethink:"new_val"`
+	}
+	for {
+		ch := make(chan change)
+		cur, err := query.Run(d.session)
+		if err != nil {
+			// RSI: serious log
+			log.Printf("SERIOUS FSCKING PROBLEM: %s", err)
+			time.Sleep(time.Second * 5)
+			continue
+		}
+		cur.Listen(ch)
+		for el := range ch {
+			out <- el.NewVal
+		}
+		err = cur.Err()
+		log.Printf("Channel closed, retrying: %s", err)
+	}
+}
+
+func (d *DB) ConfigChanges(out chan<- *Config) {
+	go d.configChangesLoop(out)
+}
+
+func (d *DB) WaitConfigApplied(
+	name string, version string, cancel <-chan struct{}) (*Config, error) {
+
 	query := configs.Get(name).Changes(r.ChangesOpts{IncludeInitial: true})
 	cur, err := query.Run(d.session)
 	if err != nil {
