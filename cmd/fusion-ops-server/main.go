@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"io"
 	"log"
 	"net/http"
@@ -118,6 +119,9 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 func main() {
 	log.SetFlags(log.Lshortfile)
 
+	listenAddr := flag.String("listen", ":8000", "HTTP listening address")
+	flag.Parse()
+
 	var err error
 	rdb, err = db.New()
 	if err != nil {
@@ -129,5 +133,5 @@ func main() {
 	http.HandleFunc("/v1/config/get", getConfig)
 	http.HandleFunc("/v1/config/waitapplied", waitConfigApplied)
 	log.Printf("Starting...")
-	log.Fatal(http.ListenAndServe(":8000", nil))
+	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }
