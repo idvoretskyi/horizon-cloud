@@ -7,6 +7,7 @@ import (
 	"time"
 
 	r "github.com/dancannon/gorethink"
+	"github.com/rethinkdb/fusion-ops/internal/api"
 )
 
 type DB struct {
@@ -49,6 +50,41 @@ func (d *DB) GetConfig(name string) (*Config, error) {
 	var c Config
 	err := d.getBasicType(configs, "config", name, &c)
 	return &c, err
+}
+
+func (d *DB) GetOrSetDefaultConfig(name string) (*Config, error) {
+	var out struct {
+		Changes []struct {
+			NewVal *Config `gorethink:"new_val"`
+		} `gorethink:"changes"`
+		Errors  int `gorethink:"errors"`
+		Updated int `gorethink:"inserted"`
+	}
+
+	defaultConfig := &Config{
+		Config: api.Config{
+			Name:         name,
+			NumServers:   1,
+			InstanceType: "t2.micro",
+		},
+	}
+
+	// By inserting with return_changes=always, we get back the original row
+	// if the insert fails due to a primary key conflict as well as on success.
+	query := configs.Insert(defaultConfig, r.InsertOpts{ReturnChanges: "always"})
+
+	err := runOne(query, d.session, &out)
+	if err != nil {
+		log.Printf("Couldn't run insert query: %v", err)
+		return nil, getBasicError("config", name)
+	}
+
+	if len(out.Changes) != 1 || out.Changes[0].NewVal == nil || out.Errors+out.Updated != 1 {
+		// RSI log
+		return nil, getBasicError("config", name)
+	}
+
+	return out.Changes[0].NewVal, nil
 }
 
 func (d *DB) configChangesLoop(out chan<- *Config) {

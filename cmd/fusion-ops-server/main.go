@@ -61,7 +61,14 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// RSI: don't let people read other people's configs.
-	config, err := rdb.GetConfig(gc.Name)
+
+	var config *db.Config
+	var err error
+	if gc.EnsureExists {
+		config, err = rdb.GetOrSetDefaultConfig(gc.Name)
+	} else {
+		config, err = rdb.GetConfig(gc.Name)
+	}
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
