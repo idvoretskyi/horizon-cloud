@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/fusion-ops/internal/api"
 	"github.com/rethinkdb/fusion-ops/internal/db"
 )
@@ -54,7 +53,6 @@ func setConfig(rw http.ResponseWriter, req *http.Request) {
 }
 
 func getConfig(rw http.ResponseWriter, req *http.Request) {
-	spew.Dump("getConfig")
 	var gc api.GetConfigReq
 	if !decode(rw, req.Body, &gc) {
 		return

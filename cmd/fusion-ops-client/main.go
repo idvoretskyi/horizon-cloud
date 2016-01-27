@@ -79,9 +79,7 @@ func getConfig(name string) (*api.Config, error) {
 	// RSI: use https.
 	addr := "http://" + server + "/v1/config/get"
 	var resp *http.Response
-	spew.Dump(1)
 	resp, err = http.Post(addr, "application/json", bytes.NewReader(buf))
-	spew.Dump(2)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/fusion-ops/internal/api"
 	"github.com/rethinkdb/fusion-ops/internal/db"
 )
@@ -13,7 +12,6 @@ func configSync(rdb *db.DB) {
 	ch := make(chan *db.Config)
 	rdb.ConfigChanges(ch)
 	for conf := range ch {
-		spew.Dump(conf)
 		if conf.Version == conf.AppliedVersion {
 			continue
 		}

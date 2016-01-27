@@ -17,6 +17,7 @@ import (
 var fusionSeedAMI = "ami-b7f0d1dd"
 
 func applyConfig(c api.Config) bool {
+	log.Printf("Applying config %s (version %s).", c.Name, c.Version)
 	cluster := aws.New(c.Name)
 
 	servers, err := cluster.ListServers()
