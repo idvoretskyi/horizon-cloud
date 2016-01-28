@@ -7,8 +7,8 @@ import (
 	"github.com/rethinkdb/fusion-ops/internal/db"
 )
 
-// RSI: shut down mid-spinup and see if it recovers.
-func configSync(rdb *db.DB) {
+func configSync(rdb *db.DB, identityFile string) {
+	// RSI: shut down mid-spinup and see if it recovers.
 	ch := make(chan *db.Config)
 	rdb.ConfigChanges(ch)
 	for conf := range ch {
@@ -16,7 +16,7 @@ func configSync(rdb *db.DB) {
 			continue
 		}
 		// RSI: serialize this on a per-user basis instead of globally.
-		worked := applyConfig(conf.Config)
+		worked := applyConfig(conf.Config, identityFile)
 		if !worked {
 			// RSI: report stuff like this to an errors table that users can
 			// read from.

@@ -19,4 +19,4 @@ cat fusiondev.pub ~fusion/.ssh/userkey.pub > ~fusion/.ssh/authorized_keys
 cat fusiondev.pub ~fusion/.ssh/userkey.pub > ~ubuntu/.ssh/authorized_keys
 chown -R fusion:fusion ~fusion/.ssh
 
-mv post-deploy ~fusion
+cp post-deploy ~fusion

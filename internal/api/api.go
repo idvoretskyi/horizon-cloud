@@ -16,11 +16,11 @@ type Target struct {
 }
 
 type Config struct {
-	Name         string `gorethink:"id,omitempty"`
-	Version      string `gorethink:",omitempty"`
-	NumServers   int    `gorethink:",omitempty"`
-	InstanceType string `gorethink:",omitempty"`
-	PublicSSHKey string `gorethink:",omitempty"`
+	Name          string   `gorethink:"id,omitempty"`
+	Version       string   `gorethink:",omitempty"`
+	NumServers    int      `gorethink:",omitempty"`
+	InstanceType  string   `gorethink:",omitempty"`
+	PublicSSHKeys []string `gorethink:",omitempty"`
 }
 
 func ValidateName(name string) error {
@@ -50,20 +50,36 @@ func (c *Config) Validate() error {
 	}
 	// RSI: validate against list of legal instances.
 	if c.InstanceType == "" {
-		return fmt.Errorf("InstanceType `%s` is not legal.", c.InstanceType)
-	}
-	// RSI: consider checking that this is really a key.
-	if c.PublicSSHKey == "" {
-		return errors.New("PublicSSHKey not specified")
+		return fmt.Errorf("InstanceType `%s` is not legal", c.InstanceType)
 	}
 	return nil
 }
 
 // RSI: documentation
 
+type EnsureConfigConnectableReq struct {
+	Name string
+	Key  string
+}
+
+func (r *EnsureConfigConnectableReq) Validate() error {
+	err := ValidateName(r.Name)
+	if err != nil {
+		return err
+	}
+	if r.Key == "" {
+		return fmt.Errorf("Key empty")
+	}
+	// RSI: validate key
+	return nil
+}
+
+type EnsureConfigConnectableResp struct {
+	Config Config
+}
+
 type GetConfigReq struct {
-	Name         string
-	EnsureExists bool
+	Name string
 }
 
 func (gc *GetConfigReq) Validate() error {

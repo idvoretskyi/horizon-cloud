@@ -52,13 +52,12 @@ func (d *DB) GetConfig(name string) (*Config, error) {
 	return &c, err
 }
 
-func (d *DB) GetOrSetDefaultConfig(name string) (*Config, error) {
+func (d *DB) EnsureConfigConnectable(name string, keys []string) (*Config, error) {
 	var out struct {
 		Changes []struct {
 			NewVal *Config `gorethink:"new_val"`
 		} `gorethink:"changes"`
-		Errors  int `gorethink:"errors"`
-		Updated int `gorethink:"inserted"`
+		FirstError string `gorethink:"first_error"`
 	}
 
 	defaultConfig := &Config{
@@ -69,19 +68,27 @@ func (d *DB) GetOrSetDefaultConfig(name string) (*Config, error) {
 		},
 	}
 
-	// By inserting with return_changes=always, we get back the original row
-	// if the insert fails due to a primary key conflict as well as on success.
-	query := configs.Insert(defaultConfig, r.InsertOpts{ReturnChanges: "always"})
+	query := r.UUID().Do(func(uuid r.Term) interface{} {
+		return configs.Get(name).Replace(func(row r.Term) interface{} {
+			return row.Default(defaultConfig).Do(func(x r.Term) interface{} {
+				return x.Merge(map[string]interface{}{
+					"Version": uuid,
+					"PublicSSHKeys": x.AtIndex("PublicSSHKeys").Default(
+						[]string{}).SetUnion(keys),
+				})
+			})
+		}, r.ReplaceOpts{ReturnChanges: "always"})
+	})
 
 	err := runOne(query, d.session, &out)
 	if err != nil {
-		log.Printf("Couldn't run insert query: %v", err)
-		return nil, getBasicError("config", name)
+		log.Printf("Couldn't run EnsureConfigConnectable query: %s", err)
+		return nil, getBasicError("ensureConfigConnectable", name)
 	}
 
-	if len(out.Changes) != 1 || out.Changes[0].NewVal == nil || out.Errors+out.Updated != 1 {
-		// RSI log
-		return nil, getBasicError("config", name)
+	if len(out.Changes) != 1 || out.Changes[0].NewVal == nil {
+		log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
+		return nil, getBasicError("ensureConfigConnectable", name)
 	}
 
 	return out.Changes[0].NewVal, nil
@@ -103,7 +110,11 @@ func (d *DB) configChangesLoop(out chan<- *Config) {
 		}
 		cur.Listen(ch)
 		for el := range ch {
-			out <- el.NewVal
+			if el.NewVal != nil {
+				out <- el.NewVal
+			} else {
+				// RSI: stop things?
+			}
 		}
 		err = cur.Err()
 		log.Printf("Channel closed, retrying: %s", err)

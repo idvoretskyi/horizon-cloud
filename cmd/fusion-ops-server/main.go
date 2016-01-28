@@ -57,22 +57,29 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &gc) {
 		return
 	}
-
 	// RSI: don't let people read other people's configs.
-
-	var config *db.Config
-	var err error
-	if gc.EnsureExists {
-		config, err = rdb.GetOrSetDefaultConfig(gc.Name)
-	} else {
-		config, err = rdb.GetConfig(gc.Name)
-	}
+	config, err := rdb.GetConfig(gc.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-
 	api.WriteJSONResp(rw, http.StatusOK, api.GetConfigResp{
+		Config: config.Config,
+	})
+}
+
+func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
+	var creq api.EnsureConfigConnectableReq
+	if !decode(rw, req.Body, &creq) {
+		return
+	}
+	// RSI: don't let people read other people's configs.
+	config, err := rdb.EnsureConfigConnectable(creq.Name, []string{creq.Key})
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.EnsureConfigConnectableResp{
 		Config: config.Config,
 	})
 }
@@ -125,6 +132,7 @@ func main() {
 	log.SetFlags(log.Lshortfile)
 
 	listenAddr := flag.String("listen", ":8000", "HTTP listening address")
+	identityFile := flag.String("id", "", "location of private ssh key")
 	flag.Parse()
 
 	var err error
@@ -132,11 +140,12 @@ func main() {
 	if err != nil {
 		log.Fatal("unable to connect to RethinkDB: ", err)
 	}
-	go configSync(rdb)
+	go configSync(rdb, *identityFile)
 
 	http.HandleFunc("/v1/config/set", setConfig)
 	http.HandleFunc("/v1/config/get", getConfig)
-	http.HandleFunc("/v1/config/waitapplied", waitConfigApplied)
-	log.Printf("Starting...")
+	http.HandleFunc("/v1/config/ensure_connectable", ensureConfigConnectable)
+	http.HandleFunc("/v1/config/wait_applied", waitConfigApplied)
+	log.Printf("Started.")
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }

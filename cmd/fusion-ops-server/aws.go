@@ -16,8 +16,10 @@ import (
 
 var fusionSeedAMI = "ami-b7f0d1dd"
 
-func applyConfig(c api.Config) bool {
-	log.Printf("Applying config %s (version %s).", c.Name, c.Version)
+func applyConfig(c api.Config, identityFile string) bool {
+	// RSI: make this smart enough to only redeploy keys if that's all that changed.
+	log.Printf("Applying config %s (version %s)...", c.Name, c.Version)
+	defer log.Printf("...finished applying config %s (version %s).", c.Name, c.Version)
 	cluster := aws.New(c.Name)
 
 	servers, err := cluster.ListServers()
@@ -70,10 +72,10 @@ func applyConfig(c api.Config) bool {
 			defer kh.Close()
 
 			client := ssh.New(ssh.Options{
-				Host:       srv.PublicIP,
-				User:       "ubuntu",
-				KnownHosts: kh,
-				// TODO: IdentityFile
+				Host:         srv.PublicIP,
+				User:         "ubuntu",
+				KnownHosts:   kh,
+				IdentityFile: identityFile,
 			})
 
 			err = client.RsyncTo("instance-scripts/", "instance-scripts/")
@@ -83,7 +85,7 @@ func applyConfig(c api.Config) bool {
 			}
 
 			cmd := client.Command("sudo ./instance-scripts/post-create")
-			cmd.Stdin = strings.NewReader(c.PublicSSHKey)
+			cmd.Stdin = strings.NewReader(strings.Join(c.PublicSSHKeys, "\n"))
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			err = cmd.Run()

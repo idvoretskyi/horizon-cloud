@@ -46,7 +46,7 @@ func ensureDir(s string) {
 	}
 }
 
-func ensureKey() {
+func ensureKey() string {
 	f1 := ".fusion/deploy_key"
 	f2 := ".fusion/deploy_key.pub"
 	privMissing := missing(f1)
@@ -62,28 +62,35 @@ func ensureKey() {
 			log.Fatalf("Unable to create new key pair: %s", err)
 		}
 	}
+	res, err := ioutil.ReadFile(f2)
+	if err != nil {
+		log.Fatalf("Unable to read key pair: %s", err)
+	}
+	return string(res)
 }
 
 // RSI: we need a domain name.
 var server = "localhost:8000"
 
-func getConfig(name string) (*api.Config, error) {
-	req := api.GetConfigReq{
-		Name:         name,
-		EnsureExists: false, // RSI: update
+// RSI: split out http logic.
+
+func getConfig(name string, key string) (*api.Config, error) {
+	req := api.EnsureConfigConnectableReq{
+		Name: name,
+		Key:  key,
 	}
 	buf, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 	// RSI: use https.
-	addr := "http://" + server + "/v1/config/get"
+	addr := "http://" + server + "/v1/config/ensure_connectable"
 	var resp *http.Response
 	resp, err = http.Post(addr, "application/json", bytes.NewReader(buf))
 	if err != nil {
 		return nil, err
 	}
-	var config api.GetConfigResp
+	var config api.EnsureConfigConnectableResp
 	if err = api.ReadJSONResp(resp, &config); err != nil {
 		return nil, err
 	}
@@ -105,8 +112,8 @@ func main() {
 			name = autoFindName()
 		}
 		spew.Dump(name)
-		ensureKey()
-		conf, err := getConfig(name)
+		key := ensureKey()
+		conf, err := getConfig(name, key)
 		if err != nil {
 			log.Fatalf("failed to deploy: %s", err)
 		}
