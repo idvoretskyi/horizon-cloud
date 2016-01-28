@@ -140,7 +140,7 @@ func configToTarget(conf *db.Config) (*api.Target, error) {
 		Hostname:     chosen.PublicIP,
 		Fingerprints: keys,
 		Username:     "fusion",
-		DeployDir:    "deploy/$version",
-		DeployCmd:    "./post-deploy $version",
+		DeployDir:    "deploy/$timestamp-$version/",
+		DeployCmd:    `DIR="$timestamp-$version" VERSION="$version" ./post-deploy`,
 	}, nil
 }

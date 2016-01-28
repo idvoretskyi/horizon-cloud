@@ -1,16 +1,23 @@
 #!/bin/sh
 set -e
 
-VERSION="$1"
-
 if [ "$VERSION" = "" ]; then
-    echo "Usage: $0 version"
+    echo "A VERSION must be passed"
     exit 1
 fi
 
-if [ ! -e ~/deploy/"$VERSION" ]; then
-    echo "Version $VERSION does not exist in ~/deploy"
+if [ "$DIR" = "" ]; then
+    echo "A DIR must be passed"
     exit 1
 fi
 
-ln -nsf ~/deploy/"$VERSION" ~/deploy/current
+# RSI: verify VERSION is the latest version
+
+if [ ! -e ~/deploy/"$DIR" ]; then
+    echo "Deploy $DIR does not exist in ~/deploy"
+    exit 1
+fi
+
+# NB: this is atomic
+ln -nsf ~/deploy/"$DIR" ~/deploy/current_new
+mv -T ~/deploy/current_new ~/deploy/current
