@@ -49,7 +49,7 @@ func setConfig(rw http.ResponseWriter, req *http.Request) {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSON(rw, http.StatusOK, c)
+	api.WriteJSONResp(rw, http.StatusOK, c)
 }
 
 func getConfig(rw http.ResponseWriter, req *http.Request) {
@@ -122,7 +122,7 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	api.WriteJSON(rw, http.StatusOK, api.WaitConfigAppliedResp{
+	api.WriteJSONResp(rw, http.StatusOK, api.WaitConfigAppliedResp{
 		Config: config.Config,
 		Target: *target,
 	})

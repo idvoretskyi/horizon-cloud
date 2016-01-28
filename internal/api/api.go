@@ -116,7 +116,7 @@ type resp struct {
 	Content *json.RawMessage `json:",omitempty"`
 }
 
-func WriteJSON(rw http.ResponseWriter, code int, i interface{}) {
+func writeJSON(rw http.ResponseWriter, code int, i interface{}) {
 	// RSI: log errors from writeJSON.
 	rw.Header().Set("Content-Type", "application/json;charset=utf-8")
 	rw.WriteHeader(code)
@@ -124,7 +124,7 @@ func WriteJSON(rw http.ResponseWriter, code int, i interface{}) {
 }
 
 func WriteJSONError(rw http.ResponseWriter, code int, err error) {
-	WriteJSON(rw, code, resp{
+	writeJSON(rw, code, resp{
 		Success: false,
 		Error:   err.Error(),
 	})
@@ -138,12 +138,15 @@ func WriteJSONResp(rw http.ResponseWriter, code int, i interface{}) {
 	}
 	rm := json.RawMessage(b)
 	r.Content = &rm
-	WriteJSON(rw, code, r)
+	writeJSON(rw, code, r)
 }
 
 func ReadJSONResp(hr *http.Response, i interface{}) error {
 	var resp resp
-	json.NewDecoder(hr.Body).Decode(&resp)
+	err := json.NewDecoder(hr.Body).Decode(&resp)
+	if err != nil {
+		return err
+	}
 	if !resp.Success || hr.StatusCode != http.StatusOK {
 		return fmt.Errorf("server error (%s): %s", hr.Status, resp.Error)
 	}
