@@ -6,9 +6,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/fusion-ops/internal/api"
+	"github.com/rethinkdb/fusion-ops/internal/ssh"
 )
 
 func autoFindName() string {
@@ -84,6 +86,7 @@ func main() {
 
 	switch os.Args[1] {
 	case "deploy":
+		// RSI: look for .fusion in an ancestor directory if it's not in cwd
 		ensureDir(".fusion")
 		var name string
 		if len(os.Args) >= 3 {
@@ -92,6 +95,8 @@ func main() {
 			name = autoFindName()
 		}
 		key := ensureKey()
+
+		// RSI: see if we can combine the two client API calls into one
 		resp, err := client.EnsureConfigConnectable(api.EnsureConfigConnectableReq{
 			Name: name,
 			Key:  key,
@@ -103,7 +108,7 @@ func main() {
 		spew.Dump(resp.Config)
 
 		log.Printf("Waiting for cluster to become ready...")
-		_, err = client.WaitConfigApplied(api.WaitConfigAppliedReq{
+		resp2, err := client.WaitConfigApplied(api.WaitConfigAppliedReq{
 			Name:    name,
 			Version: resp.Config.Version,
 		})
@@ -112,7 +117,40 @@ func main() {
 		}
 
 		log.Printf("Syncing project to cluster...")
-		log.Printf("TODO")
+
+		kh, err := ssh.NewKnownHosts(resp2.Target.Fingerprints)
+		if err != nil {
+			log.Fatalf("Failed to create known_hosts file: %v", err)
+		}
+		defer kh.Close() // RSI: shouldn't use Fatalf to have this always trigger
+
+		sshClient := ssh.New(ssh.Options{
+			Host:         resp2.Target.Hostname,
+			User:         resp2.Target.Username,
+			KnownHosts:   kh,
+			IdentityFile: ".fusion/deploy_key", // TODO: don't hardcode this path
+		})
+
+		// RSI: sanity check dist (exists as dir, has index.html file in it)
+
+		vars := map[string]string{
+			"version":   resp.Config.Version,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		}
+		lookupVar := func(s string) string { return vars[s] }
+
+		// RSI: rsync --link-dest current/
+		err = sshClient.RsyncTo("dist/", os.Expand(resp2.Target.DeployDir, lookupVar))
+		if err != nil {
+			log.Fatalf("Couldn't rsync to target: %v", err)
+		}
+
+		err = sshClient.RunCommand(os.Expand(resp2.Target.DeployCmd, lookupVar))
+		if err != nil {
+			log.Fatalf("Couldn't run post-deploy script: %v", err)
+		}
+
+		log.Printf("Deployed to http://%s/", resp2.Target.Hostname)
 
 	default:
 		log.Fatalf("Unrecognized subcommand `%s`.", os.Args[1])
