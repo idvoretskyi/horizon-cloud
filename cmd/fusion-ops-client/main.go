@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 
@@ -70,38 +68,20 @@ func ensureKey() string {
 }
 
 // RSI: we need a domain name.
-var server = "localhost:8000"
-
-// RSI: split out http logic.
-
-func getConfig(name string, key string) (*api.Config, error) {
-	req := api.EnsureConfigConnectableReq{
-		Name: name,
-		Key:  key,
-	}
-	buf, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	// RSI: use https.
-	addr := "http://" + server + "/v1/config/ensure_connectable"
-	var resp *http.Response
-	resp, err = http.Post(addr, "application/json", bytes.NewReader(buf))
-	if err != nil {
-		return nil, err
-	}
-	var config api.EnsureConfigConnectableResp
-	if err = api.ReadJSONResp(resp, &config); err != nil {
-		return nil, err
-	}
-	return &config.Config, nil
-}
+var server = "http://localhost:8000"
 
 func main() {
 	log.SetFlags(log.Lshortfile)
+
 	if len(os.Args) < 2 {
 		log.Fatal("No subcommand specified.")
 	}
+
+	client, err := api.NewClient(server)
+	if err != nil {
+		log.Fatal("Failed to initialize API client: %v", err)
+	}
+
 	switch os.Args[1] {
 	case "deploy":
 		ensureDir(".fusion")
@@ -111,13 +91,29 @@ func main() {
 		} else {
 			name = autoFindName()
 		}
-		spew.Dump(name)
 		key := ensureKey()
-		conf, err := getConfig(name, key)
+		resp, err := client.EnsureConfigConnectable(api.EnsureConfigConnectableReq{
+			Name: name,
+			Key:  key,
+		})
 		if err != nil {
 			log.Fatalf("failed to deploy: %s", err)
 		}
-		spew.Dump(conf)
+		log.Printf("Deploying to cluster:")
+		spew.Dump(resp.Config)
+
+		log.Printf("Waiting for cluster to become ready...")
+		_, err = client.WaitConfigApplied(api.WaitConfigAppliedReq{
+			Name:    name,
+			Version: resp.Config.Version,
+		})
+		if err != nil {
+			log.Fatalf("Failed to wait for cluster: %v", err)
+		}
+
+		log.Printf("Syncing project to cluster...")
+		log.Printf("TODO")
+
 	default:
 		log.Fatalf("Unrecognized subcommand `%s`.", os.Args[1])
 	}
