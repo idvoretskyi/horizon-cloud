@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // A Client is a remote location where commands can be run through SSH and
@@ -67,14 +69,15 @@ func (c *Client) Command(cmd string) *exec.Cmd {
 // destination.
 //
 // It passes rsync's stdout and stderr to the Go process's stdout and stderr.
-func (c *Client) RsyncTo(src, dst string) error {
-	cmd := exec.Command(
-		"rsync",
-		"-avz",
-		"--delete",
-		"-e", c.sshInvocation(),
-		src,
-		c.opts.Host+":"+dst)
+func (c *Client) RsyncTo(src, dst string, linkDest string) error {
+	var args []string
+	args = append(args, "-avz")
+	if linkDest != "" {
+		args = append(args, "--link-dest="+linkDest)
+	}
+	args = append(args, "-e", c.sshInvocation(), src, c.opts.Host+":"+dst)
+	spew.Dump(args)
+	cmd := exec.Command("rsync", args...)
 	return runPassthrough(cmd)
 }
 

@@ -157,8 +157,11 @@ func deployCommand(ctx *commandContext) {
 			}
 			lookupVar := func(s string) string { return vars[s] }
 
-			// RSI: rsync --link-dest current/
-			err := sshClient.RsyncTo("dist/", os.Expand(wca.Target.DeployDir, lookupVar))
+			err := sshClient.RsyncTo(
+				"dist/",
+				os.Expand(wca.Target.DeployDir, lookupVar),
+				"../current/",
+			)
 			if err != nil {
 				return fmt.Errorf("couldn't rsync to target: %v", err)
 			}
