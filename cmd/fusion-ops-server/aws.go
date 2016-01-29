@@ -14,7 +14,7 @@ import (
 	"github.com/rethinkdb/fusion-ops/internal/util"
 )
 
-var fusionSeedAMI = "ami-b7f0d1dd"
+var fusionSeedAMI = "ami-0ec2ef64"
 
 func applyConfig(c api.Config, identityFile string) bool {
 	// RSI: make this smart enough to only redeploy keys if that's all that changed.
