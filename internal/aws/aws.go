@@ -303,7 +303,7 @@ func (a *AWS) CreateImage(instanceID string, imageName string) (string, error) {
 	ami := *resp.ImageId
 
 	started := time.Now()
-	for time.Now().Sub(started) < time.Minute*5 {
+	for time.Now().Sub(started) < time.Minute*15 {
 		time.Sleep(5 * time.Second)
 
 		resp, err := a.EC2.DescribeImages(&ec2.DescribeImagesInput{
