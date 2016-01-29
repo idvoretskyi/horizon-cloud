@@ -37,6 +37,11 @@ func New(opts Options) *Client {
 	return &Client{opts: opts}
 }
 
+// RunInteractive runs an interactive shell.
+func (c *Client) RunInteractive() error {
+	return runPassthroughTwoWay(c.Command(""))
+}
+
 // RunCommand runs the given command as a shell command on the remote host.
 //
 // It passes ssh's stdout and stderr to the Go process's stdout and stderr.
@@ -46,9 +51,15 @@ func (c *Client) RunCommand(cmd string) error {
 
 // Command returns an *exec.Cmd that, when executed, will run ssh with the
 // appropriate arguments to run the given shell command remotely.
+//
+// If the command given is the empty string, the exec.Cmd returned will not
+// specify a command.
 func (c *Client) Command(cmd string) *exec.Cmd {
 	args := c.sshArgs()
-	args = append(args, c.opts.Host, cmd)
+	args = append(args, c.opts.Host)
+	if cmd != "" {
+		args = append(args, cmd)
+	}
 	return exec.Command("ssh", args...)
 }
 
@@ -103,6 +114,14 @@ func (c *Client) sshArgs() []string {
 
 func (c *Client) sshInvocation() string {
 	return "ssh " + ShellEscapeJoin(c.sshArgs())
+}
+
+func runPassthroughTwoWay(cmd *exec.Cmd) error {
+	if cmd.Stdin != nil {
+		return errors.New("runPassthroughTwoWay: command already has stdin set")
+	}
+	cmd.Stdin = os.Stdin
+	return runPassthrough(cmd)
 }
 
 func runPassthrough(cmd *exec.Cmd) error {

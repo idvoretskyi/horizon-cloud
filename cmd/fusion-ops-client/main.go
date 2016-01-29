@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -12,6 +13,41 @@ import (
 	"github.com/rethinkdb/fusion-ops/internal/api"
 	"github.com/rethinkdb/fusion-ops/internal/ssh"
 )
+
+// RSI: we need a domain name.
+var server = "http://localhost:8000"
+
+type commandContext struct {
+	Client            *api.Client
+	ProjectName       string
+	PublicSSHKey      string
+	PrivateSSHKeyPath string
+}
+
+func buildCommandContext() *commandContext {
+	client, err := api.NewClient(server)
+	if err != nil {
+		log.Fatal("Failed to initialize API client: %v", err)
+	}
+
+	var name string
+	if len(os.Args) >= 3 {
+		name = os.Args[2]
+	} else {
+		name = autoFindName()
+	}
+
+	// RSI: look for .fusion in an ancestor directory if it's not in cwd
+	ensureDir(".fusion")
+	key := ensureKey()
+
+	return &commandContext{
+		Client:            client,
+		ProjectName:       name,
+		PublicSSHKey:      key,
+		PrivateSSHKeyPath: ".fusion/deploy_key", // TODO: don't hardcode this path
+	}
+}
 
 func autoFindName() string {
 	data, err := ioutil.ReadFile("package.json")
@@ -69,8 +105,88 @@ func ensureKey() string {
 	return string(res)
 }
 
-// RSI: we need a domain name.
-var server = "http://localhost:8000"
+func withSSHConnection(ctx *commandContext,
+	fn func(*ssh.Client, *api.WaitConfigAppliedResp) error) error {
+
+	// RSI: see if we can combine the two client API calls into one
+	eccResp, err := ctx.Client.EnsureConfigConnectable(api.EnsureConfigConnectableReq{
+		Name: ctx.ProjectName,
+		Key:  ctx.PublicSSHKey,
+	})
+	if err != nil {
+		log.Fatalf("failed to deploy: %s", err)
+	}
+
+	log.Printf("Waiting for cluster to become ready...")
+	wcaResp, err := ctx.Client.WaitConfigApplied(api.WaitConfigAppliedReq{
+		Name:    ctx.ProjectName,
+		Version: eccResp.Config.Version,
+	})
+	if err != nil {
+		log.Fatalf("Failed to wait for cluster: %v", err)
+	}
+
+	kh, err := ssh.NewKnownHosts(wcaResp.Target.Fingerprints)
+	if err != nil {
+		log.Fatalf("Failed to create known_hosts file: %v", err)
+	}
+	defer kh.Close()
+
+	sshClient := ssh.New(ssh.Options{
+		Host:         wcaResp.Target.Hostname,
+		User:         wcaResp.Target.Username,
+		KnownHosts:   kh,
+		IdentityFile: ctx.PrivateSSHKeyPath,
+	})
+
+	return fn(sshClient, wcaResp)
+}
+
+func deployCommand(ctx *commandContext) {
+	// RSI: sanity check dist (exists as dir, has index.html file in it)
+
+	log.Printf("Deploying project...")
+	err := withSSHConnection(ctx,
+		func(sshClient *ssh.Client, wca *api.WaitConfigAppliedResp) error {
+			log.Printf("Deploying to cluster:")
+			spew.Dump(wca)
+
+			vars := map[string]string{
+				"version":   wca.Config.Version,
+				"timestamp": time.Now().UTC().Format(time.RFC3339),
+			}
+			lookupVar := func(s string) string { return vars[s] }
+
+			// RSI: rsync --link-dest current/
+			err := sshClient.RsyncTo("dist/", os.Expand(wca.Target.DeployDir, lookupVar))
+			if err != nil {
+				return fmt.Errorf("couldn't rsync to target: %v", err)
+			}
+
+			err = sshClient.RunCommand(os.Expand(wca.Target.DeployCmd, lookupVar))
+			if err != nil {
+				return fmt.Errorf("couldn't run post-deploy script: %v", err)
+			}
+
+			log.Printf("Deployed to http://%s/", wca.Target.Hostname)
+
+			return nil
+		})
+	if err != nil {
+		log.Fatalf("Failed to deploy: %v", err)
+	}
+}
+
+func sshCommand(ctx *commandContext) {
+	// RSI: this command should not start a new cluster
+	err := withSSHConnection(ctx,
+		func(sshClient *ssh.Client, wca *api.WaitConfigAppliedResp) error {
+			return sshClient.RunInteractive()
+		})
+	if err != nil {
+		log.Fatalf("SSH exited with failure: %v", err)
+	}
+}
 
 func main() {
 	log.SetFlags(log.Lshortfile)
@@ -79,78 +195,13 @@ func main() {
 		log.Fatal("No subcommand specified.")
 	}
 
-	client, err := api.NewClient(server)
-	if err != nil {
-		log.Fatal("Failed to initialize API client: %v", err)
-	}
+	ctx := buildCommandContext()
 
 	switch os.Args[1] {
 	case "deploy":
-		// RSI: look for .fusion in an ancestor directory if it's not in cwd
-		ensureDir(".fusion")
-		var name string
-		if len(os.Args) >= 3 {
-			name = os.Args[2]
-		} else {
-			name = autoFindName()
-		}
-		key := ensureKey()
-
-		// RSI: see if we can combine the two client API calls into one
-		resp, err := client.EnsureConfigConnectable(api.EnsureConfigConnectableReq{
-			Name: name,
-			Key:  key,
-		})
-		if err != nil {
-			log.Fatalf("failed to deploy: %s", err)
-		}
-		log.Printf("Deploying to cluster:")
-		spew.Dump(resp.Config)
-
-		log.Printf("Waiting for cluster to become ready...")
-		resp2, err := client.WaitConfigApplied(api.WaitConfigAppliedReq{
-			Name:    name,
-			Version: resp.Config.Version,
-		})
-		if err != nil {
-			log.Fatalf("Failed to wait for cluster: %v", err)
-		}
-
-		log.Printf("Syncing project to cluster...")
-
-		kh, err := ssh.NewKnownHosts(resp2.Target.Fingerprints)
-		if err != nil {
-			log.Fatalf("Failed to create known_hosts file: %v", err)
-		}
-		defer kh.Close() // RSI: shouldn't use Fatalf to have this always trigger
-
-		sshClient := ssh.New(ssh.Options{
-			Host:         resp2.Target.Hostname,
-			User:         resp2.Target.Username,
-			KnownHosts:   kh,
-			IdentityFile: ".fusion/deploy_key", // TODO: don't hardcode this path
-		})
-
-		// RSI: sanity check dist (exists as dir, has index.html file in it)
-
-		vars := map[string]string{
-			"version":   resp.Config.Version,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		}
-		lookupVar := func(s string) string { return vars[s] }
-
-		// RSI: rsync --link-dest current/
-		err = sshClient.RsyncTo("dist/", os.Expand(resp2.Target.DeployDir, lookupVar))
-		if err != nil {
-			log.Fatalf("Couldn't rsync to target: %v", err)
-		}
-
-		err = sshClient.RunCommand(os.Expand(resp2.Target.DeployCmd, lookupVar))
-		if err != nil {
-			log.Fatalf("Couldn't run post-deploy script: %v", err)
-		}
-
-		log.Printf("Deployed to http://%s/", resp2.Target.Hostname)
+		deployCommand(ctx)
+	case "ssh":
+		sshCommand(ctx)
 
 	default:
 		log.Fatalf("Unrecognized subcommand `%s`.", os.Args[1])

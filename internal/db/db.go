@@ -156,9 +156,13 @@ func (d *DB) WaitConfigApplied(
 				return nil, ErrCanceled
 			}
 
-			if row.NewVal != nil && row.NewVal.AppliedVersion == version {
+			if row.NewVal != nil {
 				// all done
-				return row.NewVal, nil
+				if version != "" && row.NewVal.AppliedVersion == version {
+					return row.NewVal, nil
+				} else if version == "" && row.NewVal.AppliedVersion == row.NewVal.Version {
+					return row.NewVal, nil
+				}
 			}
 
 		case <-cancel:
