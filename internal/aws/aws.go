@@ -213,3 +213,57 @@ func (a *AWS) StopServer(instanceid string) error {
 
 	return err
 }
+
+func (a *AWS) CreateImage(instanceID string, imageName string) (string, error) {
+	resp, err := a.EC2.CreateImage(&ec2.CreateImageInput{
+		InstanceId: aws.String(instanceID),
+		Name:       aws.String(imageName),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	ami := *resp.ImageId
+
+	started := time.Now()
+	for time.Now().Sub(started) < time.Minute*5 {
+		time.Sleep(5 * time.Second)
+
+		resp, err := a.EC2.DescribeImages(&ec2.DescribeImagesInput{
+			ImageIds: []*string{aws.String(ami)},
+		})
+		if err != nil {
+			log.Printf("Couldn't describe image recently created: %v", err)
+			continue
+		}
+
+		if len(resp.Images) != 1 {
+			return "", fmt.Errorf("DescribeImagesOutput returned %v images, wanted 1",
+				len(resp.Images))
+		}
+
+		image := *resp.Images[0]
+		state := *image.State
+
+		switch state {
+		case "pending":
+			continue
+		case "available":
+			return ami, nil
+		case "invalid", "deregistered", "transient", "failed", "error":
+			var reason string
+			if image.StateReason != nil && image.StateReason.Message != nil {
+				reason = *image.StateReason.Message
+			}
+			return "", fmt.Errorf("new image transitioned to %v: %v",
+				state, reason)
+		default:
+			// RSI: log serious
+			log.Printf("Unknown image state %v", state)
+		}
+	}
+
+	// timed out
+
+	return "", errors.New("Image was not done creating in 5 minutes")
+}
