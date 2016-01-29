@@ -70,8 +70,7 @@ func (c *Client) Command(cmd string) *exec.Cmd {
 //
 // It passes rsync's stdout and stderr to the Go process's stdout and stderr.
 func (c *Client) RsyncTo(src, dst string, linkDest string) error {
-	var args []string
-	args = append(args, "-avz")
+	args := []string{"-avz", "--delete"}
 	if linkDest != "" {
 		args = append(args, "--link-dest="+linkDest)
 	}

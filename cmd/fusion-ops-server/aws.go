@@ -78,7 +78,7 @@ func applyConfig(c api.Config, identityFile string) bool {
 				IdentityFile: identityFile,
 			})
 
-			err = client.RsyncTo("instance-scripts/", "instance-scripts/")
+			err = client.RsyncTo("instance-scripts/", "instance-scripts/", "")
 			if err != nil {
 				errs <- err
 				return
