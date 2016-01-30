@@ -14,6 +14,7 @@ for file in /home/*/.*history /root/.*history; do
     fi
 done
 
+mkdir -p ~fusion/.ssh
 cat > ~fusion/.ssh/userkey.pub
 cat fusiondev.pub ~fusion/.ssh/userkey.pub > ~fusion/.ssh/authorized_keys
 cat fusiondev.pub ~fusion/.ssh/userkey.pub > ~ubuntu/.ssh/authorized_keys

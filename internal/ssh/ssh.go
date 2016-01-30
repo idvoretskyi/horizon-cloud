@@ -4,8 +4,6 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 // A Client is a remote location where commands can be run through SSH and
@@ -75,7 +73,6 @@ func (c *Client) RsyncTo(src, dst string, linkDest string) error {
 		args = append(args, "--link-dest="+linkDest)
 	}
 	args = append(args, "-e", c.sshInvocation(), src, c.opts.Host+":"+dst)
-	spew.Dump(args)
 	cmd := exec.Command("rsync", args...)
 	return runPassthrough(cmd)
 }

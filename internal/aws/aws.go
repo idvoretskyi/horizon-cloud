@@ -84,6 +84,40 @@ func ec2InstanceToServer(i *ec2.Instance) *Server {
 	return srv
 }
 
+func (a *AWS) waitServer(instanceID string,
+	fn func(*Server) (bool, error)) (*Server, error) {
+
+	var srv *Server
+
+	started := time.Now()
+	delay := time.Second
+	for time.Now().Sub(started) < time.Minute*5 {
+		time.Sleep(delay)
+		delay += time.Second
+		if delay > time.Second*5 {
+			delay = time.Second * 5
+		}
+
+		newSrv, err := a.StatServer(instanceID)
+		if err != nil {
+			log.Printf("Couldn't Stat instance: %v", err)
+			continue
+		}
+
+		srv = newSrv
+
+		done, err := fn(srv)
+		if err != nil {
+			return nil, err
+		}
+		if done {
+			return srv, nil
+		}
+	}
+
+	return nil, errors.New("Instance did not transition in 5 minutes")
+}
+
 func (a *AWS) StatServer(id string) (*Server, error) {
 	resp, err := a.EC2.DescribeInstances(&ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
@@ -148,8 +182,17 @@ func (a *AWS) StartServer(instancetype string, ami string) (*Server, error) {
 
 	log.Printf("Got new instance %#v", srv)
 
-	// tag it as being in the fusion-cluster
+	// If we're too fast, the server won't show up as existing by the time we
+	// call CreateTags. This call waits until the server shows up in the AWS
+	// metadata store so that we can tag it.
+	_, err = a.waitServer(srv.InstanceID, func(*Server) (bool, error) {
+		return true, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
+	// tag it as being in the fusion-cluster
 	_, err = a.EC2.CreateTags(&ec2.CreateTagsInput{
 		Resources: []*string{aws.String(srv.InstanceID)},
 		Tags: []*ec2.Tag{
@@ -166,25 +209,12 @@ func (a *AWS) StartServer(instancetype string, ami string) (*Server, error) {
 
 	// now, wait for it to start or die early
 
-	started := time.Now()
-	for time.Now().Sub(started) < time.Minute*5 {
-		time.Sleep(5 * time.Second)
-
-		newSrv, err := a.StatServer(srv.InstanceID)
-		if err != nil {
-			log.Printf("Couldn't Stat instance recently started: %v", err)
-			continue
-		}
-
-		srv = newSrv
-
-		log.Printf("state poll showed %s", srv.State)
-
+	srv, err = a.waitServer(srv.InstanceID, func(srv *Server) (bool, error) {
 		switch srv.State {
 		case "running":
-			return srv, nil
+			return true, nil
 		case "shutting-down", "terminated", "stopping":
-			return nil, fmt.Errorf("Instance %v transitioned to state %v unexpectedly",
+			return false, fmt.Errorf("Instance %v transitioned to state %v unexpectedly",
 				srv.InstanceID, srv.State)
 		case "pending":
 			// do nothing
@@ -192,24 +222,71 @@ func (a *AWS) StartServer(instancetype string, ami string) (*Server, error) {
 			// RSI: log serious
 			log.Printf("Unknown server state %v", srv.State)
 		}
-	}
-
-	// timed out, kill the instance and return an error
-
-	err = a.StopServer(srv.InstanceID)
-	if err != nil {
-		// TODO: log serious
-	}
-
-	return nil, errors.New("Instance did not start in 5 minutes")
-}
-
-func (a *AWS) StopServer(instanceid string) error {
-	_, err := a.EC2.TerminateInstances(&ec2.TerminateInstancesInput{
-		InstanceIds: []*string{&instanceid},
+		return false, nil
 	})
 
+	if err != nil {
+		// kill the instance and return the original error
+
+		_ = a.TerminateServer(srv.InstanceID)
+		// TODO: check for error and log serious
+
+		return nil, err
+	}
+
+	return srv, nil
+}
+
+func (a *AWS) TerminateServer(instanceID string) error {
+	_, err := a.EC2.TerminateInstances(&ec2.TerminateInstancesInput{
+		InstanceIds: []*string{&instanceID},
+	})
+	if err != nil {
+		return err
+	}
+
 	// TODO: consider validating response
+
+	_, err = a.waitServer(instanceID, func(srv *Server) (bool, error) {
+		switch srv.State {
+		case "pending", "running", "shutting-down", "stopping":
+			return false, nil
+		case "terminated":
+			return true, nil
+		case "stopped":
+			return false, errors.New("server transitioned to stopped after terminate call")
+		default:
+			log.Printf("Unknown server state %v", srv.State)
+			return false, nil
+		}
+	})
+
+	return err
+}
+
+func (a *AWS) StopServer(instanceID string) error {
+	_, err := a.EC2.StopInstances(&ec2.StopInstancesInput{
+		InstanceIds: []*string{&instanceID},
+	})
+	if err != nil {
+		return err
+	}
+
+	// TODO: consider validating response
+
+	_, err = a.waitServer(instanceID, func(srv *Server) (bool, error) {
+		switch srv.State {
+		case "pending", "running", "shutting-down", "stopping":
+			return false, nil
+		case "terminated":
+			return false, errors.New("server transitioned to terminated after stop call")
+		case "stopped":
+			return true, nil
+		default:
+			log.Printf("Unknown server state %v", srv.State)
+			return false, nil
+		}
+	})
 
 	return err
 }
@@ -226,7 +303,7 @@ func (a *AWS) CreateImage(instanceID string, imageName string) (string, error) {
 	ami := *resp.ImageId
 
 	started := time.Now()
-	for time.Now().Sub(started) < time.Minute*5 {
+	for time.Now().Sub(started) < time.Minute*15 {
 		time.Sleep(5 * time.Second)
 
 		resp, err := a.EC2.DescribeImages(&ec2.DescribeImagesInput{
