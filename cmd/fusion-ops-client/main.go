@@ -105,16 +105,19 @@ func ensureKey() string {
 	return string(res)
 }
 
-func withSSHConnection(ctx *commandContext,
+func withSSHConnection(
+	ctx *commandContext,
+	AllowClusterStart api.ClusterStartBool,
 	fn func(*ssh.Client, *api.WaitConfigAppliedResp) error) error {
 
 	// RSI: see if we can combine the two client API calls into one
 	eccResp, err := ctx.Client.EnsureConfigConnectable(api.EnsureConfigConnectableReq{
-		Name: ctx.ProjectName,
-		Key:  ctx.PublicSSHKey,
+		Name:              ctx.ProjectName,
+		Key:               ctx.PublicSSHKey,
+		AllowClusterStart: AllowClusterStart,
 	})
 	if err != nil {
-		log.Fatalf("failed to deploy: %s", err)
+		log.Fatalf("failed: %s", err)
 	}
 
 	log.Printf("Waiting for cluster to become ready...")
@@ -146,7 +149,7 @@ func deployCommand(ctx *commandContext) {
 	// RSI: sanity check dist (exists as dir, has index.html file in it)
 
 	log.Printf("Deploying project...")
-	err := withSSHConnection(ctx,
+	err := withSSHConnection(ctx, api.AllowClusterStart,
 		func(sshClient *ssh.Client, wca *api.WaitConfigAppliedResp) error {
 			log.Printf("Deploying to cluster:")
 			spew.Dump(wca)
@@ -182,7 +185,7 @@ func deployCommand(ctx *commandContext) {
 
 func sshCommand(ctx *commandContext) {
 	// RSI: this command should not start a new cluster
-	err := withSSHConnection(ctx,
+	err := withSSHConnection(ctx, api.DisallowClusterStart,
 		func(sshClient *ssh.Client, wca *api.WaitConfigAppliedResp) error {
 			return sshClient.RunInteractive()
 		})

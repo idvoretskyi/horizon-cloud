@@ -57,9 +57,15 @@ func (c *Config) Validate() error {
 
 // RSI: documentation
 
+type ClusterStartBool bool
+
+const AllowClusterStart ClusterStartBool = ClusterStartBool(true)
+const DisallowClusterStart ClusterStartBool = ClusterStartBool(false)
+
 type EnsureConfigConnectableReq struct {
-	Name string
-	Key  string
+	Name              string
+	Key               string
+	AllowClusterStart ClusterStartBool
 }
 
 func (r *EnsureConfigConnectableReq) Validate() error {

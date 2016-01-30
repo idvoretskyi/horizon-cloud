@@ -74,7 +74,8 @@ func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// RSI: don't let people read other people's configs.
-	config, err := rdb.EnsureConfigConnectable(creq.Name, []string{creq.Key})
+	config, err := rdb.EnsureConfigConnectable(
+		creq.Name, creq.AllowClusterStart, []string{creq.Key})
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return

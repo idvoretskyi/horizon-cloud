@@ -52,7 +52,8 @@ func (d *DB) GetConfig(name string) (*Config, error) {
 	return &c, err
 }
 
-func (d *DB) EnsureConfigConnectable(name string, keys []string) (*Config, error) {
+func (d *DB) EnsureConfigConnectable(
+	name string, allowClusterStart api.ClusterStartBool, keys []string) (*Config, error) {
 	var out struct {
 		Changes []struct {
 			NewVal *Config `gorethink:"new_val"`
@@ -60,12 +61,17 @@ func (d *DB) EnsureConfigConnectable(name string, keys []string) (*Config, error
 		FirstError string `gorethink:"first_error"`
 	}
 
-	defaultConfig := &Config{
-		Config: api.Config{
-			Name:         name,
-			NumServers:   1,
-			InstanceType: "t2.micro",
-		},
+	var defaultConfig r.Term
+	if allowClusterStart {
+		defaultConfig = r.Expr(&Config{
+			Config: api.Config{
+				Name:         name,
+				NumServers:   1,
+				InstanceType: "t2.micro",
+			},
+		})
+	} else {
+		defaultConfig = r.Error("No such cluster.")
 	}
 
 	query := r.UUID().Do(func(uuid r.Term) interface{} {
@@ -86,9 +92,18 @@ func (d *DB) EnsureConfigConnectable(name string, keys []string) (*Config, error
 		return nil, getBasicError("ensureConfigConnectable", name)
 	}
 
-	if len(out.Changes) != 1 || out.Changes[0].NewVal == nil {
+	if len(out.Changes) != 1 {
 		log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
 		return nil, getBasicError("ensureConfigConnectable", name)
+	}
+
+	if out.Changes[0].NewVal == nil {
+		if allowClusterStart {
+			log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
+			return nil, getBasicError("ensureConfigConnectable", name)
+		} else {
+			return nil, fmt.Errorf("no cluster `%s`, do you want to deploy?", name)
+		}
 	}
 
 	return out.Changes[0].NewVal, nil
