@@ -84,6 +84,25 @@ type EnsureConfigConnectableResp struct {
 	Config Config
 }
 
+type GetProjectsReq struct {
+	SharedSecret string
+	PublicKey    string
+}
+
+func (gp *GetProjectsReq) Validate() error {
+	// RSI: validate key?
+	return nil
+}
+
+type Project struct {
+	Name    string
+	Address string
+}
+
+type GetProjectsResp struct {
+	Projects []Project
+}
+
 type GetConfigReq struct {
 	Name string
 }

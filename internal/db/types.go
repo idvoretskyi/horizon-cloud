@@ -6,3 +6,8 @@ type Config struct {
 	api.Config
 	AppliedVersion string `gorethink:",omitempty"`
 }
+
+type Project struct {
+	api.Project
+	PublicKeys []string
+}

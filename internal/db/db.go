@@ -17,7 +17,8 @@ type DB struct {
 var (
 	ErrCanceled = errors.New("canceled")
 
-	configs = r.DB("test").Table("configs")
+	configs  = r.DB("test").Table("configs")
+	projects = r.DB("test").Table("projects")
 )
 
 func New() (*DB, error) {
@@ -44,6 +45,20 @@ func getBasicError(typeName string, name string) error {
 
 func (d *DB) SetConfig(c *Config) error {
 	return d.setBasicType(configs, "config", c.Name, c)
+}
+
+func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
+	cursor, err := projects.GetAllByIndex("PublicKeys", publicKey).Run(d.session)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close()
+	var projects []api.Project
+	err = cursor.All(&projects)
+	if err != nil {
+		return nil, err
+	}
+	return projects, nil
 }
 
 func (d *DB) GetConfig(name string) (*Config, error) {

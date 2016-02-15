@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -57,7 +59,7 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &gc) {
 		return
 	}
-	// RSI: don't let people read other people's configs.
+	// RSI(sec): don't let people read other people's configs.
 	config, err := rdb.GetConfig(gc.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
@@ -68,12 +70,36 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// RSI(sec): swap this out for something else when we release.
+var sharedSecret = "0pH/NLwslEGc1atpLPXoZUWKYR4d0SPzmWBFGit0UWJ3KRDt58o7RTCoZHCE7oQ"
+
+func getProjects(rw http.ResponseWriter, req *http.Request) {
+	var gp api.GetProjectsReq
+	if !decode(rw, req.Body, &gp) {
+		return
+	}
+	if subtle.ConstantTimeEq(int32(len(gp.SharedSecret)), int32(len(sharedSecret))) != 1 ||
+		subtle.ConstantTimeCompare([]byte(gp.SharedSecret), []byte(sharedSecret)) != 1 {
+		// RSI: security warnigns?
+		log.Printf("Incorrect shared secret `%s`.", gp.SharedSecret)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Shared secret incorrect, GTFO."))
+		return
+	}
+	projects, err := rdb.GetProjects(gp.PublicKey)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsResp{Projects: projects})
+}
+
 func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
 	var creq api.EnsureConfigConnectableReq
 	if !decode(rw, req.Body, &creq) {
 		return
 	}
-	// RSI: don't let people read other people's configs.
+	// RSI(sec): don't let people read other people's configs.
 	config, err := rdb.EnsureConfigConnectable(
 		creq.Name, creq.AllowClusterStart, []string{creq.Key})
 	if err != nil {
@@ -147,6 +173,7 @@ func main() {
 	http.HandleFunc("/v1/config/get", getConfig)
 	http.HandleFunc("/v1/config/ensure_connectable", ensureConfigConnectable)
 	http.HandleFunc("/v1/config/wait_applied", waitConfigApplied)
+	http.HandleFunc("/v1/projects/get", getProjects)
 	log.Printf("Started.")
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }
