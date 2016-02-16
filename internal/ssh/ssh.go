@@ -30,6 +30,11 @@ type Options struct {
 	// IdentityFile will be passed as the -i option to ssh if set. If not set,
 	// the user's identities will be used.
 	IdentityFile string
+
+	// Environment specifies extra environment variables to be passed to the
+	// remote ssh session (via SendEnv.) If nil, no extra environment variables
+	// are sent.
+	Environment map[string]string
 }
 
 // New constructs a new Client pointing at the given host.
@@ -54,13 +59,15 @@ func (c *Client) RunCommand(cmd string) error {
 //
 // If the command given is the empty string, the exec.Cmd returned will not
 // specify a command.
-func (c *Client) Command(cmd string) *exec.Cmd {
+func (c *Client) Command(remoteCmd string) *exec.Cmd {
 	args := c.sshArgs()
 	args = append(args, c.opts.Host)
-	if cmd != "" {
-		args = append(args, cmd)
+	if remoteCmd != "" {
+		args = append(args, remoteCmd)
 	}
-	return exec.Command("ssh", args...)
+	cmd := exec.Command("ssh", args...)
+	c.addEnvironment(cmd)
+	return cmd
 }
 
 // RsyncTo runs rsync to copy from the given local source to the given remote
@@ -74,6 +81,7 @@ func (c *Client) RsyncTo(src, dst string, linkDest string) error {
 	}
 	args = append(args, "-e", c.sshInvocation(), src, c.opts.Host+":"+dst)
 	cmd := exec.Command("rsync", args...)
+	c.addEnvironment(cmd)
 	return runPassthrough(cmd)
 }
 
@@ -89,6 +97,7 @@ func (c *Client) RsyncFrom(src, dst string) error {
 		"-e", c.sshInvocation(),
 		c.opts.Host+":"+src,
 		dst)
+	c.addEnvironment(cmd)
 	return runPassthrough(cmd)
 }
 
@@ -108,7 +117,23 @@ func (c *Client) sshArgs() []string {
 		args = append(args, "-i", c.opts.IdentityFile)
 	}
 
+	if c.opts.Environment != nil {
+		for key := range c.opts.Environment {
+			args = append(args, "-o", "SendEnv="+key)
+		}
+	}
+
 	return args
+}
+
+func (c *Client) addEnvironment(cmd *exec.Cmd) {
+	env := os.Environ()
+	if c.opts.Environment != nil {
+		for key, value := range c.opts.Environment {
+			env = append(env, key+"="+value)
+		}
+	}
+	cmd.Env = env
 }
 
 func (c *Client) sshInvocation() string {
