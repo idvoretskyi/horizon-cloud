@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -19,6 +20,8 @@ import (
 
 // RSI: make this non-global.
 var rdb *db.DB
+
+var sharedSecret string
 
 type validator interface {
 	Validate() error
@@ -69,9 +72,6 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 		Config: config.Config,
 	})
 }
-
-// RSI(sec): swap this out for something else when we release.
-var sharedSecret = "0pH/NLwslEGc1atpLPXoZUWKYR4d0SPzmWBFGit0UWJ3KRDt58o7RTCoZHCE7oQ"
 
 func getProjects(rw http.ResponseWriter, req *http.Request) {
 	var gp api.GetProjectsReq
@@ -160,9 +160,19 @@ func main() {
 
 	listenAddr := flag.String("listen", ":8000", "HTTP listening address")
 	identityFile := flag.String("id", "", "location of private ssh key")
+	sharedSecretFile := flag.String("shared-secret", "/secrets/api-shared-secret",
+		"Location of API shared secret")
 	flag.Parse()
 
-	var err error
+	data, err := ioutil.ReadFile(*sharedSecretFile)
+	if err != nil {
+		log.Fatal("Unable to read shared secret file: ", err)
+	}
+	if len(data) < 16 {
+		log.Fatal("Shared secret was not long enough")
+	}
+	sharedSecret = string(data)
+
 	rdb, err = db.New()
 	if err != nil {
 		log.Fatal("unable to connect to RethinkDB: ", err)
