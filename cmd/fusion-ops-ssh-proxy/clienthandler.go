@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -30,9 +31,7 @@ func handleClient(s net.Conn, c *config) {
 	defer logger("Done with connection")
 	defer s.Close()
 
-	projectTargets := []*api.Project{
-		{"fusiondev", "127.0.0.1:22"},
-	}
+	var projectTargets []api.Project
 
 	serverConfig := &ssh.ServerConfig{
 		ServerVersion: "SSH-2.0-FusionOpsProxy",
@@ -40,6 +39,23 @@ func handleClient(s net.Conn, c *config) {
 			if conn.User() != "fusion" {
 				return nil, errors.New("Username must be 'fusion'")
 			}
+
+			logger("key is %s", base64.StdEncoding.EncodeToString(key.Marshal()))
+
+			resp, err := c.APIClient.GetProjects(api.GetProjectsReq{
+				SharedSecret: c.APISecret,
+				PublicKey:    base64.StdEncoding.EncodeToString(key.Marshal()),
+			})
+			if err != nil {
+				return nil, errors.New("Couldn't talk to API")
+			}
+
+			if len(resp.Projects) == 0 {
+				return nil, errors.New("Unknown SSH key")
+			}
+
+			projectTargets = resp.Projects
+
 			return nil, nil
 		},
 		AuthLogCallback: func(conn ssh.ConnMetadata, method string, err error) {
@@ -149,17 +165,19 @@ func handleClient(s net.Conn, c *config) {
 			// Phase 2: Verify that the project name was given and is valid.
 
 			var projectErr error
-			var project *api.Project
+			var project api.Project
 			if projectName == "" {
 				projectErr = errors.New("No project name passed")
 			} else {
+				found := false
 				for _, proj := range projectTargets {
 					if proj.Name == projectName {
 						project = proj
+						found = true
 						break
 					}
 				}
-				if project == nil {
+				if !found {
 					projectErr = fmt.Errorf("Project `%v` not found", projectName)
 				}
 			}
