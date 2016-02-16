@@ -78,8 +78,7 @@ func getProjects(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	if subtle.ConstantTimeEq(int32(len(gp.SharedSecret)), int32(len(sharedSecret))) != 1 ||
-		subtle.ConstantTimeCompare([]byte(gp.SharedSecret), []byte(sharedSecret)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(gp.SharedSecret), []byte(sharedSecret)) != 1 {
 		// RSI: security warnigns?
 		log.Printf("Incorrect shared secret `%s`.", gp.SharedSecret)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
