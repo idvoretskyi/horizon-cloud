@@ -56,6 +56,15 @@ func (c *Client) WaitConfigApplied(
 	return &ret, nil
 }
 
+func (c *Client) GetProjects(opts GetProjectsReq) (*GetProjectsResp, error) {
+	var ret GetProjectsResp
+	err := c.jsonRoundTrip("/v1/projects/get", opts, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return &ret, nil
+}
+
 func (c *Client) jsonRoundTrip(path string, body interface{}, out interface{}) error {
 	buf, err := json.Marshal(body)
 	if err != nil {
