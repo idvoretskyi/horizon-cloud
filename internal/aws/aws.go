@@ -62,7 +62,11 @@ func (a *AWS) CreateVolume(size int64) (*Volume, error) {
 func (a *AWS) DeleteVolume(id string) error {
 	// Returns an empty struct.
 	_, err := a.EC2.DeleteVolume(&ec2.DeleteVolumeInput{VolumeId: &id})
-	return err
+	if err != nil {
+		return err
+	}
+	log.Printf("deleted volume %s", id)
+	return nil
 }
 
 func (a *AWS) ListServers() ([]*Server, error) {
