@@ -22,6 +22,11 @@ type Server struct {
 	PrivateIP    string
 }
 
+type Volume struct {
+	Id   string
+	Size int64
+}
+
 type AWS struct {
 	EC2     *ec2.EC2
 	Cluster string
@@ -29,9 +34,35 @@ type AWS struct {
 
 func New(cluster string) *AWS {
 	return &AWS{
-		EC2:     ec2.New(session.New(&aws.Config{Region: aws.String("us-east-1")})),
+		EC2:     ec2.New(session.New(&aws.Config{Region: aws.String("us-west-1")})),
 		Cluster: cluster,
 	}
+}
+
+func (a *AWS) CreateVolume(size int64) (*Volume, error) {
+	az := "us-west-1a"
+	vt := "gp2"
+	vol, err := a.EC2.CreateVolume(&ec2.CreateVolumeInput{
+		AvailabilityZone: &az,
+		Size:             &size,
+		VolumeType:       &vt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if vol.VolumeId == nil || vol.Size == nil {
+		return nil, fmt.Errorf("bad volume: %s", vol)
+	}
+	return &Volume{
+		Id:   *vol.VolumeId,
+		Size: *vol.Size,
+	}, nil
+}
+
+func (a *AWS) DeleteVolume(id string) error {
+	// Returns an empty struct.
+	_, err := a.EC2.DeleteVolume(&ec2.DeleteVolumeInput{VolumeId: &id})
+	return err
 }
 
 func (a *AWS) ListServers() ([]*Server, error) {
