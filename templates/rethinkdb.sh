@@ -76,5 +76,4 @@ spec:
   - port: 8080
     name: webui
     protocol: TCP
-
 EOF

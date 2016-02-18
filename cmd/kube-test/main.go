@@ -10,9 +10,12 @@ import (
 func main() {
 	log.SetFlags(log.Lshortfile)
 	k := kube.New("cluster")
-	proj, err := k.CreateProject("ktest3")
+	proj, err := k.CreateProject("ktest")
 	if err != nil {
-		log.Fatalf("%s", err)
+		log.Printf("%s", err)
+		log.Printf("Hanging forever to let goroutines finish...")
+		ch := make(chan error)
+		spew.Dump(<-ch)
 	}
 	spew.Dump(proj)
 }
