@@ -22,7 +22,7 @@ type Kube struct {
 }
 
 type RDB struct {
-	VolumeId string
+	VolumeID string
 	RC       runtime.Object
 	SVC      runtime.Object
 }
@@ -33,7 +33,7 @@ type Fusion struct {
 }
 
 type Frontend struct {
-	VolumeId string
+	VolumeID string
 	RC       runtime.Object
 	NGINXSVC runtime.Object
 	SSHSVC   runtime.Object
@@ -146,7 +146,7 @@ func (k *Kube) CreateRDB(project string, volume string) (*RDB, error) {
 	// RSI: maybe do some asserts here that we actually have a
 	// replication controller and service?
 	return &RDB{
-		VolumeId: volume,
+		VolumeID: volume,
 		RC:       objs[0],
 		SVC:      objs[1],
 	}, nil
@@ -181,7 +181,7 @@ func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) 
 	// RSI: maybe do some asserts here that we actually have a
 	// replication controller and service?
 	return &Frontend{
-		VolumeId: volume,
+		VolumeID: volume,
 		RC:       objs[0],
 		NGINXSVC: objs[1],
 		SSHSVC:   objs[2],
@@ -215,7 +215,7 @@ func compositeErr(errs ...error) error {
 
 func (k *Kube) DeleteRDB(rdb *RDB) error {
 	var errs []error
-	errs = append(errs, k.A.DeleteVolume(rdb.VolumeId))
+	errs = append(errs, k.A.DeleteVolume(rdb.VolumeID))
 	errs = append(errs, k.DeleteObject(rdb.RC))
 	errs = append(errs, k.DeleteObject(rdb.SVC))
 	err := compositeErr(errs...)
@@ -240,7 +240,7 @@ func (k *Kube) DeleteFusion(fusion *Fusion) error {
 
 func (k *Kube) DeleteFrontend(f *Frontend) error {
 	var errs []error
-	errs = append(errs, k.A.DeleteVolume(f.VolumeId))
+	errs = append(errs, k.A.DeleteVolume(f.VolumeID))
 	errs = append(errs, k.DeleteObject(f.RC))
 	errs = append(errs, k.DeleteObject(f.NGINXSVC))
 	errs = append(errs, k.DeleteObject(f.SSHSVC))
