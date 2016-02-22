@@ -39,13 +39,15 @@ func New(cluster string) *AWS {
 	}
 }
 
-func (a *AWS) CreateVolume(size int64) (*Volume, error) {
+const GP2 = "gp2"
+const IO1 = "io1"
+
+func (a *AWS) CreateVolume(size int64, volType string) (*Volume, error) {
 	az := "us-west-1a"
-	vt := "gp2"
 	vol, err := a.EC2.CreateVolume(&ec2.CreateVolumeInput{
 		AvailabilityZone: &az,
 		Size:             &size,
-		VolumeType:       &vt,
+		VolumeType:       &volType,
 	})
 	if err != nil {
 		return nil, err

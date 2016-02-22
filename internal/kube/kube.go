@@ -228,10 +228,11 @@ func (k *Kube) DeleteFrontend(f *Frontend) error {
 
 func (k *Kube) createWithVol(
 	size int,
+	volType string,
 	abort chan error,
 	callback func(*aws.Volume) error) {
 
-	vol, err := k.A.CreateVolume(32)
+	vol, err := k.A.CreateVolume(32, volType)
 	if err != nil {
 		abort <- err
 		return
@@ -259,7 +260,7 @@ func (k *Kube) CreateProject(name string) (*Project, error) {
 	fusionCh := make(chan *Fusion)
 	frontendCh := make(chan *Frontend)
 
-	go k.createWithVol(32, abort, func(vol *aws.Volume) error {
+	go k.createWithVol(32, aws.GP2, abort, func(vol *aws.Volume) error {
 		defer close(rdbCh)
 		rdb, err := k.CreateRDB(name, vol.Id)
 		if err != nil {
@@ -281,7 +282,7 @@ func (k *Kube) CreateProject(name string) (*Project, error) {
 		fusionCh <- fusion
 	}()
 
-	go k.createWithVol(4, abort, func(vol *aws.Volume) error {
+	go k.createWithVol(4, aws.GP2, abort, func(vol *aws.Volume) error {
 		defer close(frontendCh)
 		frontend, err := k.CreateFrontend(name, vol.Id)
 		if err != nil {
