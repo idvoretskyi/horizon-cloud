@@ -230,6 +230,7 @@ func (k *Kube) createWithVol(
 	size int,
 	abort chan error,
 	callback func(*aws.Volume) error) {
+
 	vol, err := k.A.CreateVolume(32)
 	if err != nil {
 		abort <- err
