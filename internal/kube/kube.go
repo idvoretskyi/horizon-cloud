@@ -74,12 +74,24 @@ func (k *Kube) DeleteObject(o runtime.Object) error {
 
 func (k *Kube) CreateFromTemplate(
 	template string, args ...string) ([]runtime.Object, error) {
+
 	// RSI: make this configurable
 	path := "/home/mlucy/go/src/github.com/rethinkdb/fusion-ops/templates/" + template
-	body, err := exec.Command(path, args...).Output()
+	cmd := exec.Command(path, args...)
+	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
 	}
+	err = cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		// RSI: log cleanup failure
+		cmd.Process.Kill()
+		cmd.Wait()
+	}()
+
 	var objs []runtime.Object
 	defer func() {
 		for i := range objs {
@@ -91,7 +103,7 @@ func (k *Kube) CreateFromTemplate(
 			}()
 		}
 	}()
-	d := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(body), 4096)
+	d := yaml.NewYAMLOrJSONDecoder(cmdReader, 4096)
 	for {
 		var ext runtime.RawExtension
 		err = d.Decode(&ext)
@@ -116,9 +128,9 @@ func (k *Kube) CreateFromTemplate(
 		log.Printf("created %s.", info.Name)
 		objs = append(objs, obj)
 	}
-
 	ret := objs
 	objs = nil
+
 	return ret, nil
 }
 
