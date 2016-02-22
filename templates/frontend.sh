@@ -9,32 +9,32 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: frontend-$1
+  name: frontend-$project
   labels:
     k8s-app: frontend
-    project: $1
+    project: $project
     version: v0
 spec:
   replicas: 1
   selector:
     k8s-app: frontend
-    project: $1
+    project: $project
     version: v0
   template:
     metadata:
       labels:
         k8s-app: frontend
-        project: $1
+        project: $project
         version: v0
     spec:
       volumes:
       - name: data
         awsElasticBlockStore:
-          volumeID: vol-c7275268
+          volumeID: $volume
           fsType: ext4
       - name: sshhostkeys
         secret:
-          secretName: fusion-$1-sshhost
+          secretName: fusion-$project-sshhost
 
       containers:
       - name: nginx
@@ -49,7 +49,7 @@ spec:
           mountPath: /data
         env:
         - name: NGINX_CONNECT
-          value: fusion-$1:8181
+          value: fusion-$project:8181
         ports:
         - containerPort: 80
           name: http
@@ -75,14 +75,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-nginx-$1
+  name: frontend-nginx-$project
   labels:
     k8s-app: frontend
-    project: $1
+    project: $project
 spec:
   selector:
     k8s-app: frontend
-    project: $1
+    project: $project
   ports:
   - port: 80
     name: http
@@ -97,14 +97,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-ssh-$1
+  name: frontend-ssh-$project
   labels:
     k8s-app: frontend
-    project: $1
+    project: $project
 spec:
   selector:
     k8s-app: frontend
-    project: $1
+    project: $project
   ports:
   - port: 22
     name: ssh

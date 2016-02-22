@@ -251,7 +251,7 @@ func (k *Kube) CreateProject(name string) (*Project, error) {
 	// RSI: don't hardcode volume sizes.
 
 	// Make sure that no more than this many errors can be written to `abort`.
-	MAX_ERRORS := 1024
+	MAX_ERRORS := 16
 	// We don't close `abort` because we want to return early if there's
 	// an error and let the goroutines below continue writing to it.
 	abort := make(chan error, MAX_ERRORS)
