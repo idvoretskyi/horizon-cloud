@@ -2,7 +2,6 @@ package kube
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -186,31 +185,6 @@ func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) 
 		NGINXSVC: objs[1],
 		SSHSVC:   objs[2],
 	}, nil
-}
-
-// RSI: test this since it isn't really exercised right now.
-func compositeErr(errs ...error) error {
-	s := ""
-	n := 0
-	for i := range errs {
-		if errs[i] != nil {
-			if n == 1 {
-				s = "composite error: [" + s
-			}
-			if n > 0 {
-				s += ", "
-			}
-			s += errs[i].Error()
-			n += 1
-		}
-	}
-	if n > 0 {
-		if n > 1 {
-			s += "]"
-		}
-		return errors.New(s)
-	}
-	return nil
 }
 
 func (k *Kube) DeleteRDB(rdb *RDB) error {
