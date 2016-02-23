@@ -142,6 +142,7 @@ func (k *Kube) CreateRDB(project string, volume string) (*RDB, error) {
 		// RSI: logging?
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
+	log.Printf("created rdb\n")
 	// RSI: maybe do some asserts here that we actually have a
 	// replication controller and service?
 	return &RDB{
@@ -160,6 +161,7 @@ func (k *Kube) CreateFusion(project string) (*Fusion, error) {
 		// RSI: logging?
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
+	log.Printf("created fusion\n")
 	// RSI: maybe do some asserts here that we actually have a
 	// replication controller and service?
 	return &Fusion{
@@ -177,6 +179,7 @@ func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) 
 		// RSI: logging?
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
+	log.Printf("created frontend\n")
 	// RSI: maybe do some asserts here that we actually have a
 	// replication controller and service?
 	return &Frontend{
@@ -196,7 +199,7 @@ func (k *Kube) DeleteRDB(rdb *RDB) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("deleted rdb")
+	log.Printf("deleted rdb")
 	return nil
 }
 
@@ -208,7 +211,7 @@ func (k *Kube) DeleteFusion(fusion *Fusion) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("deleted fusion")
+	log.Printf("deleted fusion")
 	return nil
 }
 
@@ -222,130 +225,115 @@ func (k *Kube) DeleteFrontend(f *Frontend) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("deleted frontend")
+	log.Printf("deleted frontend")
 	return nil
+}
+
+type MaybeVolume struct {
+	Volume *aws.Volume
+	Err    error
+}
+
+type MaybeRDB struct {
+	RDB *RDB
+	Err error
+}
+
+type MaybeFusion struct {
+	Fusion *Fusion
+	Err    error
+}
+
+type MaybeFrontend struct {
+	Frontend *Frontend
+	Err      error
 }
 
 func (k *Kube) createWithVol(
 	size int,
 	volType string,
-	abort chan error,
-	callback func(*aws.Volume) error) {
+	callback func(MaybeVolume) error) {
 
 	vol, err := k.A.CreateVolume(32, volType)
 	if err != nil {
-		abort <- err
+		err = callback(MaybeVolume{nil, err})
+		if err != nil {
+			// RSI: log cleanup failure
+		}
 		return
 	}
-	err = callback(vol)
+	err = callback(MaybeVolume{vol, nil})
 	if err != nil {
 		err2 := k.A.DeleteVolume(vol.Id)
 		if err2 != nil {
 			// RSI: log cleanup failure.
 		}
-		abort <- err
 	}
 }
 
 func (k *Kube) CreateProject(name string) (*Project, error) {
 	// RSI: don't hardcode volume sizes.
 
-	// Make sure that no more than this many errors can be written to `abort`.
-	MAX_ERRORS := 16
-	// We don't close `abort` because we want to return early if there's
-	// an error and let the goroutines below continue writing to it.
-	abort := make(chan error, MAX_ERRORS)
+	rdbCh := make(chan MaybeRDB)
+	fusionCh := make(chan MaybeFusion)
+	frontendCh := make(chan MaybeFrontend)
 
-	rdbCh := make(chan *RDB)
-	fusionCh := make(chan *Fusion)
-	frontendCh := make(chan *Frontend)
-
-	go k.createWithVol(32, aws.GP2, abort, func(vol *aws.Volume) error {
-		defer close(rdbCh)
-		rdb, err := k.CreateRDB(name, vol.Id)
-		if err != nil {
-			return err
+	go k.createWithVol(32, aws.GP2, func(mv MaybeVolume) error {
+		if mv.Err != nil {
+			rdbCh <- MaybeRDB{nil, mv.Err}
+			return nil
 		}
-		log.Printf("created rdb %s", name)
-		rdbCh <- rdb
-		return nil
+		rdb, err := k.CreateRDB(name, mv.Volume.Id)
+		rdbCh <- MaybeRDB{rdb, err}
+		return err
 	})
 
-	go func() {
-		defer close(fusionCh)
+	go func() error {
 		fusion, err := k.CreateFusion(name)
-		if err != nil {
-			abort <- err
-			return
-		}
-		log.Printf("created fusion %s", name)
-		fusionCh <- fusion
+		fusionCh <- MaybeFusion{fusion, err}
+		return err
 	}()
 
-	go k.createWithVol(4, aws.GP2, abort, func(vol *aws.Volume) error {
-		defer close(frontendCh)
-		frontend, err := k.CreateFrontend(name, vol.Id)
-		if err != nil {
-			return err
+	go k.createWithVol(4, aws.GP2, func(mv MaybeVolume) error {
+		if mv.Err != nil {
+			frontendCh <- MaybeFrontend{nil, mv.Err}
+			return nil
 		}
-		log.Printf("created frontend %s", name)
-		frontendCh <- frontend
-		return nil
+		frontend, err := k.CreateFrontend(name, mv.Volume.Id)
+		frontendCh <- MaybeFrontend{frontend, err}
+		return err
 	})
 
-	// We give this a buffer of size 1 so that if there's a logic error
-	// that causes `abort` to be pulsed without causing one of the
-	// components of the project to receive `nil`, we won't hang forever
-	// on the write to `projCh`.
-	projCh := make(chan *Project, 1)
-	go func() {
-		// We don't close `projCh` because we want the `select` below to
-		// pick up the error in the error case.
-		rdb := <-rdbCh
-		fusion := <-fusionCh
-		frontend := <-frontendCh
-		// At least one of these is nil iff an error occurs.
-		if rdb == nil || fusion == nil || frontend == nil {
-			// This error should never be seen, but by putting it into abort
-			// logic errors that break the above invariant won't cause hangs.
-			abort <- fmt.Errorf("unexpected empty abort queue")
-			if rdb != nil {
-				err := k.DeleteRDB(rdb)
-				if err != nil {
-					// RSI: log cleanup failure
-				}
-			}
-			if fusion != nil {
-				err := k.DeleteFusion(fusion)
-				if err != nil {
-					// RSI: log cleanup failure
-				}
-			}
-			if frontend != nil {
-				err := k.DeleteFrontend(frontend)
-				if err != nil {
-					// RSI: log cleanup failure
-				}
-			}
-			return
-		}
-		projCh <- &Project{
-			RDB:      rdb,
-			Fusion:   fusion,
-			Frontend: frontend,
-		}
-	}()
+	rdb := <-rdbCh
+	fusion := <-fusionCh
+	frontend := <-frontendCh
 
-	select {
-	case err := <-abort:
-		if err == nil {
-			return nil, fmt.Errorf("unexpected empty error")
+	err := compositeErr(rdb.Err, fusion.Err, frontend.Err)
+	if err != nil {
+		if rdb.RDB != nil {
+			err := k.DeleteRDB(rdb.RDB)
+			if err != nil {
+				// RSI: log cleanup failure
+			}
+		}
+		if fusion.Fusion != nil {
+			err := k.DeleteFusion(fusion.Fusion)
+			if err != nil {
+				// RSI: log cleanup failure
+			}
+		}
+		if frontend.Frontend != nil {
+			err := k.DeleteFrontend(frontend.Frontend)
+			if err != nil {
+				// RSI: log cleanup failure
+			}
 		}
 		return nil, err
-	case proj := <-projCh:
-		if proj == nil {
-			return nil, fmt.Errorf("unexpected empty project")
-		}
-		return proj, nil
 	}
+
+	return &Project{
+		RDB:      rdb.RDB,
+		Fusion:   fusion.Fusion,
+		Frontend: frontend.Frontend,
+	}, nil
 }
