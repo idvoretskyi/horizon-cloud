@@ -229,40 +229,20 @@ func (k *Kube) DeleteFrontend(f *Frontend) error {
 	return nil
 }
 
-type MaybeVolume struct {
-	Volume *aws.Volume
-	Err    error
-}
-
-type MaybeRDB struct {
-	RDB *RDB
-	Err error
-}
-
-type MaybeFusion struct {
-	Fusion *Fusion
-	Err    error
-}
-
-type MaybeFrontend struct {
-	Frontend *Frontend
-	Err      error
-}
-
 func (k *Kube) createWithVol(
 	size int,
 	volType string,
-	callback func(MaybeVolume) error) {
+	callback func(vol *aws.Volume, err error) error) {
 
 	vol, err := k.A.CreateVolume(32, volType)
 	if err != nil {
-		err = callback(MaybeVolume{nil, err})
+		err = callback(nil, err)
 		if err != nil {
 			// RSI: log cleanup failure
 		}
 		return
 	}
-	err = callback(MaybeVolume{vol, nil})
+	err = callback(vol, nil)
 	if err != nil {
 		err2 := k.A.DeleteVolume(vol.ID)
 		if err2 != nil {
@@ -274,32 +254,46 @@ func (k *Kube) createWithVol(
 func (k *Kube) CreateProject(name string) (*Project, error) {
 	// RSI: don't hardcode volume sizes.
 
+	type MaybeRDB struct {
+		RDB *RDB
+		Err error
+	}
+
+	type MaybeFusion struct {
+		Fusion *Fusion
+		Err    error
+	}
+
+	type MaybeFrontend struct {
+		Frontend *Frontend
+		Err      error
+	}
+
 	rdbCh := make(chan MaybeRDB)
 	fusionCh := make(chan MaybeFusion)
 	frontendCh := make(chan MaybeFrontend)
 
-	go k.createWithVol(32, aws.GP2, func(mv MaybeVolume) error {
-		if mv.Err != nil {
-			rdbCh <- MaybeRDB{nil, mv.Err}
+	go k.createWithVol(32, aws.GP2, func(vol *aws.Volume, err error) error {
+		if err != nil {
+			rdbCh <- MaybeRDB{nil, err}
 			return nil
 		}
-		rdb, err := k.CreateRDB(name, mv.Volume.ID)
+		rdb, err := k.CreateRDB(name, vol.ID)
 		rdbCh <- MaybeRDB{rdb, err}
 		return err
 	})
 
-	go func() error {
+	go func() {
 		fusion, err := k.CreateFusion(name)
 		fusionCh <- MaybeFusion{fusion, err}
-		return err
 	}()
 
-	go k.createWithVol(4, aws.GP2, func(mv MaybeVolume) error {
-		if mv.Err != nil {
-			frontendCh <- MaybeFrontend{nil, mv.Err}
+	go k.createWithVol(4, aws.GP2, func(vol *aws.Volume, err error) error {
+		if err != nil {
+			frontendCh <- MaybeFrontend{nil, err}
 			return nil
 		}
-		frontend, err := k.CreateFrontend(name, mv.Volume.ID)
+		frontend, err := k.CreateFrontend(name, vol.ID)
 		frontendCh <- MaybeFrontend{frontend, err}
 		return err
 	})
