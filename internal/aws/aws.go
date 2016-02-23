@@ -23,7 +23,7 @@ type Server struct {
 }
 
 type Volume struct {
-	Id   string
+	ID   string
 	Size int64
 }
 
@@ -56,7 +56,7 @@ func (a *AWS) CreateVolume(size int64, volType string) (*Volume, error) {
 		return nil, fmt.Errorf("bad volume: %s", vol)
 	}
 	return &Volume{
-		Id:   *vol.VolumeId,
+		ID:   *vol.VolumeId,
 		Size: *vol.Size,
 	}, nil
 }

@@ -264,7 +264,7 @@ func (k *Kube) createWithVol(
 	}
 	err = callback(MaybeVolume{vol, nil})
 	if err != nil {
-		err2 := k.A.DeleteVolume(vol.Id)
+		err2 := k.A.DeleteVolume(vol.ID)
 		if err2 != nil {
 			// RSI: log cleanup failure.
 		}
@@ -283,7 +283,7 @@ func (k *Kube) CreateProject(name string) (*Project, error) {
 			rdbCh <- MaybeRDB{nil, mv.Err}
 			return nil
 		}
-		rdb, err := k.CreateRDB(name, mv.Volume.Id)
+		rdb, err := k.CreateRDB(name, mv.Volume.ID)
 		rdbCh <- MaybeRDB{rdb, err}
 		return err
 	})
@@ -299,7 +299,7 @@ func (k *Kube) CreateProject(name string) (*Project, error) {
 			frontendCh <- MaybeFrontend{nil, mv.Err}
 			return nil
 		}
-		frontend, err := k.CreateFrontend(name, mv.Volume.Id)
+		frontend, err := k.CreateFrontend(name, mv.Volume.ID)
 		frontendCh <- MaybeFrontend{frontend, err}
 		return err
 	})
