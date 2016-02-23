@@ -47,6 +47,7 @@ func handleClient(s net.Conn, c *config) {
 				PublicKey:    base64.StdEncoding.EncodeToString(key.Marshal()),
 			})
 			if err != nil {
+				logger("Couldn't talk to API: %v", err)
 				return nil, errors.New("Couldn't talk to API")
 			}
 
