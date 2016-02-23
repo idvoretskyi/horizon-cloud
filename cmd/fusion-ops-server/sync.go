@@ -2,35 +2,81 @@ package main
 
 import (
 	"log"
+	"sync"
 
 	"github.com/rethinkdb/fusion-ops/internal/api"
 	"github.com/rethinkdb/fusion-ops/internal/db"
+	"github.com/rethinkdb/fusion-ops/internal/kube"
 )
 
-func configSync(rdb *db.DB, identityFile string) {
-	// RSI: shut down mid-spinup and see if it recovers.
-	ch := make(chan *db.Config)
-	rdb.ConfigChanges(ch)
-	for conf := range ch {
-		if conf.Version == conf.AppliedVersion {
+var configs = make(map[string]*api.Config)
+var configsLock sync.Mutex
+
+func applyConfigs(name string) {
+	for {
+		conf := func() *api.Config {
+			configsLock.Lock()
+			defer configsLock.Unlock()
+			conf := configs[name]
+			if conf == nil {
+				delete(configs, name)
+			} else {
+				configs[name] = nil
+			}
+			return conf
+		}()
+		if conf == nil {
+			break
+		}
+		// RSI: what should the cluster name be exactly?  I don't quite
+		// understand the semantics here.
+		k := kube.New("horizon")
+		// RSI: tear down old project once we actually support changing
+		// configurations.
+		project, err := k.CreateProject(*conf)
+		if err != nil {
+			// RSI: log serious error.
+			log.Printf("%s\n", err)
 			continue
 		}
-		// RSI: serialize this on a per-user basis instead of globally.
-		worked := applyConfig(conf.Config, identityFile)
-		if !worked {
-			// RSI: report stuff like this to an errors table that users can
-			// read from.
-			log.Printf("Unable to apply configuration.")
+		err = k.Wait(project)
+		if err != nil {
+			// RSI: log serious error
+			log.Printf("%s\n", err)
 			continue
 		}
-		err := rdb.SetConfig(&db.Config{
+		err = rdb.SetConfig(&db.Config{
 			Config: api.Config{
 				Name: conf.Name,
 			},
 			AppliedVersion: conf.Version,
 		})
 		if err != nil {
-			log.Printf("SERIOUS ERROR: unable to update applied version (%s)", err)
+			// RSI: log serious error.
+			log.Printf("%s\n", err)
+		}
+	}
+}
+
+func configSync(rdb *db.DB) {
+	// RSI: shut down mid-spinup and see if it recovers.
+	changeChan := make(chan db.ConfigChange)
+	rdb.ConfigChanges(changeChan)
+	for c := range changeChan {
+		if c.NewVal != nil {
+			func() {
+				configsLock.Lock()
+				defer configsLock.Unlock()
+				_, workerRunning := configs[c.NewVal.Name]
+				configs[c.NewVal.Name] = &c.NewVal.Config
+				if !workerRunning {
+					go applyConfigs(c.NewVal.Name)
+				}
+			}()
+		} else {
+			if c.OldVal != nil {
+				// RSI: tear down cluster.
+			}
 		}
 	}
 	panic("unreachable")

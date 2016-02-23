@@ -17,8 +17,7 @@ type DB struct {
 var (
 	ErrCanceled = errors.New("canceled")
 
-	configs  = r.DB("test").Table("configs")
-	projects = r.DB("test").Table("projects")
+	configs = r.DB("test").Table("configs")
 )
 
 func New() (*DB, error) {
@@ -48,15 +47,15 @@ func (d *DB) SetConfig(c *Config) error {
 }
 
 func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
-	cursor, err := projects.GetAllByIndex("PublicKeys", publicKey).Run(d.session)
+	cursor, err := configs.GetAllByIndex("PublicSSHKeys", publicKey).Run(d.session)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close()
 	var projects []api.Project
-	err = cursor.All(&projects)
-	if err != nil {
-		return nil, err
+	var c Config
+	for cursor.Next(&c) {
+		projects = append(projects, api.Project{c.Name, "frontend-ssh-" + c.Name})
 	}
 	return projects, nil
 }
@@ -81,8 +80,11 @@ func (d *DB) EnsureConfigConnectable(
 		defaultConfig = r.Expr(&Config{
 			Config: api.Config{
 				Name:         name,
-				NumServers:   1,
-				InstanceType: "t2.micro",
+				NumRDB:       1,
+				SizeRDB:      10,
+				NumFusion:    1,
+				NumFrontend:  1,
+				SizeFrontend: 1,
 			},
 		})
 	} else {
@@ -124,13 +126,15 @@ func (d *DB) EnsureConfigConnectable(
 	return out.Changes[0].NewVal, nil
 }
 
-func (d *DB) configChangesLoop(out chan<- *Config) {
+type ConfigChange struct {
+	OldVal *Config `gorethink:"old_val"`
+	NewVal *Config `gorethink:"new_val"`
+}
+
+func (d *DB) configChangesLoop(out chan<- ConfigChange) {
 	query := configs.Changes(r.ChangesOpts{IncludeInitial: true})
-	type change struct {
-		NewVal *Config `gorethink:"new_val"`
-	}
 	for {
-		ch := make(chan change)
+		ch := make(chan ConfigChange)
 		cur, err := query.Run(d.session)
 		if err != nil {
 			// RSI: serious log
@@ -138,20 +142,17 @@ func (d *DB) configChangesLoop(out chan<- *Config) {
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		cur.Listen(ch)
+		cur.Listen(out)
 		for el := range ch {
-			if el.NewVal != nil {
-				out <- el.NewVal
-			} else {
-				// RSI: stop things?
-			}
+			// RSI: sanity checks?
+			out <- el
 		}
 		err = cur.Err()
 		log.Printf("Channel closed, retrying: %s", err)
 	}
 }
 
-func (d *DB) ConfigChanges(out chan<- *Config) {
+func (d *DB) ConfigChanges(out chan<- ConfigChange) {
 	go d.configChangesLoop(out)
 }
 
@@ -166,11 +167,7 @@ func (d *DB) WaitConfigApplied(
 	}
 	defer cur.Close()
 
-	type change struct {
-		NewVal *Config `gorethink:"new_val"`
-	}
-
-	rows := make(chan change)
+	rows := make(chan ConfigChange)
 	cur.Listen(rows)
 
 	canceled := false
@@ -186,11 +183,13 @@ func (d *DB) WaitConfigApplied(
 				return nil, ErrCanceled
 			}
 
-			if row.NewVal != nil {
-				// all done
-				if version != "" && row.NewVal.AppliedVersion == version {
-					return row.NewVal, nil
-				} else if version == "" && row.NewVal.AppliedVersion == row.NewVal.Version {
+			if row.NewVal == nil {
+				return nil, fmt.Errorf("configuration deleted")
+			} else {
+				if version != "" && row.NewVal.Version != version {
+					return nil, fmt.Errorf("configuration superseded by %s", row.NewVal.Version)
+				}
+				if row.NewVal.AppliedVersion == row.NewVal.Version {
 					return row.NewVal, nil
 				}
 			}

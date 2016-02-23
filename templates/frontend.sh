@@ -87,10 +87,7 @@ spec:
   - port: 80
     name: http
     protocol: TCP
-  - port: 443
-    name: https
-    protocol: TCP
-  type: LoadBalancer
+  type: ClusterIP
 
 ---
 
@@ -109,5 +106,5 @@ spec:
   - port: 22
     name: ssh
     protocol: TCP
-  type: NodePort
+  type: ClusterIP
 EOF

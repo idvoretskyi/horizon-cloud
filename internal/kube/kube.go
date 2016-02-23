@@ -6,36 +6,42 @@ import (
 	"io"
 	"log"
 	"os/exec"
+	"time"
 
+	"github.com/rethinkdb/fusion-ops/internal/api"
 	"github.com/rethinkdb/fusion-ops/internal/aws"
 
+	kapi "k8s.io/kubernetes/pkg/api"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
+	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util/yaml"
 )
 
 type Kube struct {
+	C *client.Client
 	M *resource.Mapper
 	A *aws.AWS
 }
 
 type RDB struct {
 	VolumeID string
-	RC       runtime.Object
-	SVC      runtime.Object
+	RC       *kapi.ReplicationController
+	SVC      *kapi.Service
 }
 
 type Fusion struct {
-	RC  runtime.Object
-	SVC runtime.Object
+	RC  *kapi.ReplicationController
+	SVC *kapi.Service
 }
 
 type Frontend struct {
 	VolumeID string
-	RC       runtime.Object
-	NGINXSVC runtime.Object
-	SSHSVC   runtime.Object
+	RC       *kapi.ReplicationController
+	NGINXSVC *kapi.Service
+	SSHSVC   *kapi.Service
 }
 
 type Project struct {
@@ -48,13 +54,84 @@ func New(cluster string) *Kube {
 	// RSI: should we be passing in a client config here?
 	factory := util.NewFactory(nil)
 	mapper, typer := factory.Object()
+	client, err := factory.Client()
+	if err != nil {
+		// RSI: stop doing this when we support user clusters.
+		log.Fatalf("unable to connect to Kube: %s", err)
+	}
 	return &Kube{
+		C: client,
 		M: &resource.Mapper{
 			typer,
 			mapper,
 			resource.ClientMapperFunc(factory.ClientForMapping),
 			factory.Decoder(true)},
 		A: aws.New(cluster),
+	}
+}
+
+func (k *Kube) Ready(p *Project) (bool, error) {
+	for _, rc := range []*kapi.ReplicationController{
+		p.RDB.RC, p.Fusion.RC, p.Frontend.RC} {
+		podlist, err := k.C.Pods(kapi.NamespaceDefault).List(kapi.ListOptions{
+			LabelSelector: labels.SelectorFromSet(rc.Spec.Selector)})
+		if err != nil {
+			return false, err
+		}
+		for _, pod := range podlist.Items {
+			switch pod.Status.Phase {
+			case kapi.PodPending:
+				return false, nil
+			case kapi.PodRunning:
+			case kapi.PodSucceeded:
+				return false, fmt.Errorf("pod exited unexpectedly")
+			case kapi.PodFailed:
+				return false, fmt.Errorf("pod failed unexpectedly")
+			case kapi.PodUnknown:
+				return false, fmt.Errorf("pod state unknown")
+			default:
+				return false, fmt.Errorf("unrecognized pod phase '%s'", pod.Status.Phase)
+			}
+			for _, condition := range pod.Status.Conditions {
+				if condition.Type == kapi.PodReady {
+					switch condition.Status {
+					case kapi.ConditionTrue:
+					case kapi.ConditionFalse:
+						return false, nil
+					case kapi.ConditionUnknown:
+						return false, nil
+					default:
+						return false, fmt.Errorf("unrecognized status '%s'", condition.Status)
+					}
+				} else {
+					// RSI: log unexpected condition
+				}
+			}
+		}
+	}
+	return true, nil
+}
+
+func (k *Kube) Wait(p *Project) error {
+	timeoutMin := time.Duration(5)
+	backoff_ms := time.Duration(1000)
+
+	timeout := time.NewTimer(timeoutMin * time.Minute)
+	defer timeout.Stop()
+	for {
+		select {
+		case <-timeout.C:
+			return fmt.Errorf("timed out after %d minutes", timeoutMin)
+		case <-time.After(backoff_ms * time.Millisecond):
+			ready, err := k.Ready(p)
+			if err != nil {
+				return err
+			}
+			if ready {
+				return nil
+			}
+		}
+		backoff_ms = time.Duration(float64(backoff_ms) * 1.5)
 	}
 }
 
@@ -118,7 +195,7 @@ func (k *Kube) CreateFromTemplate(
 		if err != nil {
 			return nil, err
 		}
-		info.Namespace = "default"
+		info.Namespace = kapi.NamespaceDefault
 		obj, err := resource.NewHelper(info.Client, info.Mapping).
 			Create(info.Namespace, true, info.Object)
 		if err != nil {
@@ -143,13 +220,16 @@ func (k *Kube) CreateRDB(project string, volume string) (*RDB, error) {
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
 	log.Printf("created rdb\n")
-	// RSI: maybe do some asserts here that we actually have a
-	// replication controller and service?
-	return &RDB{
-		VolumeID: volume,
-		RC:       objs[0],
-		SVC:      objs[1],
-	}, nil
+
+	rc, ok := objs[0].(*kapi.ReplicationController)
+	if !ok {
+		return nil, fmt.Errorf("unable to create RDB replication controller")
+	}
+	svc, ok := objs[1].(*kapi.Service)
+	if !ok {
+		return nil, fmt.Errorf("unable to create RDB service")
+	}
+	return &RDB{volume, rc, svc}, nil
 }
 
 func (k *Kube) CreateFusion(project string) (*Fusion, error) {
@@ -162,12 +242,15 @@ func (k *Kube) CreateFusion(project string) (*Fusion, error) {
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
 	log.Printf("created fusion\n")
-	// RSI: maybe do some asserts here that we actually have a
-	// replication controller and service?
-	return &Fusion{
-		RC:  objs[0],
-		SVC: objs[1],
-	}, nil
+	rc, ok := objs[0].(*kapi.ReplicationController)
+	if !ok {
+		return nil, fmt.Errorf("unable to create Fusion replication controller")
+	}
+	svc, ok := objs[1].(*kapi.Service)
+	if !ok {
+		return nil, fmt.Errorf("unable to create Fusion service")
+	}
+	return &Fusion{rc, svc}, nil
 }
 
 func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) {
@@ -180,14 +263,19 @@ func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) 
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
 	log.Printf("created frontend\n")
-	// RSI: maybe do some asserts here that we actually have a
-	// replication controller and service?
-	return &Frontend{
-		VolumeID: volume,
-		RC:       objs[0],
-		NGINXSVC: objs[1],
-		SSHSVC:   objs[2],
-	}, nil
+	rc, ok := objs[0].(*kapi.ReplicationController)
+	if !ok {
+		return nil, fmt.Errorf("unable to create Frontend replication controller")
+	}
+	nginxSVC, ok := objs[1].(*kapi.Service)
+	if !ok {
+		return nil, fmt.Errorf("unable to create NGINX service")
+	}
+	sshSVC, ok := objs[2].(*kapi.Service)
+	if !ok {
+		return nil, fmt.Errorf("unable to create SSH service")
+	}
+	return &Frontend{volume, rc, nginxSVC, sshSVC}, nil
 }
 
 func (k *Kube) DeleteRDB(rdb *RDB) error {
@@ -251,8 +339,8 @@ func (k *Kube) createWithVol(
 	}
 }
 
-func (k *Kube) CreateProject(name string) (*Project, error) {
-	// RSI: don't hardcode volume sizes.
+func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
+	// RSI: Use `NumRDB`, `NumFusion`, and `NumFrontend`.
 
 	type MaybeRDB struct {
 		RDB *RDB
@@ -273,27 +361,27 @@ func (k *Kube) CreateProject(name string) (*Project, error) {
 	fusionCh := make(chan MaybeFusion)
 	frontendCh := make(chan MaybeFrontend)
 
-	go k.createWithVol(32, aws.GP2, func(vol *aws.Volume, err error) error {
+	go k.createWithVol(conf.SizeRDB, aws.GP2, func(vol *aws.Volume, err error) error {
 		if err != nil {
 			rdbCh <- MaybeRDB{nil, err}
 			return nil
 		}
-		rdb, err := k.CreateRDB(name, vol.ID)
+		rdb, err := k.CreateRDB(conf.Name, vol.ID)
 		rdbCh <- MaybeRDB{rdb, err}
 		return err
 	})
 
 	go func() {
-		fusion, err := k.CreateFusion(name)
+		fusion, err := k.CreateFusion(conf.Name)
 		fusionCh <- MaybeFusion{fusion, err}
 	}()
 
-	go k.createWithVol(4, aws.GP2, func(vol *aws.Volume, err error) error {
+	go k.createWithVol(conf.SizeFrontend, aws.GP2, func(vol *aws.Volume, err error) error {
 		if err != nil {
 			frontendCh <- MaybeFrontend{nil, err}
 			return nil
 		}
-		frontend, err := k.CreateFrontend(name, vol.ID)
+		frontend, err := k.CreateFrontend(conf.Name, vol.ID)
 		frontendCh <- MaybeFrontend{frontend, err}
 		return err
 	})

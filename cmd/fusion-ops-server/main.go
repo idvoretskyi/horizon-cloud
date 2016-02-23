@@ -39,12 +39,6 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-type applyConfigRequest struct {
-	Config api.Config
-	Ready  <-chan struct{}
-	DoIt   bool
-}
-
 func setConfig(rw http.ResponseWriter, req *http.Request) {
 	var c api.Config
 	if !decode(rw, req.Body, &c) {
@@ -142,15 +136,10 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	target, err := configToTarget(config)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-
 	api.WriteJSONResp(rw, http.StatusOK, api.WaitConfigAppliedResp{
 		Config: config.Config,
-		Target: *target,
+		// RSI(real): fill this in.
+		Target: api.Target{},
 	})
 }
 
@@ -158,9 +147,11 @@ func main() {
 	log.SetFlags(log.Lshortfile)
 
 	listenAddr := flag.String("listen", ":8000", "HTTP listening address")
-	identityFile := flag.String("id", "", "location of private ssh key")
-	sharedSecretFile := flag.String("shared-secret", "/secrets/api-shared-secret",
-		"Location of API shared secret")
+	sharedSecretFile := flag.String(
+		"shared-secret",
+		"/secrets/api-shared-secret/api-shared-secret",
+		"Location of API shared secret",
+	)
 	flag.Parse()
 
 	data, err := ioutil.ReadFile(*sharedSecretFile)
@@ -176,7 +167,7 @@ func main() {
 	if err != nil {
 		log.Fatal("unable to connect to RethinkDB: ", err)
 	}
-	go configSync(rdb, *identityFile)
+	go configSync(rdb)
 
 	http.HandleFunc("/v1/config/set", setConfig)
 	http.HandleFunc("/v1/config/get", getConfig)

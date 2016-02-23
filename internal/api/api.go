@@ -18,8 +18,11 @@ type Target struct {
 type Config struct {
 	Name          string   `gorethink:"id,omitempty"`
 	Version       string   `gorethink:",omitempty"`
-	NumServers    int      `gorethink:",omitempty"`
-	InstanceType  string   `gorethink:",omitempty"`
+	NumRDB        int      `gorethink:",omitempty"`
+	SizeRDB       int      `gorethink:",omitempty"`
+	NumFusion     int      `gorethink:",omitempty"`
+	NumFrontend   int      `gorethink:",omitempty"`
+	SizeFrontend  int      `gorethink:",omitempty"`
 	PublicSSHKeys []string `gorethink:",omitempty"`
 }
 
@@ -45,12 +48,20 @@ func (c *Config) Validate() error {
 	if err := ValidateVersion(c.Version); err != nil {
 		return err
 	}
-	if c.NumServers == 0 {
-		return errors.New("NumServers is 0")
+	if c.NumRDB == 0 {
+		return errors.New("NumRDB is 0")
 	}
-	// RSI: validate against list of legal instances.
-	if c.InstanceType == "" {
-		return fmt.Errorf("InstanceType `%s` is not legal", c.InstanceType)
+	if c.SizeRDB == 0 {
+		return errors.New("SizeRDB is 0")
+	}
+	if c.NumFusion == 0 {
+		return errors.New("NumFusion is 0")
+	}
+	if c.NumFrontend == 0 {
+		return errors.New("NumFrontend is 0")
+	}
+	if c.SizeFrontend == 0 {
+		return errors.New("SizeFrontend is 0")
 	}
 	return nil
 }
