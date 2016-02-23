@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: fusion-ops-ssh-proxy-1
+  labels:
+    app: fusion-ops-ssh-proxy
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    app: fusion-ops-ssh-proxy
+    version: v1
+  template:
+    metadata:
+      labels:
+        app: fusion-ops-ssh-proxy
+        version: v1
+    spec:
+      volumes:
+      - name: ssh-proxy-keys
+        secret: { secretName: "ssh-proxy-keys" }
+      - name: api-shared-secret
+        secret: { secretName: "api-shared-secret" }
+
+      containers:
+      - name: proxy
+      image: localhost:5000/fusion-ops-ssh-proxy:1
+      resources:
+        limits: { cpu: "50m", memory: "128Mi" }
+      env:
+      - name: CLIENT_KEY
+        value: /secrets/ssh-proxy-keys/client-rsa
+      - name: HOST_KEY
+        value: /secrets/ssh-proxy-keys/host-rsa
+      - name: LISTEN
+        value: ":22"
+      - name: API_SERVER
+        value: "http://api-server:80" # TODO
+      - name: API_SERVER_SECRET
+        value: /secrets/api-shared-secret/api-shared-secret
+      ports:
+      - containerPort: 22
+        name: ssh
+        protocol: TCP
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: fusion-ops-ssh-proxy
+  labels:
+    app: fusion-ops-ssh-proxy
+spec:
+  type: LoadBalancer
+  selector:
+    app: fusion-ops-ssh-proxy
+  ports:
+  - port: 22
+    name: ssh
+    protocol: TCP
