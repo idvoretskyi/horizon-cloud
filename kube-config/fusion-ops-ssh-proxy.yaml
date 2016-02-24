@@ -35,7 +35,7 @@ spec:
       - name: LISTEN
         value: ":22"
       - name: API_SERVER
-        value: "http://api-server:80" # TODO
+        value: "http://fusion-api:8000"
       - name: API_SERVER_SECRET
         value: /secrets/api-shared-secret/api-shared-secret
       ports:

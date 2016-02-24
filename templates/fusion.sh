@@ -10,19 +10,19 @@ kind: ReplicationController
 metadata:
   name: fusion-$project
   labels:
-    k8s-app: fusion
+    app: fusion
     project: $project
     version: v2
 spec:
   replicas: 1
   selector:
-    k8s-app: fusion
+    app: fusion
     project: $project
     version: v2
   template:
     metadata:
       labels:
-        k8s-app: fusion
+        app: fusion
         project: $project
         version: v2
     spec:
@@ -48,11 +48,11 @@ kind: Service
 metadata:
   name: fusion-$project
   labels:
-    k8s-app: fusion
+    app: fusion
     project: $project
 spec:
   selector:
-    k8s-app: fusion
+    app: fusion
     project: $project
   ports:
   - port: 8181

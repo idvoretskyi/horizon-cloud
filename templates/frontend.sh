@@ -11,19 +11,19 @@ kind: ReplicationController
 metadata:
   name: frontend-$project
   labels:
-    k8s-app: frontend
+    app: frontend
     project: $project
     version: v0
 spec:
   replicas: 1
   selector:
-    k8s-app: frontend
+    app: frontend
     project: $project
     version: v0
   template:
     metadata:
       labels:
-        k8s-app: frontend
+        app: frontend
         project: $project
         version: v0
     spec:
@@ -77,11 +77,11 @@ kind: Service
 metadata:
   name: frontend-nginx-$project
   labels:
-    k8s-app: frontend
+    app: frontend
     project: $project
 spec:
   selector:
-    k8s-app: frontend
+    app: frontend
     project: $project
   ports:
   - port: 80
@@ -99,11 +99,11 @@ kind: Service
 metadata:
   name: frontend-ssh-$project
   labels:
-    k8s-app: frontend
+    app: frontend
     project: $project
 spec:
   selector:
-    k8s-app: frontend
+    app: frontend
     project: $project
   ports:
   - port: 22
