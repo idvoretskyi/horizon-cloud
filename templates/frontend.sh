@@ -59,7 +59,7 @@ spec:
           protocol: TCP
 
       - name: ssh
-        image: localhost:5000/fusion-ssh
+        image: localhost:5000/fusion-ssh:2
         resources:
           limits:
             cpu: 10m

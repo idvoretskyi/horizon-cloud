@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
 
-tar -xzf /secrets/ssh-key-tarball -C /etc/ssh
-
-exec /usr/sbin/sshd -D
+mkdir -p /var/run/sshd
+ssh-keygen -A
+exec /usr/sbin/sshd -D -e

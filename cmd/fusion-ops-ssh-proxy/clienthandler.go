@@ -204,7 +204,7 @@ func handleClient(s net.Conn, c *config) {
 			defer clientNet.Close()
 
 			clientConfig := &ssh.ClientConfig{
-				User: "ckastorff",
+				User: "fusion",
 				Auth: []ssh.AuthMethod{
 					ssh.PublicKeys(c.ClientKey),
 				},
