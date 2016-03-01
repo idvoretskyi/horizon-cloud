@@ -18,6 +18,6 @@ metadata:
 subsets:
 - addresses:
   # fusiondev
-  - IP: "54.193.31.201"
+  - ip: "54.193.31.201"
   ports:
   - port: 8000
