@@ -3,17 +3,17 @@ kind: ReplicationController
 metadata:
   name: kube-registry-v1
   labels:
-    k8s-app: kube-registry
+    app: kube-registry
     version: v1
 spec:
   replicas: 1
   selector:
-    k8s-app: kube-registry
+    app: kube-registry
     version: v1
   template:
     metadata:
       labels:
-        k8s-app: kube-registry
+        app: kube-registry
         version: v1
     spec:
       containers:

@@ -71,7 +71,7 @@ func main() {
 			log.Fatalf("Couldn't accept from socket: %v", err)
 		}
 
-		go handleClient(s, conf)
+		go handleClientConn(s, conf)
 		// TODO: consider connection count limits
 	}
 }

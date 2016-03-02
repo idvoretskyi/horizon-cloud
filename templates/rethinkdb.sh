@@ -11,19 +11,19 @@ kind: ReplicationController
 metadata:
   name: rethinkdb-$project
   labels:
-    k8s-app: rethinkdb
+    app: rethinkdb
     project: $project
     version: v0
 spec:
   replicas: 1
   selector:
-    k8s-app: rethinkdb
+    app: rethinkdb
     project: $project
     version: v0
   template:
     metadata:
       labels:
-        k8s-app: rethinkdb
+        app: rethinkdb
         project: $project
         version: v0
     spec:
@@ -60,11 +60,11 @@ kind: Service
 metadata:
   name: rethinkdb-$project
   labels:
-    k8s-app: rethinkdb
+    app: rethinkdb
     project: $project
 spec:
   selector:
-    k8s-app: rethinkdb
+    app: rethinkdb
     project: $project
   ports:
   - port: 28015
