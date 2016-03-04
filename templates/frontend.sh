@@ -29,8 +29,8 @@ spec:
     spec:
       volumes:
       - name: data
-        awsElasticBlockStore:
-          volumeID: $volume
+        gcePersistentDisk:
+          pdName: $volume
           fsType: ext4
 
       containers:

@@ -6,6 +6,7 @@ import (
 
 	"github.com/rethinkdb/fusion-ops/internal/api"
 	"github.com/rethinkdb/fusion-ops/internal/db"
+	"github.com/rethinkdb/fusion-ops/internal/gcloud"
 	"github.com/rethinkdb/fusion-ops/internal/kube"
 )
 
@@ -28,9 +29,17 @@ func applyConfigs(name string) {
 		if conf == nil {
 			break
 		}
+
+		gc, err := gcloud.New("horizon-cloud-1239", "us-central1-f") // TODO: generalize
+		if err != nil {
+			// RSI: log serious
+			log.Print(err)
+			continue
+		}
+
 		// RSI: what should the cluster name be exactly?  I don't quite
 		// understand the semantics here.
-		k := kube.New("horizon")
+		k := kube.New(gc, "horizon")
 		// RSI: tear down old project once we actually support changing
 		// configurations.
 		project, err := k.CreateProject(*conf)

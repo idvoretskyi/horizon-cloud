@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"time"
 
 	"github.com/rethinkdb/fusion-ops/internal/api"
-	"github.com/rethinkdb/fusion-ops/internal/aws"
+	"github.com/rethinkdb/fusion-ops/internal/gcloud"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
@@ -23,7 +24,7 @@ import (
 type Kube struct {
 	C *client.Client
 	M *resource.Mapper
-	A *aws.AWS
+	G *gcloud.GCloud
 }
 
 type RDB struct {
@@ -50,7 +51,7 @@ type Project struct {
 	Frontend *Frontend
 }
 
-func New(cluster string) *Kube {
+func New(gc *gcloud.GCloud, cluster string) *Kube {
 	// RSI: should we be passing in a client config here?
 	factory := util.NewFactory(nil)
 	mapper, typer := factory.Object()
@@ -66,7 +67,7 @@ func New(cluster string) *Kube {
 			mapper,
 			resource.ClientMapperFunc(factory.ClientForMapping),
 			factory.Decoder(true)},
-		A: aws.New(cluster),
+		G: gc,
 	}
 }
 
@@ -126,6 +127,7 @@ func (k *Kube) Wait(p *Project) error {
 		case <-timeout.C:
 			return fmt.Errorf("timed out after %d minutes", timeoutMin)
 		case <-time.After(backoff_ms * time.Millisecond):
+			log.Printf("Polling for readiness")
 			ready, err := k.Ready(p)
 			if err != nil {
 				return err
@@ -155,7 +157,7 @@ func (k *Kube) CreateFromTemplate(
 	template string, args ...string) ([]runtime.Object, error) {
 
 	// RSI: make this configurable
-	path := "/home/mlucy/go/src/github.com/rethinkdb/fusion-ops/templates/" + template
+	path := os.Getenv("HOME") + "/go/src/github.com/rethinkdb/fusion-ops/templates/" + template
 	cmd := exec.Command(path, args...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
@@ -283,7 +285,7 @@ func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) 
 
 func (k *Kube) DeleteRDB(rdb *RDB) error {
 	var errs []error
-	errs = append(errs, k.A.DeleteVolume(rdb.VolumeID))
+	errs = append(errs, k.G.DeleteDisk(rdb.VolumeID))
 	errs = append(errs, k.DeleteObject(rdb.RC))
 	errs = append(errs, k.DeleteObject(rdb.SVC))
 	err := compositeErr(errs...)
@@ -308,7 +310,7 @@ func (k *Kube) DeleteFusion(fusion *Fusion) error {
 
 func (k *Kube) DeleteFrontend(f *Frontend) error {
 	var errs []error
-	errs = append(errs, k.A.DeleteVolume(f.VolumeID))
+	errs = append(errs, k.G.DeleteDisk(f.VolumeID))
 	errs = append(errs, k.DeleteObject(f.RC))
 	errs = append(errs, k.DeleteObject(f.NGINXSVC))
 	errs = append(errs, k.DeleteObject(f.SSHSVC))
@@ -322,10 +324,10 @@ func (k *Kube) DeleteFrontend(f *Frontend) error {
 
 func (k *Kube) createWithVol(
 	size int,
-	volType string,
-	callback func(vol *aws.Volume, err error) error) {
+	volType gcloud.DiskType,
+	callback func(vol *gcloud.Disk, err error) error) {
 
-	vol, err := k.A.CreateVolume(32, volType)
+	vol, err := k.G.CreateDisk(32, volType)
 	if err != nil {
 		err = callback(nil, err)
 		if err != nil {
@@ -335,7 +337,7 @@ func (k *Kube) createWithVol(
 	}
 	err = callback(vol, nil)
 	if err != nil {
-		err2 := k.A.DeleteVolume(vol.ID)
+		err2 := k.G.DeleteDisk(vol.Name)
 		if err2 != nil {
 			// RSI: log cleanup failure.
 		}
@@ -364,12 +366,12 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 	fusionCh := make(chan MaybeFusion)
 	frontendCh := make(chan MaybeFrontend)
 
-	go k.createWithVol(conf.SizeRDB, aws.GP2, func(vol *aws.Volume, err error) error {
+	go k.createWithVol(conf.SizeRDB, gcloud.DiskTypeSSD, func(vol *gcloud.Disk, err error) error {
 		if err != nil {
 			rdbCh <- MaybeRDB{nil, err}
 			return nil
 		}
-		rdb, err := k.CreateRDB(conf.Name, vol.ID)
+		rdb, err := k.CreateRDB(conf.Name, vol.Name)
 		rdbCh <- MaybeRDB{rdb, err}
 		return err
 	})
@@ -379,12 +381,12 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 		fusionCh <- MaybeFusion{fusion, err}
 	}()
 
-	go k.createWithVol(conf.SizeFrontend, aws.GP2, func(vol *aws.Volume, err error) error {
+	go k.createWithVol(conf.SizeFrontend, gcloud.DiskTypeStandard, func(vol *gcloud.Disk, err error) error {
 		if err != nil {
 			frontendCh <- MaybeFrontend{nil, err}
 			return nil
 		}
-		frontend, err := k.CreateFrontend(conf.Name, vol.ID)
+		frontend, err := k.CreateFrontend(conf.Name, vol.Name)
 		frontendCh <- MaybeFrontend{frontend, err}
 		return err
 	})

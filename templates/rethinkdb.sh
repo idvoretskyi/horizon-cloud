@@ -49,8 +49,8 @@ spec:
           protocol: TCP
       volumes:
       - name: data
-        awsElasticBlockStore:
-          volumeID: $volume
+        gcePersistentDisk:
+          pdName: $volume
           fsType: ext4
 
 ---
