@@ -32,9 +32,6 @@ spec:
         awsElasticBlockStore:
           volumeID: $volume
           fsType: ext4
-      - name: sshhostkeys
-        secret:
-          secretName: fusion-$project-sshhost
 
       containers:
       - name: nginx
@@ -67,8 +64,6 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /data
-        - name: sshhostkeys
-          mountPath: /secrets
 
 ---
 

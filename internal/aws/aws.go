@@ -39,6 +39,30 @@ func New(cluster string) *AWS {
 	}
 }
 
+func (a *AWS) WaitVolume(id string) error {
+	// RSI: should exit immediately if volume doesn't exist.
+	started := time.Now()
+	delay := time.Second
+	for time.Now().Sub(started) < time.Minute*5 {
+		time.Sleep(delay)
+		delay += time.Second
+		if delay > time.Second*5 {
+			delay = time.Second * 5
+		}
+
+		ready, err := a.VolumeReady(id)
+		if err != nil {
+			log.Printf("Couldn't check volume readiness: %v", err)
+			continue
+		}
+		if ready {
+			return nil
+		}
+	}
+
+	return errors.New("EC2 volume did not become ready in 5 minutes")
+}
+
 const GP2 = "gp2"
 const IO1 = "io1"
 
@@ -55,6 +79,11 @@ func (a *AWS) CreateVolume(size int64, volType string) (*Volume, error) {
 	if vol.VolumeId == nil || vol.Size == nil {
 		return nil, fmt.Errorf("bad volume: %s", vol)
 	}
+	err = a.WaitVolume(*vol.VolumeId)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("created volume %s", *vol.VolumeId)
 	return &Volume{
 		ID:   *vol.VolumeId,
 		Size: *vol.Size,
@@ -153,6 +182,32 @@ func (a *AWS) waitServer(instanceID string,
 	}
 
 	return nil, errors.New("Instance did not transition in 5 minutes")
+}
+
+func (a *AWS) VolumeReady(id string) (bool, error) {
+	resp, err := a.EC2.DescribeVolumes(&ec2.DescribeVolumesInput{
+		VolumeIds: []*string{&id},
+	})
+	if err != nil {
+		return false, err
+	}
+	if len(resp.Volumes) != 1 {
+		return false, fmt.Errorf("expected 1 volume but got %d", len(resp.Volumes))
+	}
+	vol := resp.Volumes[0]
+	switch *vol.State {
+	case ec2.VolumeStateCreating:
+		return false, nil
+	case ec2.VolumeStateAvailable:
+		return true, nil
+	case ec2.VolumeStateInUse, ec2.VolumeStateDeleting,
+		ec2.VolumeStateDeleted, ec2.VolumeStateError:
+		// RSI: log a serious error (unusable volume state)
+		return false, fmt.Errorf("unusable ec2 volume state '%s'", vol.State)
+	default:
+		// RSI: log a serious error (API changes)
+		return false, fmt.Errorf("unexpected ec2 volume state '%s'", vol.State)
+	}
 }
 
 func (a *AWS) StatServer(id string) (*Server, error) {
