@@ -203,10 +203,10 @@ func (a *AWS) VolumeReady(id string) (bool, error) {
 	case ec2.VolumeStateInUse, ec2.VolumeStateDeleting,
 		ec2.VolumeStateDeleted, ec2.VolumeStateError:
 		// RSI: log a serious error (unusable volume state)
-		return false, fmt.Errorf("unusable ec2 volume state '%s'", vol.State)
+		return false, fmt.Errorf("unusable ec2 volume state '%s'", *vol.State)
 	default:
 		// RSI: log a serious error (API changes)
-		return false, fmt.Errorf("unexpected ec2 volume state '%s'", vol.State)
+		return false, fmt.Errorf("unexpected ec2 volume state '%s'", *vol.State)
 	}
 }
 

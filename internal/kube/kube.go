@@ -63,10 +63,10 @@ func New(gc *gcloud.GCloud, cluster string) *Kube {
 	return &Kube{
 		C: client,
 		M: &resource.Mapper{
-			typer,
-			mapper,
-			resource.ClientMapperFunc(factory.ClientForMapping),
-			factory.Decoder(true)},
+			ObjectTyper:  typer,
+			RESTMapper:   mapper,
+			ClientMapper: resource.ClientMapperFunc(factory.ClientForMapping),
+			Decoder:      factory.Decoder(true)},
 		G: gc,
 	}
 }
@@ -175,9 +175,10 @@ func (k *Kube) CreateFromTemplate(
 
 	var objs []runtime.Object
 	defer func() {
-		for i := range objs {
+		for _, o := range objs {
+			o := o
 			go func() {
-				err := k.DeleteObject(objs[i])
+				err := k.DeleteObject(o)
 				if err != nil {
 					// RSI: log cleanup failure
 				}
@@ -327,7 +328,7 @@ func (k *Kube) createWithVol(
 	volType gcloud.DiskType,
 	callback func(vol *gcloud.Disk, err error) error) {
 
-	vol, err := k.G.CreateDisk(32, volType)
+	vol, err := k.G.CreateDisk(int64(size), volType)
 	if err != nil {
 		err = callback(nil, err)
 		if err != nil {

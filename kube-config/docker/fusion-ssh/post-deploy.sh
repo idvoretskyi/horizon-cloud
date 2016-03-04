@@ -11,6 +11,8 @@ if [ ! -e /data/"$DIR" ]; then
     exit 1
 fi
 
+chmod -R a+rX /data/"$DIR"
+
 # NB: this is atomic
 ln -nsf /data/"$DIR" /data/current_new
 mv -T /data/current_new /data/current

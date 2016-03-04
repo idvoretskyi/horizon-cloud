@@ -47,7 +47,7 @@ http {
         }
 
         location / {
-            alias /data/;
+            alias /data/current/;
         }
     }
 }

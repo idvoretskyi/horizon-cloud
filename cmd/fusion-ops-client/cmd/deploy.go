@@ -33,7 +33,7 @@ var deployCmd = &cobra.Command{
 			&commandContext{client, name, string(pubKey), viper.GetString("identity_file")},
 			api.AllowClusterStart,
 			func(sshClient *ssh.Client, resp *api.WaitConfigAppliedResp) error {
-				log.Printf("deploying to %v (%c)...", resp.Config, resp.Target)
+				log.Printf("deploying to %v (%v)...", resp.Config, resp.Target)
 				return nil
 			},
 		)
