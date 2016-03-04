@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: fusion
-        image: us.gcr.io/horizon-cloud-1239/fusion:1
+        image: us.gcr.io/horizon-cloud-1239/fusion:2
         resources:
           limits:
             cpu: 50m
