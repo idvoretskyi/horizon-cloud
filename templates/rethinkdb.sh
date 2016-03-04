@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
       - name: rethinkdb
-        image: localhost:5000/rethinkdb
+        image: us.gcr.io/horizon-cloud-1239/rethinkdb:1
         resources:
           limits:
             cpu: 250m

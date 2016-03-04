@@ -38,7 +38,7 @@ spec:
 
       containers:
       - name: nginx
-        image: localhost:5000/fusion-nginx
+        image: us.gcr.io/horizon-cloud-1239/fusion-nginx:1
         resources:
           limits:
             cpu: 50m
@@ -59,7 +59,7 @@ spec:
           protocol: TCP
 
       - name: ssh
-        image: localhost:5000/fusion-ssh:2
+        image: us.gcr.io/horizon-cloud-1239/fusion-ssh:1
         resources:
           limits:
             cpu: 10m
