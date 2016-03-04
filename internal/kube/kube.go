@@ -73,12 +73,15 @@ func New(cluster string) *Kube {
 func (k *Kube) Ready(p *Project) (bool, error) {
 	for _, rc := range []*kapi.ReplicationController{
 		p.RDB.RC, p.Fusion.RC, p.Frontend.RC} {
+		log.Printf("checking readiness of RC %s", rc.Name)
 		podlist, err := k.C.Pods(kapi.NamespaceDefault).List(kapi.ListOptions{
 			LabelSelector: labels.SelectorFromSet(rc.Spec.Selector)})
 		if err != nil {
 			return false, err
 		}
+		// RSI: should we be asserting `len(podlist.Items)` is what we expect?
 		for _, pod := range podlist.Items {
+			log.Printf("checking status for PO %s", pod.Name)
 			switch pod.Status.Phase {
 			case kapi.PodPending:
 				return false, nil

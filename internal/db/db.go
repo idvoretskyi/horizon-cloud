@@ -55,7 +55,7 @@ func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
 	var projects []api.Project
 	var c Config
 	for cursor.Next(&c) {
-		projects = append(projects, api.Project{c.Name, "frontend-ssh-" + c.Name})
+		projects = append(projects, api.Project{c.Name, "frontend-ssh-" + c.Name + ":22"})
 	}
 	return projects, nil
 }

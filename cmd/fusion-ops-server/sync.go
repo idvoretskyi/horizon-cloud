@@ -39,12 +39,14 @@ func applyConfigs(name string) {
 			log.Printf("%s\n", err)
 			continue
 		}
+		log.Printf("waiting for config %s:%s", name, conf.Version)
 		err = k.Wait(project)
 		if err != nil {
 			// RSI: log serious error
 			log.Printf("%s\n", err)
 			continue
 		}
+		log.Printf("successfully applied config %s:%s", name, conf.Version)
 		err = rdb.SetConfig(&db.Config{
 			Config: api.Config{
 				Name: conf.Name,
@@ -64,6 +66,9 @@ func configSync(rdb *db.DB) {
 	rdb.ConfigChanges(changeChan)
 	for c := range changeChan {
 		if c.NewVal != nil {
+			if c.NewVal.AppliedVersion == c.NewVal.Version {
+				continue
+			}
 			func() {
 				configsLock.Lock()
 				defer configsLock.Unlock()
