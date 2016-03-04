@@ -11,6 +11,7 @@ ADD authorized_keys /home/fusion/.ssh/authorized_keys
 RUN chown -R fusion:fusion /home/fusion/.ssh
 
 COPY run.sh /root/run.sh
+COPY post-deploy.sh /home/fusion/post-deploy.sh
 
 EXPOSE 22
 CMD ["/root/run.sh"]

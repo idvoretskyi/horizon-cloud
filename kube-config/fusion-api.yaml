@@ -21,3 +21,4 @@ subsets:
   - ip: "54.193.31.201"
   ports:
   - port: 8000
+    name: http

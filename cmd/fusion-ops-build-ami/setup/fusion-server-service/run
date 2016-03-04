@@ -1,6 +1,0 @@
-#!/bin/sh
-set -e
-exec 2>&1
-
-exec su fusion -c \
-    'cd /home/fusion/fusion/server && exec node --harmony-destructuring src/main.js --debug --insecure --dev'
