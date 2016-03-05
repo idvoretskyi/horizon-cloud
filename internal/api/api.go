@@ -124,7 +124,7 @@ func ProjectFromName(name string) Project {
 	return Project{
 		Name:        name,
 		SSHAddress:  "frontend-ssh-" + name + ":22",
-		HTTPAddress: "http://frontend-nginx-" + name + ":80",
+		HTTPAddress: "frontend-nginx-" + name + ":80",
 	}
 }
 

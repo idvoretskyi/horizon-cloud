@@ -169,11 +169,11 @@ ENVREAD:
 	// Phase 3: Connect to target.
 
 	c.log("Connecting to %v (project name %#v)",
-		project.Address, project.Name)
+		project.SSHAddress, project.Name)
 
-	clientNet, err := net.Dial("tcp", project.Address)
+	clientNet, err := net.Dial("tcp", project.SSHAddress)
 	if err != nil {
-		c.log("Couldn't connect to %v: %v", project.Address, err)
+		c.log("Couldn't connect to %v: %v", project.SSHAddress, err)
 		fmt.Fprintf(channel.Stderr(),
 			"Couldn't connect to server hosting project `%v`\n", project.Name)
 		return
@@ -189,9 +189,9 @@ ENVREAD:
 	}
 
 	clientConn, clientChans, clientReqs, err :=
-		ssh.NewClientConn(clientNet, project.Address, clientConfig)
+		ssh.NewClientConn(clientNet, project.SSHAddress, clientConfig)
 	if err != nil {
-		c.log("Couldn't setup SSH connection to %v: %v", project.Address, err)
+		c.log("Couldn't setup SSH connection to %v: %v", project.SSHAddress, err)
 		fmt.Fprintf(channel.Stderr(),
 			"Couldn't connect to server hosting project `%v`\n", project.Name)
 		return
