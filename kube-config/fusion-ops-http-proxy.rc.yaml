@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: fusion-ops-http-proxy-1
+  labels:
+    app: fusion-ops-http-proxy
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    app: fusion-ops-http-proxy
+    version: v1
+  template:
+    metadata:
+      labels:
+        app: fusion-ops-http-proxy
+        version: v1
+    spec:
+      volumes:
+      - name: api-shared-secret
+        secret: { secretName: "api-shared-secret" }
+
+      containers:
+      - name: proxy
+        image: us.gcr.io/horizon-cloud-1239/fusion-ops-http-proxy:2
+        resources:
+          limits: { cpu: "250m", memory: "128Mi" }
+        env:
+        - name: API_SERVER
+          value: "http://fusion-api:8000"
+        - name: SECRET_PATH
+          value: /secrets/api-shared-secret/api-shared-secret
+        volumeMounts:
+        - name: api-shared-secret
+          mountPath: /secrets/api-shared-secret
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 443
+          name: https
+          protocol: TCP

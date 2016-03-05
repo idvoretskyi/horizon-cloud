@@ -7,6 +7,11 @@ type Config struct {
 	AppliedVersion string `gorethink:",omitempty"`
 }
 
+type Alias struct {
+	Alias   string `gorethink:"id"`
+	Project string
+}
+
 type Project struct {
 	api.Project
 	PublicKeys []string

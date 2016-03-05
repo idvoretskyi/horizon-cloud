@@ -65,6 +65,15 @@ func (c *Client) GetProjects(opts GetProjectsReq) (*GetProjectsResp, error) {
 	return &ret, nil
 }
 
+func (c *Client) GetByAlias(opts GetByAliasReq) (*GetByAliasResp, error) {
+	var ret GetByAliasResp
+	err := c.jsonRoundTrip("/v1/projects/getByAlias", opts, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return &ret, nil
+}
+
 func (c *Client) jsonRoundTrip(path string, body interface{}, out interface{}) error {
 	buf, err := json.Marshal(body)
 	if err != nil {

@@ -58,5 +58,5 @@ spec:
   - port: 8181
     name: driver
     protocol: TCP
-  type: LoadBalancer
+  type: ClusterIP
 EOF

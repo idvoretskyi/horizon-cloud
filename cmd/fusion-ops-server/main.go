@@ -87,6 +87,26 @@ func getProjects(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsResp{Projects: projects})
 }
 
+func getByAlias(rw http.ResponseWriter, req *http.Request) {
+	var gp api.GetByAliasReq
+	if !decode(rw, req.Body, &gp) {
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(gp.SharedSecret), []byte(sharedSecret)) != 1 {
+		// RSI: security warnigns?
+		log.Printf("Incorrect shared secret `%s`.", gp.SharedSecret)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Shared secret incorrect, GTFO."))
+		return
+	}
+	project, err := rdb.GetByAlias(gp.Alias)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.GetByAliasResp{Project: project})
+}
+
 func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
 	var creq api.EnsureConfigConnectableReq
 	if !decode(rw, req.Body, &creq) {
@@ -174,6 +194,7 @@ func main() {
 	http.HandleFunc("/v1/config/ensure_connectable", ensureConfigConnectable)
 	http.HandleFunc("/v1/config/wait_applied", waitConfigApplied)
 	http.HandleFunc("/v1/projects/get", getProjects)
+	http.HandleFunc("/v1/projects/getByAlias", getByAlias)
 	log.Printf("Started.")
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }

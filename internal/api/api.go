@@ -105,13 +105,35 @@ func (gp *GetProjectsReq) Validate() error {
 	return nil
 }
 
+type GetByAliasReq struct {
+	SharedSecret string
+	Alias        string
+}
+
+func (gp *GetByAliasReq) Validate() error {
+	return nil
+}
+
 type Project struct {
-	Name    string
-	Address string
+	Name        string
+	SSHAddress  string
+	HTTPAddress string
+}
+
+func ProjectFromName(name string) Project {
+	return Project{
+		Name:        name,
+		SSHAddress:  "frontend-ssh-" + name + ":22",
+		HTTPAddress: "http://frontend-nginx-" + name + ":80",
+	}
 }
 
 type GetProjectsResp struct {
 	Projects []Project
+}
+
+type GetByAliasResp struct {
+	Project *Project
 }
 
 type GetConfigReq struct {

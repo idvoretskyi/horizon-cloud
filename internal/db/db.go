@@ -18,6 +18,7 @@ var (
 	ErrCanceled = errors.New("canceled")
 
 	configs = r.DB("test").Table("configs")
+	aliases = r.DB("test").Table("aliases")
 )
 
 func New() (*DB, error) {
@@ -55,12 +56,22 @@ func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
 	var projects []api.Project
 	var c Config
 	for cursor.Next(&c) {
-		projects = append(projects, api.Project{
-			Name:    c.Name,
-			Address: "frontend-ssh-" + c.Name + ":22",
-		})
+		projects = append(projects, api.ProjectFromName(c.Name))
 	}
 	return projects, nil
+}
+
+func (d *DB) GetByAlias(aliasName string) (*api.Project, error) {
+	var alias Alias
+	err := runOne(aliases.Get(aliasName), d.session, &alias)
+	if err != nil {
+		if err != r.ErrEmptyResult {
+			return nil, err
+		}
+		return nil, nil
+	}
+	project := api.ProjectFromName(alias.Project)
+	return &project, nil
 }
 
 func (d *DB) GetConfig(name string) (*Config, error) {

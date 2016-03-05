@@ -1,0 +1,76 @@
+package cmd
+
+import (
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/rethinkdb/fusion-ops/internal/api"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+type config struct {
+	APIClient *api.Client
+	APISecret string
+}
+
+var cfgFile string
+
+// This represents the base command when called without any subcommands
+var RootCmd = &cobra.Command{
+	Use:   "fusion-ops-http-proxy",
+	Short: "fusion-ops-http-proxy",
+	Long:  `fusion-ops-http-proxy`,
+	Run: func(cmd *cobra.Command, args []string) {
+		conf := &config{}
+		var err error
+		conf.APIClient, err = api.NewClient(viper.GetString("api_server"))
+		if err != nil {
+			log.Fatalf("Couldn't create API client: %v", err)
+		}
+
+		secretPath := viper.GetString("secret_path")
+		secret, err := ioutil.ReadFile(secretPath)
+		if err != nil {
+			log.Fatalf("Couldn't read api server secret from %v: %v", secretPath, err)
+		}
+		conf.APISecret = string(secret)
+
+		handler := NewHandler(conf)
+		log.Fatal(http.ListenAndServe(viper.GetString("listen"), handler))
+	},
+}
+
+// Execute adds all child commands to the root command sets flags appropriately.
+// This is called by main.main(). It only needs to happen once to the rootCmd.
+func Execute() {
+	if err := RootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+}
+
+func init() {
+	cobra.OnInitialize(initConfig)
+	RootCmd.PersistentFlags().StringP(
+		"listen", "l", ":80", "Address to listen on.")
+	viper.BindPFlag("listen", RootCmd.PersistentFlags().Lookup("listen"))
+
+	RootCmd.PersistentFlags().StringP(
+		"api_server", "a", "http://api-server:8000", "API server base URL.")
+	viper.BindPFlag("api_server", RootCmd.PersistentFlags().Lookup("api_server"))
+
+	RootCmd.PersistentFlags().StringP(
+		"secret_path", "s",
+		"/secrets/api-shared-secret/api-shared-secret",
+		"Path to API server shared secret")
+	viper.BindPFlag("secret_path", RootCmd.PersistentFlags().Lookup("secret_path"))
+}
+
+// initConfig reads in ENV variables
+func initConfig() {
+	viper.AutomaticEnv()
+}

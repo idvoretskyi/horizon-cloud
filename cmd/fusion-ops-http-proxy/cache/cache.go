@@ -15,9 +15,10 @@ var (
 // TODO: implement stale data usage and background revalidation
 
 type Cache struct {
-	mu   sync.Mutex
-	m    map[string]*cacheEntry
 	fill func(string) (string, error)
+
+	mu sync.Mutex
+	m  map[string]*cacheEntry
 }
 
 type cacheEntry struct {
@@ -27,8 +28,8 @@ type cacheEntry struct {
 
 func New(fill func(string) (string, error)) *Cache {
 	return &Cache{
-		m:    make(map[string]*cacheEntry, 128),
 		fill: fill,
+		m:    make(map[string]*cacheEntry, 128),
 	}
 }
 
@@ -36,14 +37,14 @@ func (c *Cache) Get(key string) (string, error) {
 	start := time.Now()
 
 	c.mu.Lock()
-	ent, ok := c.m[key]
-	if ok && ent.expires.After(start) {
+	entry, ok := c.m[key]
+	if ok && entry.expires.Before(start) {
 		delete(c.m, key)
 		ok = false
 	}
 	c.mu.Unlock()
 	if ok {
-		return ent.value, nil
+		return entry.value, nil
 	}
 
 	value, err := c.fill(key)
