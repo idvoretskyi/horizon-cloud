@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu
 
 # RSI: sanitize project name, or leave that to go code?
 project="$1"
@@ -9,23 +9,23 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: frontend-$project
+  name: frontend-1-$project
   labels:
     app: frontend
     project: $project
-    version: v0
+    version: v1
 spec:
   replicas: 1
   selector:
     app: frontend
     project: $project
-    version: v0
+    version: v1
   template:
     metadata:
       labels:
         app: frontend
         project: $project
-        version: v0
+        version: v1
     spec:
       volumes:
       - name: data
@@ -46,13 +46,10 @@ spec:
           mountPath: /data
         env:
         - name: NGINX_CONNECT
-          value: fusion-$project:8181
+          value: horizon-$project:8181
         ports:
         - containerPort: 80
           name: http
-          protocol: TCP
-        - containerPort: 443
-          name: https
           protocol: TCP
 
       - name: ssh

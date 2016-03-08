@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu
 
 # RSI: sanitize project name, or leave that to go code?
 project="$1"

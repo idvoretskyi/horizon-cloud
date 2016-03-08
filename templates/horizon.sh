@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu
 
 # RSI: sanitize project name, or leave that to go code?
 project="$1"
@@ -8,37 +8,49 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: fusion-$project
+  name: horizon-$project
   labels:
-    app: fusion
+    app: horizon
     project: $project
     version: v2
 spec:
   replicas: 1
   selector:
-    app: fusion
+    app: horizon
     project: $project
     version: v2
   template:
     metadata:
       labels:
-        app: fusion
+        app: horizon
         project: $project
         version: v2
     spec:
       containers:
-      - name: fusion
-        image: us.gcr.io/horizon-cloud-1239/fusion:2
+      - name: horizon
+        image: us.gcr.io/horizon-cloud-1239/horizon:3
         resources:
           limits:
             cpu: 50m
             memory: 128Mi
         env:
-        - name: FUSION_CONNECT
+        - name: HZ_SERVE_STATIC
+          value: dist
+        - name: HZ_DEBUG
+          value: 'true'
+        - name: HZ_ALLOW_UNAUTHENTICATED
+          value: 'true'
+        - name: HZ_INSECURE
+          value: 'true'
+        - name: HZ_AUTO_CREATE_TABLE
+          value: 'true'
+        - name: HZ_AUTO_CREATE_INDEX
+          value: 'true'
+        - name: HZ_CONNECT
           value: rethinkdb-$project:28015
         ports:
         - containerPort: 8181
-          name: fusion
+          name: horizon
           protocol: TCP
 
 ---
@@ -46,17 +58,17 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: fusion-$project
+  name: horizon-$project
   labels:
-    app: fusion
+    app: horizon
     project: $project
 spec:
   selector:
-    app: fusion
+    app: horizon
     project: $project
   ports:
   - port: 8181
-    name: driver
+    name: http
     protocol: TCP
   type: ClusterIP
 EOF
