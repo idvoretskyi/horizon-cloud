@@ -28,7 +28,7 @@ func NewKnownHosts(lines []string) (*KnownHosts, error) {
 }
 
 func (kh *KnownHosts) open() error {
-	f, err := ioutil.TempFile("", "fusion-known-hosts")
+	f, err := ioutil.TempFile("", "horizon-known-hosts")
 	if err != nil {
 		return err
 	}

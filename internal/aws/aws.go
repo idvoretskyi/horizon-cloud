@@ -104,7 +104,7 @@ func (a *AWS) ListServers() ([]*Server, error) {
 	resp, err := a.EC2.DescribeInstances(&ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
-				Name:   aws.String("tag:fusion-cluster"),
+				Name:   aws.String("tag:horizon-cluster"),
 				Values: []*string{aws.String(a.Cluster)},
 			},
 		},
@@ -248,7 +248,7 @@ func (a *AWS) StartServer(instancetype string, ami string) (*Server, error) {
 
 	runResp, err := a.EC2.RunInstances(&ec2.RunInstancesInput{
 		InstanceType: &instancetype,
-		KeyName:      aws.String("fusiondev"), // RSI
+		KeyName:      aws.String("horizondev"), // RSI
 		ImageId:      aws.String(ami),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
@@ -284,12 +284,12 @@ func (a *AWS) StartServer(instancetype string, ami string) (*Server, error) {
 		return nil, err
 	}
 
-	// tag it as being in the fusion-cluster
+	// tag it as being in the horizon-cluster
 	_, err = a.EC2.CreateTags(&ec2.CreateTagsInput{
 		Resources: []*string{aws.String(srv.InstanceID)},
 		Tags: []*ec2.Tag{
 			&ec2.Tag{
-				Key:   aws.String("fusion-cluster"),
+				Key:   aws.String("horizon-cluster"),
 				Value: aws.String(a.Cluster),
 			},
 		},

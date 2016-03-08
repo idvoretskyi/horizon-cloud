@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/rethinkdb/fusion-ops/internal/api"
-	"github.com/rethinkdb/fusion-ops/internal/gcloud"
+	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
@@ -33,7 +33,7 @@ type RDB struct {
 	SVC      *kapi.Service
 }
 
-type Fusion struct {
+type Horizon struct {
 	RC  *kapi.ReplicationController
 	SVC *kapi.Service
 }
@@ -47,7 +47,7 @@ type Frontend struct {
 
 type Project struct {
 	RDB      *RDB
-	Fusion   *Fusion
+	Horizon  *Horizon
 	Frontend *Frontend
 }
 
@@ -73,7 +73,7 @@ func New(gc *gcloud.GCloud, cluster string) *Kube {
 
 func (k *Kube) Ready(p *Project) (bool, error) {
 	for _, rc := range []*kapi.ReplicationController{
-		p.RDB.RC, p.Fusion.RC, p.Frontend.RC} {
+		p.RDB.RC, p.Horizon.RC, p.Frontend.RC} {
 		log.Printf("checking readiness of RC %s", rc.Name)
 		podlist, err := k.C.Pods(kapi.NamespaceDefault).List(kapi.ListOptions{
 			LabelSelector: labels.SelectorFromSet(rc.Spec.Selector)})
@@ -157,7 +157,7 @@ func (k *Kube) CreateFromTemplate(
 	template string, args ...string) ([]runtime.Object, error) {
 
 	// RSI: make this configurable
-	path := os.Getenv("HOME") + "/go/src/github.com/rethinkdb/fusion-ops/templates/" + template
+	path := os.Getenv("HOME") + "/go/src/github.com/rethinkdb/horizon-cloud/templates/" + template
 	cmd := exec.Command(path, args...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
@@ -238,8 +238,8 @@ func (k *Kube) CreateRDB(project string, volume string) (*RDB, error) {
 	return &RDB{volume, rc, svc}, nil
 }
 
-func (k *Kube) CreateFusion(project string) (*Fusion, error) {
-	objs, err := k.CreateFromTemplate("fusion.sh", project)
+func (k *Kube) CreateHorizon(project string) (*Horizon, error) {
+	objs, err := k.CreateFromTemplate("horizon.sh", project)
 	if err != nil {
 		return nil, err
 	}
@@ -247,16 +247,16 @@ func (k *Kube) CreateFusion(project string) (*Fusion, error) {
 		// RSI: logging?
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
-	log.Printf("created fusion\n")
+	log.Printf("created horizon\n")
 	rc, ok := objs[0].(*kapi.ReplicationController)
 	if !ok {
-		return nil, fmt.Errorf("unable to create Fusion replication controller")
+		return nil, fmt.Errorf("unable to create Horizon replication controller")
 	}
 	svc, ok := objs[1].(*kapi.Service)
 	if !ok {
-		return nil, fmt.Errorf("unable to create Fusion service")
+		return nil, fmt.Errorf("unable to create Horizon service")
 	}
-	return &Fusion{rc, svc}, nil
+	return &Horizon{rc, svc}, nil
 }
 
 func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) {
@@ -297,15 +297,15 @@ func (k *Kube) DeleteRDB(rdb *RDB) error {
 	return nil
 }
 
-func (k *Kube) DeleteFusion(fusion *Fusion) error {
+func (k *Kube) DeleteHorizon(horizon *Horizon) error {
 	var errs []error
-	errs = append(errs, k.DeleteObject(fusion.RC))
-	errs = append(errs, k.DeleteObject(fusion.SVC))
+	errs = append(errs, k.DeleteObject(horizon.RC))
+	errs = append(errs, k.DeleteObject(horizon.SVC))
 	err := compositeErr(errs...)
 	if err != nil {
 		return err
 	}
-	log.Printf("deleted fusion")
+	log.Printf("deleted horizon")
 	return nil
 }
 
@@ -346,16 +346,16 @@ func (k *Kube) createWithVol(
 }
 
 func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
-	// RSI: Use `NumRDB`, `NumFusion`, and `NumFrontend`.
+	// RSI: Use `NumRDB`, `NumHorizon`, and `NumFrontend`.
 
 	type MaybeRDB struct {
 		RDB *RDB
 		Err error
 	}
 
-	type MaybeFusion struct {
-		Fusion *Fusion
-		Err    error
+	type MaybeHorizon struct {
+		Horizon *Horizon
+		Err     error
 	}
 
 	type MaybeFrontend struct {
@@ -364,7 +364,7 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 	}
 
 	rdbCh := make(chan MaybeRDB)
-	fusionCh := make(chan MaybeFusion)
+	horizonCh := make(chan MaybeHorizon)
 	frontendCh := make(chan MaybeFrontend)
 
 	go k.createWithVol(conf.SizeRDB, gcloud.DiskTypeSSD, func(vol *gcloud.Disk, err error) error {
@@ -378,8 +378,8 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 	})
 
 	go func() {
-		fusion, err := k.CreateFusion(conf.Name)
-		fusionCh <- MaybeFusion{fusion, err}
+		horizon, err := k.CreateHorizon(conf.Name)
+		horizonCh <- MaybeHorizon{horizon, err}
 	}()
 
 	go k.createWithVol(conf.SizeFrontend, gcloud.DiskTypeStandard, func(vol *gcloud.Disk, err error) error {
@@ -393,10 +393,10 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 	})
 
 	rdb := <-rdbCh
-	fusion := <-fusionCh
+	horizon := <-horizonCh
 	frontend := <-frontendCh
 
-	err := compositeErr(rdb.Err, fusion.Err, frontend.Err)
+	err := compositeErr(rdb.Err, horizon.Err, frontend.Err)
 	if err != nil {
 		if rdb.RDB != nil {
 			err := k.DeleteRDB(rdb.RDB)
@@ -404,8 +404,8 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 				// RSI: log cleanup failure
 			}
 		}
-		if fusion.Fusion != nil {
-			err := k.DeleteFusion(fusion.Fusion)
+		if horizon.Horizon != nil {
+			err := k.DeleteHorizon(horizon.Horizon)
 			if err != nil {
 				// RSI: log cleanup failure
 			}
@@ -421,7 +421,7 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 
 	return &Project{
 		RDB:      rdb.RDB,
-		Fusion:   fusion.Fusion,
+		Horizon:  horizon.Horizon,
 		Frontend: frontend.Frontend,
 	}, nil
 }

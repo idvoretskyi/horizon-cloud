@@ -20,7 +20,7 @@ type Config struct {
 	Version       string   `gorethink:",omitempty"`
 	NumRDB        int      `gorethink:",omitempty"`
 	SizeRDB       int      `gorethink:",omitempty"`
-	NumFusion     int      `gorethink:",omitempty"`
+	NumHorizon    int      `gorethink:",omitempty"`
 	NumFrontend   int      `gorethink:",omitempty"`
 	SizeFrontend  int      `gorethink:",omitempty"`
 	PublicSSHKeys []string `gorethink:",omitempty"`
@@ -54,8 +54,8 @@ func (c *Config) Validate() error {
 	if c.SizeRDB == 0 {
 		return errors.New("SizeRDB is 0")
 	}
-	if c.NumFusion == 0 {
-		return errors.New("NumFusion is 0")
+	if c.NumHorizon == 0 {
+		return errors.New("NumHorizon is 0")
 	}
 	if c.NumFrontend == 0 {
 		return errors.New("NumFrontend is 0")

@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: horizon-cloud-ssh-proxy-2
+  labels:
+    app: horizon-cloud-ssh-proxy
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    app: horizon-cloud-ssh-proxy
+    version: v2
+  template:
+    metadata:
+      labels:
+        app: horizon-cloud-ssh-proxy
+        version: v2
+    spec:
+      volumes:
+      - name: ssh-proxy-keys
+        secret: { secretName: "ssh-proxy-keys" }
+      - name: api-shared-secret
+        secret: { secretName: "api-shared-secret" }
+
+      containers:
+      - name: proxy
+        image: us.gcr.io/horizon-cloud-1239/horizon-cloud-ssh-proxy:2
+        resources:
+          limits: { cpu: "50m", memory: "128Mi" }
+        env:
+        - name: CLIENT_KEY
+          value: /secrets/ssh-proxy-keys/client-rsa
+        - name: HOST_KEY
+          value: /secrets/ssh-proxy-keys/host-rsa
+        - name: LISTEN
+          value: ":22"
+        - name: API_SERVER
+          value: "http://horizon-api:8000"
+        - name: API_SERVER_SECRET
+          value: /secrets/api-shared-secret/api-shared-secret
+        volumeMounts:
+        - name: ssh-proxy-keys
+          mountPath: /secrets/ssh-proxy-keys
+        - name: api-shared-secret
+          mountPath: /secrets/api-shared-secret
+        ports:
+        - containerPort: 22
+          name: ssh
+          protocol: TCP

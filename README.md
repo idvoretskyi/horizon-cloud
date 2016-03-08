@@ -1,49 +1,49 @@
 <img style="width:100%;" src="/github-banner.png">
 
-# Fusion Ops
+# Horizon Cloud
 
-Fusion Ops is a cloud management service for deploying, managing, and
-scaling Fusion applications. The goal is to create an experience that
-will allow developers to build a RethinkDB/Fusion app on their laptop,
+Horizon Cloud is a cloud management service for deploying, managing, and
+scaling Horizon applications. The goal is to create an experience that
+will allow developers to build a RethinkDB/Horizon app on their laptop,
 deploy it with a simple command, and scale the app up and down in a
 click of a button.
 
-__NOTE:__ "Fusion" is a codename that we'll likely change in the
-future. See https://github.com/rethinkdb/fusion/issues/7.
+__NOTE:__ "Horizon" is a codename that we'll likely change in the
+future. See https://github.com/rethinkdb/horizon/issues/7.
 
-Fusion Ops will provide the following services:
+Horizon Cloud will provide the following services:
 
 - __Deployment__ -- users should be able to type something to the
-  effect of `fusion deploy` to get their app online in one command.
-- __Database autoscaling__ -- Fusion Ops should allow users to easily
-  scale RethinkDB and Fusion up and down with demand. We often get
+  effect of `horizon deploy` to get their app online in one command.
+- __Database autoscaling__ -- Horizon Cloud should allow users to easily
+  scale RethinkDB and Horizon up and down with demand. We often get
   questions such as "how many shards do I need?" and "how many
-  replicas do I need?" Fusion Ops should obviate these questions
+  replicas do I need?" Horizon Cloud should obviate these questions
   either by automatically managing scalability, or suggesting
   administrative operations based on load.
 - __Middleware autoscaling__ -- similarly to database autoscaling,
-  Fusion Ops will automatically allow scaling the number of Fusion
+  Horizon Cloud will automatically allow scaling the number of Horizon
   servers up and down to accommodate demand.
 - __Backup/restore__ -- this should be self-explanatory.
-- __Rolling version updates__ -- Fusion Ops will offer ability to
-  upgrade RethinkDB/Fusion versions without interrupting the
+- __Rolling version updates__ -- Horizon Cloud will offer ability to
+  upgrade RethinkDB/Horizon versions without interrupting the
   application.
 - __Application versioning__ -- similarly to rolling version updates
-  for the infrastructure, Fusion Ops should manage application
+  for the infrastructure, Horizon Cloud should manage application
   versioning and rollout, ideally without interrupting the
   application.
 - __Environments__ -- users will be able to deploy apps into testing,
   staging, and production.
-- __Monitoring__ -- Fusion Ops should offer realtime and historical
+- __Monitoring__ -- Horizon Cloud should offer realtime and historical
   monitoring capabilities (number of queries, connections, amount of
   data, load, etc.)
-- __Content delivery__ -- Fusion Ops will automate distributing code
+- __Content delivery__ -- Horizon Cloud will automate distributing code
   and data around the world via multiple datacenters, CDN services,
   etc.
 - __Multitenancy__ -- users should be able to deploy multiple apps and
   manage them from a single location.
 
-Fusion Ops will likely be based on the following rough architecture:
+Horizon Cloud will likely be based on the following rough architecture:
 
 - __User-defined cloud providers__ -- users should be able to pick a
   cloud service where they want to host (e.g. AWS, Google Cloud,
@@ -56,16 +56,16 @@ Fusion Ops will likely be based on the following rough architecture:
   for management, and users will pay their cloud provider directly for
   the hardware usage.
 - __Containers__ -- we'll use Amazon's/Google's/etc. container
-  services. Fusion applications will be dockerized, which will largely
+  services. Horizon applications will be dockerized, which will largely
   solve the problem of portability.
 - __On-premise deployment__ -- for enterprise customers, we'll allow
-  them to run Fusion Ops on their servers onsite, and deploy the apps
+  them to run Horizon Cloud on their servers onsite, and deploy the apps
   into their private cloud infrastructure (e.g. Kubernetes, Open
   Stack, etc.)
 
 ## FAQ
 
-### Why would people use Fusion Ops instead of deploying to AWS themselves or writing a Kubernetes script?
+### Why would people use Horizon Cloud instead of deploying to AWS themselves or writing a Kubernetes script?
 
 Deployment and management is a serious challenge for different classes of users.
 
@@ -81,48 +81,48 @@ Deployment and management is a serious challenge for different classes of users.
   management/auditing/compliance work involved in app management, and
   enterprises typically have far more money than time.
 
-### How does Fusion Ops compare to Compose.io?
+### How does Horizon Cloud compare to Compose.io?
 
-- Fusion Ops will manage datbaase autoscaling __and__ Fusion app
+- Horizon Cloud will manage datbaase autoscaling __and__ Horizon app
   server autoscaling; it's not just about the database.
 - Because we also manage applications, there will be lots of
   additional services (e.g. rolling app updates) that Compose.io can't
   provide.
 - Similarly, since we manage applications users will be able to type
-  `fusion deploy` to take care of full stack deployment -- something
+  `horizon deploy` to take care of full stack deployment -- something
   Compose.io can't do.
 - We will __not__ be abstracting away the underlying cloud
   provider. We'll just charge for management, and won't need a large
   devops team to manage people's deployments.
 
-### How does Fusion Ops compare to Firebase/Parse?
+### How does Horizon Cloud compare to Firebase/Parse?
 
-Fusion Ops is a management service for deploying an open-source stack
-(RethinkDB + Fusion). Anybody could deploy this stack themselves,
-Fusion Ops will just make it dramatically easier. Users won't *need*
+Horizon Cloud is a management service for deploying an open-source stack
+(RethinkDB + Horizon). Anybody could deploy this stack themselves,
+Horizon Cloud will just make it dramatically easier. Users won't *need*
 the service to build their application, unlike Firebase/Parse they can
-just download Fusion/RethinkDB on their laptop.
+just download Horizon/RethinkDB on their laptop.
 
-### How does Fusion Ops compare to Heroku?
+### How does Horizon Cloud compare to Heroku?
 
-Fusion Ops to Fusion/RethinkDB is basically what Heroku was for
+Horizon Cloud to Horizon/RethinkDB is basically what Heroku was for
 Rails/MySQL at its inception. The major difference here is that we
 control most of the software stack, so we can have a much tighter
-integration between Fusion/RethinkDB and Fusion Ops, and offer people
+integration between Horizon/RethinkDB and Horizon Cloud, and offer people
 a much more compelling development and operations experience.
 
-### How does Fusion Ops compare to Meteor Galaxy?
+### How does Horizon Cloud compare to Meteor Galaxy?
 
-Fusion Ops is very similar to Meteor Galaxy. What Galaxy is to Meteor,
-Fusion Ops is to RethinkDB+Fusion.
+Horizon Cloud is very similar to Meteor Galaxy. What Galaxy is to Meteor,
+Horizon Cloud is to RethinkDB+Horizon.
 
-### How will Fusion Ops be priced?
+### How will Horizon Cloud be priced?
 
 There will be four pricing tiers:
 
 |                    | Starter  | SMB1              | SMB2               | Enterprise         |
 | ------------------ |:---------| :-----------------|:-------------------|:-------------------|
-| Fusion nodes       | 1        | unlimited         | unlimited          | unlimited          |
+| Horizon nodes      | 1        | unlimited         | unlimited          | unlimited          |
 | RethinkDB nodes    | 1        | unlimited         | unlimited          | unlimited          |
 | Datacenters        | 1        | 1                 | unlimited          | unlimited          |
 | On-prem deployment | no       | no                | no                 | yes                |

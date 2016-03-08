@@ -1,6 +1,6 @@
 package db
 
-import "github.com/rethinkdb/fusion-ops/internal/api"
+import "github.com/rethinkdb/horizon-cloud/internal/api"
 
 type Config struct {
 	api.Config

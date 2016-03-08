@@ -7,7 +7,7 @@ import (
 	"time"
 
 	r "github.com/dancannon/gorethink"
-	"github.com/rethinkdb/fusion-ops/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/api"
 )
 
 type DB struct {
@@ -96,7 +96,7 @@ func (d *DB) EnsureConfigConnectable(
 				Name:         name,
 				NumRDB:       1,
 				SizeRDB:      10,
-				NumFusion:    1,
+				NumHorizon:   1,
 				NumFrontend:  1,
 				SizeFrontend: 1,
 			},

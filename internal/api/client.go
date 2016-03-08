@@ -13,8 +13,8 @@ type Client struct {
 }
 
 // Constructs a new Client object. baseURL must be the prefix of the API URL;
-// for example, "https://fusion" if the calls should be
-// "https://fusion/v1/config/..."
+// for example, "https://horizon" if the calls should be
+// "https://horizon/v1/config/..."
 func NewClient(baseURL string) (*Client, error) {
 	return &Client{
 		baseURL: baseURL,
