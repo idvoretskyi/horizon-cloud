@@ -8,23 +8,23 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: horizon-$project
+  name: horizon-4-$project
   labels:
     app: horizon
     project: $project
-    version: v2
+    version: v4
 spec:
   replicas: 1
   selector:
     app: horizon
     project: $project
-    version: v2
+    version: v4
   template:
     metadata:
       labels:
         app: horizon
         project: $project
-        version: v2
+        version: v4
     spec:
       containers:
       - name: horizon
@@ -48,6 +48,8 @@ spec:
           value: 'true'
         - name: HZ_CONNECT
           value: rethinkdb-$project:28015
+        - name: HZ_BIND
+          value: 0.0.0.0
         ports:
         - containerPort: 8181
           name: horizon

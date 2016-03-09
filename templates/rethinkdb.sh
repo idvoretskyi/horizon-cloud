@@ -9,23 +9,23 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: rethinkdb-$project
+  name: rethinkdb-1-$project
   labels:
     app: rethinkdb
     project: $project
-    version: v0
+    version: v1
 spec:
   replicas: 1
   selector:
     app: rethinkdb
     project: $project
-    version: v0
+    version: v1
   template:
     metadata:
       labels:
         app: rethinkdb
         project: $project
-        version: v0
+        version: v1
     spec:
       containers:
       - name: rethinkdb

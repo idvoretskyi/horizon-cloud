@@ -35,7 +35,7 @@ spec:
 
       containers:
       - name: nginx
-        image: us.gcr.io/horizon-cloud-1239/horizon-nginx:2
+        image: us.gcr.io/horizon-cloud-1239/horizon-nginx:1
         resources:
           limits:
             cpu: 50m
@@ -53,7 +53,7 @@ spec:
           protocol: TCP
 
       - name: ssh
-        image: us.gcr.io/horizon-cloud-1239/horizon-ssh:4
+        image: us.gcr.io/horizon-cloud-1239/horizon-ssh:1
         resources:
           limits:
             cpu: 10m

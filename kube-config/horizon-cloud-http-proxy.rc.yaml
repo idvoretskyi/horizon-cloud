@@ -1,20 +1,20 @@
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: horizon-cloud-http-proxy-6
+  name: horizon-cloud-http-proxy-1
   labels:
     app: horizon-cloud-http-proxy
-    version: v6
+    version: v1
 spec:
   replicas: 1
   selector:
     app: horizon-cloud-http-proxy
-    version: v6
+    version: v1
   template:
     metadata:
       labels:
         app: horizon-cloud-http-proxy
-        version: v6
+        version: v1
     spec:
       volumes:
       - name: api-shared-secret
@@ -22,7 +22,7 @@ spec:
 
       containers:
       - name: proxy
-        image: us.gcr.io/horizon-cloud-1239/horizon-cloud-http-proxy:6
+        image: us.gcr.io/horizon-cloud-1239/horizon-cloud-http-proxy:1
         resources:
           limits: { cpu: "250m", memory: "128Mi" }
         env:
