@@ -37,9 +37,7 @@ func applyConfigs(name string) {
 			continue
 		}
 
-		// RSI: what should the cluster name be exactly?  I don't quite
-		// understand the semantics here.
-		k := kube.New(gc, "horizon")
+		k := kube.New(gc)
 		// RSI: tear down old project once we actually support changing
 		// configurations.
 		project, err := k.CreateProject(*conf)
