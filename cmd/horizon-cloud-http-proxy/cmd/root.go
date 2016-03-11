@@ -14,7 +14,6 @@ import (
 
 type config struct {
 	APIClient *api.Client
-	APISecret string
 }
 
 var cfgFile string
@@ -26,18 +25,17 @@ var RootCmd = &cobra.Command{
 	Long:  `horizon-cloud-http-proxy`,
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := &config{}
-		var err error
-		conf.APIClient, err = api.NewClient(viper.GetString("api_server"))
-		if err != nil {
-			log.Fatalf("Couldn't create API client: %v", err)
-		}
 
 		secretPath := viper.GetString("secret_path")
 		secret, err := ioutil.ReadFile(secretPath)
 		if err != nil {
 			log.Fatalf("Couldn't read api server secret from %v: %v", secretPath, err)
 		}
-		conf.APISecret = string(secret)
+
+		conf.APIClient, err = api.NewClient(viper.GetString("api_server"), string(secret))
+		if err != nil {
+			log.Fatalf("Couldn't create API client: %v", err)
+		}
 
 		handler := NewHandler(conf)
 		log.Fatal(http.ListenAndServe(viper.GetString("listen"), handler))

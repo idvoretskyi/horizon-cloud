@@ -15,7 +15,7 @@ var deployCmd = &cobra.Command{
 	Short: "deploy a project",
 	Long:  `Deploy the specified project.  If the project doesn't exist, create it.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client, err := api.NewClient(viper.GetString("server"))
+		client, err := api.NewClient(viper.GetString("server"), "")
 		if err != nil {
 			log.Fatalf("unable to create client: %s", err)
 		}

@@ -40,8 +40,7 @@ func NewHandler(conf *config) *Handler {
 func (h *Handler) lookupTargetForHost(host string) (string, error) {
 	spew.Dump(host)
 	resp, err := h.conf.APIClient.GetByAlias(api.GetByAliasReq{
-		SharedSecret: h.conf.APISecret,
-		Alias:        host,
+		Alias: host,
 	})
 	// RSI: log error.
 	spew.Dump(resp)

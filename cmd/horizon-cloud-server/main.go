@@ -1,10 +1,8 @@
 package main
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -20,8 +18,6 @@ import (
 
 // RSI: make this non-global.
 var rdb *db.DB
-
-var sharedSecret string
 
 type validator interface {
 	Validate() error
@@ -73,13 +69,6 @@ func getProjects(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(gp.SharedSecret), []byte(sharedSecret)) != 1 {
-		// RSI: security warnigns?
-		log.Printf("Incorrect shared secret `%s`.", gp.SharedSecret)
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Shared secret incorrect, GTFO."))
-		return
-	}
 	projects, err := rdb.GetProjects(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
@@ -91,13 +80,6 @@ func getProjects(rw http.ResponseWriter, req *http.Request) {
 func getByAlias(rw http.ResponseWriter, req *http.Request) {
 	var gp api.GetByAliasReq
 	if !decode(rw, req.Body, &gp) {
-		return
-	}
-	if subtle.ConstantTimeCompare([]byte(gp.SharedSecret), []byte(sharedSecret)) != 1 {
-		// RSI: security warnigns?
-		log.Printf("Incorrect shared secret `%s`.", gp.SharedSecret)
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Shared secret incorrect, GTFO."))
 		return
 	}
 	project, err := rdb.GetByAlias(gp.Alias)
@@ -192,7 +174,7 @@ func main() {
 	if len(data) < 16 {
 		log.Fatal("Shared secret was not long enough")
 	}
-	sharedSecret = string(data)
+	sharedSecret := string(data)
 
 	rdb, err = db.New()
 	if err != nil {
@@ -200,12 +182,27 @@ func main() {
 	}
 	go configSync(rdb)
 
-	http.HandleFunc("/v1/config/set", setConfig)
-	http.HandleFunc("/v1/config/get", getConfig)
-	http.HandleFunc("/v1/config/ensure_connectable", ensureConfigConnectable)
-	http.HandleFunc("/v1/config/wait_applied", waitConfigApplied)
-	http.HandleFunc("/v1/projects/get", getProjects)
-	http.HandleFunc("/v1/projects/getByAlias", getByAlias)
+	handlers := []struct {
+		Path          string
+		Func          func(w http.ResponseWriter, r *http.Request)
+		RequireSecret bool
+	}{
+		{"/v1/config/set", setConfig, false},
+		{"/v1/config/get", getConfig, false},
+		{"/v1/config/ensure_connectable", ensureConfigConnectable, false},
+		{"/v1/config/wait_applied", waitConfigApplied, false},
+		{"/v1/projects/get", getProjects, true},
+		{"/v1/projects/getByAlias", getByAlias, true},
+	}
+
+	for _, handler := range handlers {
+		var h http.Handler = http.HandlerFunc(handler.Func)
+		if handler.RequireSecret {
+			h = api.RequireSecret(sharedSecret, h)
+		}
+		http.Handle(handler.Path, h)
+	}
+
 	log.Printf("Started.")
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }

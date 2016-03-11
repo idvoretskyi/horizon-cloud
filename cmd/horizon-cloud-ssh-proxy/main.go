@@ -16,7 +16,6 @@ type config struct {
 	HostKey   ssh.Signer
 	ClientKey ssh.Signer
 	APIClient *api.Client
-	APISecret string
 }
 
 func main() {
@@ -30,18 +29,15 @@ func main() {
 
 	conf := &config{}
 
-	var err error
-
-	conf.APIClient, err = api.NewClient(*apiServer)
-	if err != nil {
-		log.Fatalf("Couldn't create API client: %v", err)
-	}
-
 	secret, err := ioutil.ReadFile(*apiServerSecret)
 	if err != nil {
 		log.Fatalf("Couldn't read api server secret from %v: %v", *apiServerSecret, err)
 	}
-	conf.APISecret = string(secret)
+
+	conf.APIClient, err = api.NewClient(*apiServer, string(secret))
+	if err != nil {
+		log.Fatalf("Couldn't create API client: %v", err)
+	}
 
 	conf.HostKey, err = loadPrivateKey(*hostKeyPath)
 	if err != nil {

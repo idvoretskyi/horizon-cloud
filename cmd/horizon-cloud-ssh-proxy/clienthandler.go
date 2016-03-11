@@ -44,8 +44,7 @@ func (c *clientConn) makeServerConfig() *ssh.ServerConfig {
 			c.log("key is %s", base64.StdEncoding.EncodeToString(key.Marshal()))
 
 			resp, err := c.config.APIClient.GetProjects(api.GetProjectsReq{
-				SharedSecret: c.config.APISecret,
-				PublicKey:    base64.StdEncoding.EncodeToString(key.Marshal()),
+				PublicKey: base64.StdEncoding.EncodeToString(key.Marshal()),
 			})
 			if err != nil {
 				c.log("Couldn't talk to API: %v", err)
