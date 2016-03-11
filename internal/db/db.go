@@ -8,6 +8,7 @@ import (
 
 	r "github.com/dancannon/gorethink"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
 type DB struct {
@@ -43,8 +44,8 @@ func getBasicError(typeName string, name string) error {
 	return fmt.Errorf("internal error: unable to get %v `%s`", typeName, name)
 }
 
-func (d *DB) SetConfig(c *Config) error {
-	return d.setBasicType(configs, "config", c.Name, c)
+func (d *DB) SetConfig(c api.Config) error {
+	return d.setBasicType(configs, "config", c.ID, &c)
 }
 
 func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
@@ -54,7 +55,7 @@ func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
 	}
 	defer cursor.Close()
 	var projects []api.Project
-	var c Config
+	var c api.Config
 	for cursor.Next(&c) {
 		projects = append(projects, api.ProjectFromName(c.Name))
 	}
@@ -74,45 +75,32 @@ func (d *DB) GetByAlias(aliasName string) (*api.Project, error) {
 	return &project, nil
 }
 
-func (d *DB) GetConfig(name string) (*Config, error) {
-	var c Config
-	err := d.getBasicType(configs, "config", name, &c)
+func (d *DB) GetConfig(name string) (*api.Config, error) {
+	var c api.Config
+	err := d.getBasicType(configs, "config", util.TrueName(name), &c)
 	return &c, err
 }
 
 func (d *DB) EnsureConfigConnectable(
-	name string, allowClusterStart api.ClusterStartBool, keys []string) (*Config, error) {
+	name string, allowClusterStart api.ClusterStartBool) (*api.Config, error) {
 	var out struct {
 		Changes []struct {
-			NewVal *Config `gorethink:"new_val"`
+			NewVal *api.Config `gorethink:"new_val"`
 		} `gorethink:"changes"`
 		FirstError string `gorethink:"first_error"`
 	}
 
 	var defaultConfig r.Term
 	if allowClusterStart {
-		defaultConfig = r.Expr(&Config{
-			Config: api.Config{
-				Name:         name,
-				NumRDB:       1,
-				SizeRDB:      10,
-				NumHorizon:   1,
-				NumFrontend:  1,
-				SizeFrontend: 1,
-			},
-		})
+		defaultConfig = r.Expr(api.ConfigFromDesired(api.DefaultDesiredConfig(name)))
 	} else {
 		defaultConfig = r.Error("No such cluster.")
 	}
 
 	query := r.UUID().Do(func(uuid r.Term) interface{} {
-		return configs.Get(name).Replace(func(row r.Term) interface{} {
+		return configs.Get(util.TrueName(name)).Replace(func(row r.Term) interface{} {
 			return row.Default(defaultConfig).Do(func(x r.Term) interface{} {
-				return x.Merge(map[string]interface{}{
-					"Version": uuid,
-					"PublicSSHKeys": x.AtIndex("PublicSSHKeys").Default(
-						[]string{}).SetUnion(keys),
-				})
+				return x.Merge(map[string]interface{}{"Version": uuid})
 			})
 		}, r.ReplaceOpts{ReturnChanges: "always"})
 	})
@@ -141,8 +129,8 @@ func (d *DB) EnsureConfigConnectable(
 }
 
 type ConfigChange struct {
-	OldVal *Config `gorethink:"old_val"`
-	NewVal *Config `gorethink:"new_val"`
+	OldVal *api.Config `gorethink:"old_val"`
+	NewVal *api.Config `gorethink:"new_val"`
 }
 
 func (d *DB) configChangesLoop(out chan<- ConfigChange) {
@@ -171,9 +159,9 @@ func (d *DB) ConfigChanges(out chan<- ConfigChange) {
 }
 
 func (d *DB) WaitConfigApplied(
-	name string, version string, cancel <-chan struct{}) (*Config, error) {
+	name string, version string, cancel <-chan struct{}) (*api.Config, error) {
 
-	query := configs.Get(name).Changes(r.ChangesOpts{IncludeInitial: true})
+	query := configs.Get(util.TrueName(name)).Changes(r.ChangesOpts{IncludeInitial: true})
 	cur, err := query.Run(d.session)
 	if err != nil {
 		// RSI log
@@ -224,7 +212,9 @@ func runOne(query r.Term, session *r.Session, out interface{}) error {
 	return cur.One(out)
 }
 
-func (d *DB) getBasicType(table r.Term, typeName string, id string, i interface{}) error {
+func (d *DB) getBasicType(
+	table r.Term, typeName string, id string, i interface{}) error {
+
 	err := runOne(table.Get(id), d.session, i)
 	if err == r.ErrEmptyResult {
 		return fmt.Errorf("%s `%s` does not exist", typeName, id)
@@ -234,7 +224,9 @@ func (d *DB) getBasicType(table r.Term, typeName string, id string, i interface{
 	return nil
 }
 
-func (d *DB) setBasicType(table r.Term, typeName string, id string, i interface{}) error {
+func (d *DB) setBasicType(
+	table r.Term, typeName string, id string, i interface{}) error {
+
 	res, err := table.Insert(i, r.InsertOpts{Conflict: "update"}).RunWrite(d.session)
 	if err != nil {
 		// RSI: log

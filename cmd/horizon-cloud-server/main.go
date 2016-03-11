@@ -40,15 +40,16 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 }
 
 func setConfig(rw http.ResponseWriter, req *http.Request) {
-	var c api.Config
-	if !decode(rw, req.Body, &c) {
+	var dc api.DesiredConfig
+	if !decode(rw, req.Body, &dc) {
 		return
 	}
-	if err := rdb.SetConfig(&db.Config{Config: c}); err != nil {
+	if err := rdb.SetConfig(*api.ConfigFromDesired(&dc)); err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, c)
+	// RSI: instead read the actual new config out of the database.
+	api.WriteJSONResp(rw, http.StatusOK, api.ConfigFromDesired(&dc))
 }
 
 func getConfig(rw http.ResponseWriter, req *http.Request) {
@@ -63,7 +64,7 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	api.WriteJSONResp(rw, http.StatusOK, api.GetConfigResp{
-		Config: config.Config,
+		Config: *config,
 	})
 }
 
@@ -114,13 +115,13 @@ func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
 	}
 	// RSI(sec): don't let people read other people's configs.
 	config, err := rdb.EnsureConfigConnectable(
-		creq.Name, creq.AllowClusterStart, []string{creq.Key})
+		creq.Name, creq.AllowClusterStart)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
 	api.WriteJSONResp(rw, http.StatusOK, api.EnsureConfigConnectableResp{
-		Config: config.Config,
+		Config: *config,
 	})
 }
 
@@ -157,7 +158,7 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	api.WriteJSONResp(rw, http.StatusOK, api.WaitConfigAppliedResp{
-		Config: config.Config,
+		Config: *config,
 		// RSI(real): fill this in.
 		Target: api.Target{},
 	})

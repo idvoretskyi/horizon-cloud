@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/pborman/uuid"
+	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
 type Target struct {
@@ -15,53 +18,54 @@ type Target struct {
 	DeployCmd    string
 }
 
+type DesiredConfig struct {
+	Name         string `gorethink:",omitempty"`
+	NumRDB       int    `gorethink:",omitempty"`
+	SizeRDB      int    `gorethink:",omitempty"`
+	NumHorizon   int    `gorethink:",omitempty"`
+	NumFrontend  int    `gorethink:",omitempty"`
+	SizeFrontend int    `gorethink:",omitempty"`
+}
+
+func (dc *DesiredConfig) Validate() error {
+	if err := ValidateName(dc.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
+func DefaultDesiredConfig(name string) *DesiredConfig {
+	return &DesiredConfig{
+		Name:         name,
+		NumRDB:       1,
+		SizeRDB:      10,
+		NumHorizon:   1,
+		NumFrontend:  1,
+		SizeFrontend: 1,
+	}
+}
+
 type Config struct {
-	Name          string   `gorethink:"id,omitempty"`
-	Version       string   `gorethink:",omitempty"`
-	NumRDB        int      `gorethink:",omitempty"`
-	SizeRDB       int      `gorethink:",omitempty"`
-	NumHorizon    int      `gorethink:",omitempty"`
-	NumFrontend   int      `gorethink:",omitempty"`
-	SizeFrontend  int      `gorethink:",omitempty"`
-	PublicSSHKeys []string `gorethink:",omitempty"`
+	DesiredConfig
+	ID             string   `gorethink:"id,omitempty"`
+	Version        string   `gorethink:",omitempty"`
+	AppliedVersion string   `gorethink:",omitempty"`
+	PublicSSHKeys  []string `gorethink:",omitempty"`
+}
+
+func ConfigFromDesired(dc *DesiredConfig) *Config {
+	conf := Config{
+		DesiredConfig: *dc,
+		ID:            util.TrueName(dc.Name),
+		Version:       uuid.New(),
+	}
+	return &conf
 }
 
 func ValidateName(name string) error {
-	// Make sure names are short enough to be stored in primary keys.
+	// RSI: more validation.
 	if name == "" {
 		return errors.New("Name empty")
-	}
-	return nil
-}
-
-func ValidateVersion(version string) error {
-	if version == "" {
-		return errors.New("Version empty")
-	}
-	return nil
-}
-
-func (c *Config) Validate() error {
-	if err := ValidateName(c.Name); err != nil {
-		return err
-	}
-	if err := ValidateVersion(c.Version); err != nil {
-		return err
-	}
-	if c.NumRDB == 0 {
-		return errors.New("NumRDB is 0")
-	}
-	if c.SizeRDB == 0 {
-		return errors.New("SizeRDB is 0")
-	}
-	if c.NumHorizon == 0 {
-		return errors.New("NumHorizon is 0")
-	}
-	if c.NumFrontend == 0 {
-		return errors.New("NumFrontend is 0")
-	}
-	if c.SizeFrontend == 0 {
-		return errors.New("SizeFrontend is 0")
 	}
 	return nil
 }
@@ -75,7 +79,6 @@ const DisallowClusterStart ClusterStartBool = ClusterStartBool(false)
 
 type EnsureConfigConnectableReq struct {
 	Name              string
-	Key               string
 	AllowClusterStart ClusterStartBool
 }
 
@@ -84,10 +87,6 @@ func (r *EnsureConfigConnectableReq) Validate() error {
 	if err != nil {
 		return err
 	}
-	if r.Key == "" {
-		return fmt.Errorf("Key empty")
-	}
-	// RSI: validate key
 	return nil
 }
 
@@ -155,9 +154,6 @@ type WaitConfigAppliedReq struct {
 
 func (wca *WaitConfigAppliedReq) Validate() error {
 	if err := ValidateName(wca.Name); err != nil {
-		return err
-	}
-	if err := ValidateVersion(wca.Version); err != nil {
 		return err
 	}
 	return nil

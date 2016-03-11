@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"io/ioutil"
 	"log"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
@@ -24,13 +23,9 @@ var deployCmd = &cobra.Command{
 		if name == "" {
 			log.Fatal("no project name specified (use `-n` or `.horizon/conf`)")
 		}
-		pubKey, err := ioutil.ReadFile(viper.GetString("public_key_file"))
-		if err != nil {
-			log.Fatalf("unable to read public key: %s", err)
-		}
 
 		err = withSSHConnection(
-			&commandContext{client, name, string(pubKey), viper.GetString("identity_file")},
+			&commandContext{client, name, viper.GetString("identity_file")},
 			api.AllowClusterStart,
 			func(sshClient *ssh.Client, resp *api.WaitConfigAppliedResp) error {
 				log.Printf("deploying to %v (%v)...", resp.Config, resp.Target)
@@ -45,7 +40,4 @@ var deployCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(deployCmd)
-	deployCmd.PersistentFlags().StringP(
-		"name", "n", "", "Project name (overrides config).")
-	viper.BindPFlag("name", deployCmd.PersistentFlags().Lookup("name"))
 }

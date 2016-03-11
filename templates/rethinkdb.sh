@@ -9,7 +9,7 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: rethinkdb-1-$project
+  name: r0-$project
   labels:
     app: rethinkdb
     project: $project
@@ -58,7 +58,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: rethinkdb-$project
+  name: r-$project
   labels:
     app: rethinkdb
     project: $project

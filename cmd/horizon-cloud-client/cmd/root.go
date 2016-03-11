@@ -26,23 +26,21 @@ func Execute() {
 }
 
 // RSI: we need a domain name.
-var server = "http://localhost:8000"
+var server = "http://54.193.31.201:8000"
 
 func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVarP(
-		&cfgFile, "config", "c", ".horizon/conf", "config file")
+		&cfgFile, "config", "c", ".hz/cloudconf.toml", "config file")
 
 	RootCmd.PersistentFlags().StringP(
-		"identity_file", "i", "~/.ssh/id_rsa", "private key")
+		"name", "n", "", "Project name (overrides config).")
+	viper.BindPFlag("name", RootCmd.PersistentFlags().Lookup("name"))
+
+	RootCmd.PersistentFlags().StringP(
+		"identity_file", "i", "", "private key")
 	viper.BindPFlag("identity_file", RootCmd.PersistentFlags().Lookup("identity_file"))
-
-	// RSI: should we instead be generating this from the private key?
-	// We'd need to have a canonicalization step probably.
-	RootCmd.PersistentFlags().StringP(
-		"public_key_file", "k", "~/.ssh/id_rsa.pub", "public key")
-	viper.BindPFlag("public_key_file", RootCmd.PersistentFlags().Lookup("public_key_file"))
 
 	RootCmd.PersistentFlags().StringP(
 		"server", "S", server, "address of horizon cloud server")
@@ -54,12 +52,15 @@ func initConfig() {
 	if cfgFile != "" { // enable ability to specify config file via flag
 		viper.SetConfigFile(cfgFile)
 	}
-	viper.SetConfigType("yaml")
+	viper.SetConfigType("toml")
 
-	viper.SetConfigName("conf")       // name of config file (without extension)
-	viper.AddConfigPath(".horizon")   // adding home directory as first search path
-	viper.AddConfigPath("~/.horizon") // adding home directory as first search path
-	viper.AutomaticEnv()              // read in environment variables that match
+	viper.SetConfigName("cloudconf") // name of config file (without extension)
+	viper.AddConfigPath(".hz")       // adding home directory as first search path
+	// RSI: search parent directories?
+
+	// RSI: do this?
+	// viper.AddConfigPath("~/.hz") // adding home directory as first search path
+	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	err := viper.ReadInConfig()

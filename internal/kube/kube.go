@@ -372,13 +372,13 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 			rdbCh <- MaybeRDB{nil, err}
 			return nil
 		}
-		rdb, err := k.CreateRDB(conf.Name, vol.Name)
+		rdb, err := k.CreateRDB(conf.ID, vol.Name)
 		rdbCh <- MaybeRDB{rdb, err}
 		return err
 	})
 
 	go func() {
-		horizon, err := k.CreateHorizon(conf.Name)
+		horizon, err := k.CreateHorizon(conf.ID)
 		horizonCh <- MaybeHorizon{horizon, err}
 	}()
 
@@ -387,7 +387,7 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 			frontendCh <- MaybeFrontend{nil, err}
 			return nil
 		}
-		frontend, err := k.CreateFrontend(conf.Name, vol.Name)
+		frontend, err := k.CreateFrontend(conf.ID, vol.Name)
 		frontendCh <- MaybeFrontend{frontend, err}
 		return err
 	})

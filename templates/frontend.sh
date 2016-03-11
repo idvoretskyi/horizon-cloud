@@ -9,7 +9,7 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: frontend-1-$project
+  name: f0-$project
   labels:
     app: frontend
     project: $project
@@ -46,7 +46,7 @@ spec:
           mountPath: /data
         env:
         - name: NGINX_CONNECT
-          value: horizon-$project:8181
+          value: h-$project:8181
         ports:
         - containerPort: 80
           name: http
@@ -67,7 +67,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-nginx-$project
+  name: fn-$project
   labels:
     app: frontend
     project: $project
@@ -86,7 +86,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-ssh-$project
+  name: fs-$project
   labels:
     app: frontend
     project: $project

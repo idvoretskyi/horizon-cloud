@@ -11,7 +11,6 @@ import (
 type commandContext struct {
 	Client            *api.Client
 	ProjectName       string
-	PublicSSHKey      string
 	PrivateSSHKeyPath string
 }
 
@@ -39,7 +38,6 @@ func withSSHConnection(
 	// RSI: see if we can combine the two client API calls into one
 	eccResp, err := ctx.Client.EnsureConfigConnectable(api.EnsureConfigConnectableReq{
 		Name:              ctx.ProjectName,
-		Key:               ctx.PublicSSHKey,
 		AllowClusterStart: AllowClusterStart,
 	})
 	if err != nil {

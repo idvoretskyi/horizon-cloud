@@ -13,16 +13,16 @@ import (
 var configs = make(map[string]*api.Config)
 var configsLock sync.Mutex
 
-func applyConfigs(name string) {
+func applyConfigs(trueName string) {
 	for {
 		conf := func() *api.Config {
 			configsLock.Lock()
 			defer configsLock.Unlock()
-			conf := configs[name]
+			conf := configs[trueName]
 			if conf == nil {
-				delete(configs, name)
+				delete(configs, trueName)
 			} else {
-				configs[name] = nil
+				configs[trueName] = nil
 			}
 			return conf
 		}()
@@ -48,18 +48,16 @@ func applyConfigs(name string) {
 			log.Printf("%s\n", err)
 			continue
 		}
-		log.Printf("waiting for config %s:%s", name, conf.Version)
+		log.Printf("waiting for config %s:%s", trueName, conf.Version)
 		err = k.Wait(project)
 		if err != nil {
 			// RSI: log serious error
 			log.Printf("%s\n", err)
 			continue
 		}
-		log.Printf("successfully applied config %s:%s", name, conf.Version)
-		err = rdb.SetConfig(&db.Config{
-			Config: api.Config{
-				Name: conf.Name,
-			},
+		log.Printf("successfully applied config %s:%s", trueName, conf.Version)
+		err = rdb.SetConfig(api.Config{
+			ID:             conf.ID,
 			AppliedVersion: conf.Version,
 		})
 		if err != nil {
@@ -81,10 +79,10 @@ func configSync(rdb *db.DB) {
 			func() {
 				configsLock.Lock()
 				defer configsLock.Unlock()
-				_, workerRunning := configs[c.NewVal.Name]
-				configs[c.NewVal.Name] = &c.NewVal.Config
+				_, workerRunning := configs[c.NewVal.ID]
+				configs[c.NewVal.ID] = c.NewVal
 				if !workerRunning {
-					go applyConfigs(c.NewVal.Name)
+					go applyConfigs(c.NewVal.ID)
 				}
 			}()
 		} else {

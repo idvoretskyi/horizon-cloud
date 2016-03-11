@@ -8,7 +8,7 @@ cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: horizon-4-$project
+  name: h0-$project
   labels:
     app: horizon
     project: $project
@@ -47,7 +47,7 @@ spec:
         - name: HZ_AUTO_CREATE_INDEX
           value: 'true'
         - name: HZ_CONNECT
-          value: rethinkdb-$project:28015
+          value: r-$project:28015
         - name: HZ_BIND
           value: 0.0.0.0
         ports:
@@ -60,7 +60,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: horizon-$project
+  name: h-$project
   labels:
     app: horizon
     project: $project
