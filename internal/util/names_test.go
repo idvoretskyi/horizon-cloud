@@ -12,6 +12,7 @@ func TestNames(t *testing.T) {
 		{"horizon-cloud", "horizon-clou-bdc7f4a5"},
 		{"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 			"ffffffffffff-d758d73f"},
+		{"space   the final frontier", "spacethefina-4dd46748"},
 	}
 
 	for _, test := range tests {
