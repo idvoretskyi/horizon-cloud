@@ -51,7 +51,7 @@ type Project struct {
 	Frontend *Frontend
 }
 
-func New(gc *gcloud.GCloud, cluster string) *Kube {
+func New(gc *gcloud.GCloud) *Kube {
 	// RSI: should we be passing in a client config here?
 	factory := util.NewFactory(nil)
 	mapper, typer := factory.Object()
