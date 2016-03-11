@@ -1,20 +1,32 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+basename=`basename $0`
+name=${basename%%.*}
+
+cd "$(dirname "$(readlink -f "$0")")"
+
+version=`cat $basename docker/$name/gcr_image_id | md5sum | head -c16`
+
+cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
-  name: horizon-cloud-http-proxy-2
+  name: $name--$version
   labels:
-    app: horizon-cloud-http-proxy
-    version: v2
+    app: $name
+    version: "$version"
 spec:
   replicas: 1
   selector:
-    app: horizon-cloud-http-proxy
-    version: v2
+    app: $name
+    version: "$version"
   template:
     metadata:
       labels:
-        app: horizon-cloud-http-proxy
-        version: v2
+        app: $name
+        version: "$version"
     spec:
       volumes:
       - name: api-shared-secret
@@ -22,7 +34,7 @@ spec:
 
       containers:
       - name: proxy
-        image: us.gcr.io/horizon-cloud-1239/horizon-cloud-http-proxy:2
+        image: `cat docker/$name/gcr_image_id`
         resources:
           limits: { cpu: "250m", memory: "128Mi" }
         env:
@@ -40,3 +52,4 @@ spec:
         - containerPort: 443
           name: https
           protocol: TCP
+EOF

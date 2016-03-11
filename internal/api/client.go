@@ -24,7 +24,8 @@ type Client struct {
 // sharedSecret should be the shared secret for accessing protected APIs.
 func NewClient(baseURL string, sharedSecret string) (*Client, error) {
 	return &Client{
-		baseURL: baseURL,
+		baseURL:      baseURL,
+		sharedSecret: sharedSecret,
 	}, nil
 }
 

@@ -1,0 +1,41 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+running=`mktemp -d`
+trap "rm -rf $running" EXIT
+
+for target in "$@"; do
+    echo "Deploying $target"
+    pushd "$target" >/dev/null
+    tname=`basename "$target"`
+
+    {
+        set -eux
+        set -o pipefail
+
+        echo "${target%/}" > "$running/$tname"
+
+        if [[ -f prepare ]]; then
+            ./prepare
+        fi
+        image_id=`docker build . | tail -1 | awk '{print $3}'`
+        gcr_image_id="us.gcr.io/horizon-cloud-1239/$tname:$image_id"
+        docker tag -f "$image_id" "$gcr_image_id"
+        gcloud docker push "$gcr_image_id"
+        echo "$gcr_image_id" > gcr_image_id
+
+        rm "$running/$tname"
+    } &> deploy.log &
+
+    popd >/dev/null
+done
+
+wait
+
+shopt -s nullglob
+for remaining in $running/*; do
+    echo "Failed to deploy `basename $remaining`:"
+    cat `cat $remaining`/deploy.log
+    echo
+done

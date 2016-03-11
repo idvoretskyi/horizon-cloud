@@ -1,5 +1,8 @@
 #!/bin/bash
 set -eu
+set -o pipefail
+
+cd "$(dirname "$(readlink -f "$0")")"
 
 # RSI: sanitize project name, or leave that to go code?
 project="$1"
@@ -35,7 +38,7 @@ spec:
 
       containers:
       - name: nginx
-        image: us.gcr.io/horizon-cloud-1239/horizon-nginx:1
+        image: `cat ../kube-config/docker/horizon-nginx/gcr_image_id`
         resources:
           limits:
             cpu: 50m
@@ -53,7 +56,7 @@ spec:
           protocol: TCP
 
       - name: ssh
-        image: us.gcr.io/horizon-cloud-1239/horizon-ssh:1
+        image: `cat ../kube-config/docker/horizon-ssh/gcr_image_id`
         resources:
           limits:
             cpu: 10m

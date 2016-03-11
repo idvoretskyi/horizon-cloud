@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/horizon-cloud/cmd/horizon-cloud-http-proxy/cache"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 )
@@ -38,13 +37,10 @@ func NewHandler(conf *config) *Handler {
 }
 
 func (h *Handler) lookupTargetForHost(host string) (string, error) {
-	spew.Dump(host)
 	resp, err := h.conf.APIClient.GetByAlias(api.GetByAliasReq{
 		Alias: host,
 	})
 	// RSI: log error.
-	spew.Dump(resp)
-	spew.Dump(err)
 	if err != nil {
 		return "", err
 	}
