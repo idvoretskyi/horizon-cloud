@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	projectEnvVarName = []byte("HORIZON_PROJECT")
+	projectEnvVarName = []byte(api.ProjectEnvVarName)
 	sshVersionString  = "SSH-2.0-HorizonCloudProxy"
 )
 

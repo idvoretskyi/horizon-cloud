@@ -62,6 +62,7 @@ func withSSHConnection(
 	sshClient := ssh.New(ssh.Options{
 		Host:         wcaResp.Target.Hostname,
 		User:         wcaResp.Target.Username,
+		Environment:  map[string]string{api.ProjectEnvVarName: ctx.ProjectName},
 		KnownHosts:   kh,
 		IdentityFile: ctx.PrivateSSHKeyPath,
 	})

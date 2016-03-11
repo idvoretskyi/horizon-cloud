@@ -3,6 +3,7 @@ package cmd
 import (
 	"log"
 
+	"github.com/pborman/uuid"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
 	"github.com/spf13/cobra"
@@ -28,7 +29,21 @@ var deployCmd = &cobra.Command{
 			&commandContext{client, name, viper.GetString("identity_file")},
 			api.AllowClusterStart,
 			func(sshClient *ssh.Client, resp *api.WaitConfigAppliedResp) error {
-				log.Printf("deploying to %v (%v)...", resp.Config, resp.Target)
+				log.Printf("deploying to %#v (%#v)...", resp.Config, resp.Target)
+				// RSI: check whether dist exists.
+				dirName := uuid.New()
+				err := sshClient.RsyncTo(
+					"dist/",
+					resp.Target.DeployDir+dirName+"/",
+					resp.Target.DeployDir+"current/")
+				if err != nil {
+					return err
+				}
+				cmd := "DIR=" + ssh.ShellEscape(dirName) + " " + resp.Target.DeployCmd
+				err = sshClient.RunCommand("bash -c " + ssh.ShellEscape(cmd))
+				if err != nil {
+					return err
+				}
 				return nil
 			},
 		)

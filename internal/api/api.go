@@ -10,6 +10,8 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
+var ProjectEnvVarName = "HORIZON_PROJECT"
+
 type Target struct {
 	Hostname     string
 	Fingerprints []string
@@ -120,10 +122,11 @@ type Project struct {
 }
 
 func ProjectFromName(name string) Project {
+	trueName := util.TrueName(name)
 	return Project{
 		Name:        name,
-		SSHAddress:  "frontend-ssh-" + name + ":22",
-		HTTPAddress: "frontend-nginx-" + name + ":80",
+		SSHAddress:  "fs-" + trueName + ":22",
+		HTTPAddress: "fn-" + trueName + ":80",
 	}
 }
 
