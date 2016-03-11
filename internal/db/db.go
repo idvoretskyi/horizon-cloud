@@ -83,49 +83,45 @@ func (d *DB) GetConfig(name string) (*api.Config, error) {
 
 func (d *DB) EnsureConfigConnectable(
 	name string, allowClusterStart api.ClusterStartBool) (*api.Config, error) {
-	var out struct {
-		Changes []struct {
-			NewVal *api.Config `gorethink:"new_val"`
-		} `gorethink:"changes"`
-		FirstError string `gorethink:"first_error"`
-	}
 
-	var defaultConfig r.Term
 	if allowClusterStart {
-		defaultConfig = r.Expr(api.ConfigFromDesired(api.DefaultDesiredConfig(name)))
-	} else {
-		defaultConfig = r.Error("No such cluster.")
-	}
+		var out struct {
+			Changes []struct {
+				NewVal *api.Config `gorethink:"new_val"`
+			} `gorethink:"changes"`
+			FirstError string `gorethink:"first_error"`
+		}
 
-	query := r.UUID().Do(func(uuid r.Term) interface{} {
-		return configs.Get(util.TrueName(name)).Replace(func(row r.Term) interface{} {
-			return row.Default(defaultConfig).Do(func(x r.Term) interface{} {
-				return x.Merge(map[string]interface{}{"Version": uuid})
-			})
-		}, r.ReplaceOpts{ReturnChanges: "always"})
-	})
+		defaultConfig := r.Expr(api.ConfigFromDesired(api.DefaultDesiredConfig(name)))
+		query := configs.Insert(defaultConfig, r.InsertOpts{ReturnChanges: "always"})
+		err := runOne(query, d.session, &out)
 
-	err := runOne(query, d.session, &out)
-	if err != nil {
-		log.Printf("Couldn't run EnsureConfigConnectable query: %s", err)
-		return nil, getBasicError("ensureConfigConnectable", name)
-	}
+		if err != nil {
+			log.Printf("Couldn't run EnsureConfigConnectable query: %s", err)
+			return nil, getBasicError("ensureConfigConnectable", name)
+		}
 
-	if len(out.Changes) != 1 {
-		log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
-		return nil, getBasicError("ensureConfigConnectable", name)
-	}
-
-	if out.Changes[0].NewVal == nil {
-		if allowClusterStart {
+		if len(out.Changes) != 1 {
 			log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
 			return nil, getBasicError("ensureConfigConnectable", name)
-		} else {
+		}
+
+		if out.Changes[0].NewVal == nil {
+			log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
+			return nil, getBasicError("ensureConfigConnectable", name)
+		}
+		return out.Changes[0].NewVal, nil
+
+	} else {
+		var c api.Config
+		query := configs.Get(util.TrueName(name))
+		err := runOne(query, d.session, &c)
+		if err != nil {
+			log.Printf("EnsureConfigConnectable failed: %s", err)
 			return nil, fmt.Errorf("no cluster `%s`, do you want to deploy?", name)
 		}
+		return &c, err
 	}
-
-	return out.Changes[0].NewVal, nil
 }
 
 type ConfigChange struct {
