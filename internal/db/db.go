@@ -19,6 +19,7 @@ var (
 	ErrCanceled = errors.New("canceled")
 
 	configs = r.DB("test").Table("configs")
+	users   = r.DB("test").Table("users")
 	aliases = r.DB("test").Table("aliases")
 )
 
@@ -49,7 +50,9 @@ func (d *DB) SetConfig(c api.Config) error {
 }
 
 func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
-	cursor, err := configs.GetAllByIndex("PublicSSHKeys", publicKey).Run(d.session)
+	cursor, err := configs.GetAllByIndex("Users",
+		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
+			Field("id").CoerceTo("array"))).Run(d.session)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +82,51 @@ func (d *DB) GetConfig(name string) (*api.Config, error) {
 	var c api.Config
 	err := d.getBasicType(configs, "config", util.TrueName(name), &c)
 	return &c, err
+}
+
+func (d *DB) UserCreate(name string) error {
+	q := users.Insert(api.User{UserName: name, PublicSSHKeys: []string{}})
+	_, err := q.RunWrite(d.session)
+	return err
+}
+
+func (d *DB) UserGet(name string) (*api.User, error) {
+	var user api.User
+	err := d.getBasicType(users, "user", name, &user)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (d *DB) UserAddKeys(name string, keys []string) error {
+	q := users.Get(name).Update(func(row r.Term) r.Term {
+		return r.Expr(map[string]interface{}{
+			"PublicSSHKeys": row.Field("PublicSSHKeys").SetUnion(keys)})
+	})
+	resp, err := q.RunWrite(d.session)
+	if err != nil {
+		return err
+	}
+	if resp.Skipped > 0 {
+		return fmt.Errorf("user `%s` does not exist", name)
+	}
+	return nil
+}
+
+func (d *DB) UserDelKeys(name string, keys []string) error {
+	q := users.Get(name).Update(func(row r.Term) r.Term {
+		return r.Expr(map[string]interface{}{
+			"PublicSSHKeys": row.Field("PublicSSHKeys").SetDifference(keys)})
+	})
+	resp, err := q.RunWrite(d.session)
+	if err != nil {
+		return err
+	}
+	if resp.Skipped > 0 {
+		return fmt.Errorf("user `%s` does not exist", name)
+	}
+	return nil
 }
 
 func (d *DB) EnsureConfigConnectable(

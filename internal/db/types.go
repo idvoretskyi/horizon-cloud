@@ -11,3 +11,8 @@ type Project struct {
 	api.Project
 	PublicKeys []string
 }
+
+type User struct {
+	UserName      string `gorethink:"id"`
+	PublicSSHKeys []string
+}

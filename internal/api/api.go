@@ -49,7 +49,7 @@ type Config struct {
 	ID             string   `gorethink:"id,omitempty"`
 	Version        string   `gorethink:",omitempty"`
 	AppliedVersion string   `gorethink:",omitempty"`
-	PublicSSHKeys  []string `gorethink:",omitempty"`
+	Users          []string `gorethink:",omitempty"`
 }
 
 func ConfigFromDesired(dc *DesiredConfig) *Config {
@@ -160,4 +160,57 @@ func (wca *WaitConfigAppliedReq) Validate() error {
 type WaitConfigAppliedResp struct {
 	Config Config
 	Target Target
+}
+
+type UserCreateReq struct {
+	UserName string
+}
+
+func (r *UserCreateReq) Validate() error {
+	return ValidateName(r.UserName)
+}
+
+type UserCreateResp struct {
+}
+
+type UserGetReq struct {
+	UserName string
+}
+
+func (r *UserGetReq) Validate() error {
+	return ValidateName(r.UserName)
+}
+
+type User struct {
+	UserName      string `gorethink:"id"`
+	PublicSSHKeys []string
+}
+type UserGetResp struct {
+	User User
+}
+
+type UserAddKeysReq struct {
+	UserName string
+	Keys     []string
+}
+
+func (r *UserAddKeysReq) Validate() error {
+	// RSI: validate keys.
+	return ValidateName(r.UserName)
+}
+
+type UserAddKeysResp struct {
+}
+
+type UserDelKeysReq struct {
+	UserName string
+	Keys     []string
+}
+
+func (r *UserDelKeysReq) Validate() error {
+	// RSI: validate keys.
+	return ValidateName(r.UserName)
+}
+
+type UserDelKeysResp struct {
 }

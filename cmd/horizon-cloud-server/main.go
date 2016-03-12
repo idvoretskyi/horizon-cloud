@@ -64,6 +64,58 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func userCreate(rw http.ResponseWriter, req *http.Request) {
+	var r api.UserCreateReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	err := rdb.UserCreate(r.UserName)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.UserCreateResp{})
+}
+
+func userGet(rw http.ResponseWriter, req *http.Request) {
+	var r api.UserGetReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	user, err := rdb.UserGet(r.UserName)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.UserGetResp{User: *user})
+}
+
+func userAddKeys(rw http.ResponseWriter, req *http.Request) {
+	var r api.UserAddKeysReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	err := rdb.UserAddKeys(r.UserName, r.Keys)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.UserAddKeysResp{})
+}
+
+func userDelKeys(rw http.ResponseWriter, req *http.Request) {
+	var r api.UserDelKeysReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	err := rdb.UserDelKeys(r.UserName, r.Keys)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.UserDelKeysResp{})
+}
+
 func getProjects(rw http.ResponseWriter, req *http.Request) {
 	var gp api.GetProjectsReq
 	if !decode(rw, req.Body, &gp) {
@@ -193,6 +245,10 @@ func main() {
 		{"/v1/config/wait_applied", waitConfigApplied, false},
 		{"/v1/projects/get", getProjects, true},
 		{"/v1/projects/getByAlias", getByAlias, true},
+		{"/v1/users/create", userCreate, true},
+		{"/v1/users/get", userGet, true},
+		{"/v1/users/addKeys", userAddKeys, true},
+		{"/v1/users/delKeys", userDelKeys, true},
 	}
 
 	for _, handler := range handlers {
