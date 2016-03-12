@@ -117,16 +117,17 @@ func (k *Kube) Ready(p *Project) (bool, error) {
 }
 
 func (k *Kube) Wait(p *Project) error {
-	timeoutMin := time.Duration(5)
-	backoff_ms := time.Duration(1000)
+	timeoutMin := 5 * time.Minute
+	backoff_ms := 1000 * time.Millisecond
+	backoff_ms_increment := 100 * time.Millisecond
 
-	timeout := time.NewTimer(timeoutMin * time.Minute)
+	timeout := time.NewTimer(timeoutMin)
 	defer timeout.Stop()
 	for {
 		select {
 		case <-timeout.C:
 			return fmt.Errorf("timed out after %d minutes", timeoutMin)
-		case <-time.After(backoff_ms * time.Millisecond):
+		case <-time.After(backoff_ms):
 			log.Printf("Polling for readiness")
 			ready, err := k.Ready(p)
 			if err != nil {
@@ -136,7 +137,7 @@ func (k *Kube) Wait(p *Project) error {
 				return nil
 			}
 		}
-		backoff_ms = time.Duration(float64(backoff_ms) * 1.5)
+		backoff_ms += backoff_ms_increment
 	}
 }
 

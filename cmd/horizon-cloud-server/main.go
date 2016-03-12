@@ -239,10 +239,12 @@ func main() {
 		Func          func(w http.ResponseWriter, r *http.Request)
 		RequireSecret bool
 	}{
-		{"/v1/config/set", setConfig, false},
-		{"/v1/config/get", getConfig, false},
-		{"/v1/config/ensure_connectable", ensureConfigConnectable, false},
-		{"/v1/config/wait_applied", waitConfigApplied, false},
+		{"/v1/configs/ensureConnectable", ensureConfigConnectable, false},
+		{"/v1/configs/waitApplied", waitConfigApplied, false},
+
+		{"/v1/configs/set", setConfig, true},
+		{"/v1/configs/get", getConfig, true},
+
 		{"/v1/projects/get", getProjects, true},
 		{"/v1/projects/getByAlias", getByAlias, true},
 		{"/v1/users/create", userCreate, true},

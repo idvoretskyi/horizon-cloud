@@ -27,7 +27,7 @@ var deployCmd = &cobra.Command{
 
 		err = withSSHConnection(
 			&commandContext{client, name, viper.GetString("identity_file")},
-			api.AllowClusterStart,
+			api.DisallowClusterStart,
 			func(sshClient *ssh.Client, resp *api.WaitConfigAppliedResp) error {
 				log.Printf("deploying to %#v (%#v)...", resp.Config, resp.Target)
 				// RSI: check whether dist exists.

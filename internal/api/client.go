@@ -19,7 +19,7 @@ type Client struct {
 // Constructs a new Client object.
 //
 // baseURL must be the prefix of the API URL; for example, "https://horizon" if
-// the calls should be "https://horizon/v1/config/...".
+// the calls should be "https://horizon/v1/configs/...".
 //
 // sharedSecret should be the shared secret for accessing protected APIs.
 func NewClient(baseURL string, sharedSecret string) (*Client, error) {
@@ -33,7 +33,7 @@ func (c *Client) EnsureConfigConnectable(
 	opts EnsureConfigConnectableReq) (*EnsureConfigConnectableResp, error) {
 
 	var ret EnsureConfigConnectableResp
-	err := c.jsonRoundTrip("/v1/config/ensure_connectable", opts, &ret)
+	err := c.jsonRoundTrip("/v1/configs/ensureConnectable", opts, &ret)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (c *Client) GetConfig(
 	opts GetConfigReq) (*GetConfigResp, error) {
 
 	var ret GetConfigResp
-	err := c.jsonRoundTrip("/v1/config/get", opts, &ret)
+	err := c.jsonRoundTrip("/v1/configs/get", opts, &ret)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (c *Client) WaitConfigApplied(
 	// RSI: retry requests if they fail (but only for network reasons)
 
 	var ret WaitConfigAppliedResp
-	err := c.jsonRoundTrip("/v1/config/wait_applied", opts, &ret)
+	err := c.jsonRoundTrip("/v1/configs/waitApplied", opts, &ret)
 	if err != nil {
 		return nil, err
 	}

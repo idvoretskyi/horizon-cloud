@@ -165,8 +165,8 @@ func (d *DB) EnsureConfigConnectable(
 		query := configs.Get(util.TrueName(name))
 		err := runOne(query, d.session, &c)
 		if err != nil {
-			log.Printf("EnsureConfigConnectable failed: %s", err)
-			return nil, fmt.Errorf("no cluster `%s`, do you want to deploy?", name)
+			log.Printf("EnsureConfigConnectable for `%s` failed: %s", name, err)
+			return nil, fmt.Errorf("no cluster `%s`", name)
 		}
 		return &c, err
 	}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/pborman/uuid"
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
@@ -19,12 +20,13 @@ type Target struct {
 }
 
 type DesiredConfig struct {
-	Name         string `gorethink:",omitempty"`
-	NumRDB       int    `gorethink:",omitempty"`
-	SizeRDB      int    `gorethink:",omitempty"`
-	NumHorizon   int    `gorethink:",omitempty"`
-	NumFrontend  int    `gorethink:",omitempty"`
-	SizeFrontend int    `gorethink:",omitempty"`
+	Name         string
+	NumRDB       int
+	SizeRDB      int
+	NumHorizon   int
+	NumFrontend  int
+	SizeFrontend int
+	Users        []string
 }
 
 func (dc *DesiredConfig) Validate() error {
@@ -47,10 +49,9 @@ func DefaultDesiredConfig(name string) *DesiredConfig {
 
 type Config struct {
 	DesiredConfig
-	ID             string   `gorethink:"id,omitempty"`
-	Version        string   `gorethink:",omitempty"`
-	AppliedVersion string   `gorethink:",omitempty"`
-	Users          []string `gorethink:",omitempty"`
+	ID             string `gorethink:"id"`
+	Version        string
+	AppliedVersion string
 }
 
 func ConfigFromDesired(dc *DesiredConfig) *Config {
@@ -86,6 +87,9 @@ func (r *EnsureConfigConnectableReq) Validate() error {
 	err := ValidateName(r.Name)
 	if err != nil {
 		return err
+	}
+	if r.AllowClusterStart == AllowClusterStart {
+		return fmt.Errorf("you are not authorized to start clusters")
 	}
 	return nil
 }
