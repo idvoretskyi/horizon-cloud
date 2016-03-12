@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/pborman/uuid"
+	"github.com/rethinkdb/horizon-cloud/internal/ssh"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
@@ -98,7 +99,9 @@ type GetProjectsReq struct {
 }
 
 func (gp *GetProjectsReq) Validate() error {
-	// RSI: validate key?
+	if !ssh.ValidKey(gp.PublicKey) {
+		return errors.New("invalid public key format")
+	}
 	return nil
 }
 
@@ -185,6 +188,7 @@ type User struct {
 	UserName      string `gorethink:"id"`
 	PublicSSHKeys []string
 }
+
 type UserGetResp struct {
 	User User
 }
@@ -195,7 +199,11 @@ type UserAddKeysReq struct {
 }
 
 func (r *UserAddKeysReq) Validate() error {
-	// RSI: validate keys.
+	for _, key := range r.Keys {
+		if !ssh.ValidKey(key) {
+			return errors.New("invalid public key format")
+		}
+	}
 	return ValidateName(r.UserName)
 }
 
@@ -208,7 +216,11 @@ type UserDelKeysReq struct {
 }
 
 func (r *UserDelKeysReq) Validate() error {
-	// RSI: validate keys.
+	for _, key := range r.Keys {
+		if !ssh.ValidKey(key) {
+			return errors.New("invalid public key format")
+		}
+	}
 	return ValidateName(r.UserName)
 }
 
