@@ -38,9 +38,11 @@ func applyConfigs(trueName string) {
 		}
 
 		k := kube.New(gc)
+
 		// RSI: tear down old project once we actually support changing
 		// configurations.
 		project, err := k.CreateProject(*conf)
+
 		if err != nil {
 			// RSI: log serious error.
 			log.Printf("%s\n", err)

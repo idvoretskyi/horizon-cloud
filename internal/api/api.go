@@ -20,13 +20,13 @@ type Target struct {
 }
 
 type DesiredConfig struct {
-	Name         string
-	NumRDB       int
-	SizeRDB      int
-	NumHorizon   int
-	NumFrontend  int
-	SizeFrontend int
-	Users        []string
+	Name         string   `gorethink:",omitempty"`
+	NumRDB       int      `gorethink:",omitempty"`
+	SizeRDB      int      `gorethink:",omitempty"`
+	NumHorizon   int      `gorethink:",omitempty"`
+	NumFrontend  int      `gorethink:",omitempty"`
+	SizeFrontend int      `gorethink:",omitempty"`
+	Users        []string `gorethink:",omitempty"`
 }
 
 func (dc *DesiredConfig) Validate() error {
@@ -49,9 +49,9 @@ func DefaultDesiredConfig(name string) *DesiredConfig {
 
 type Config struct {
 	DesiredConfig
-	ID             string `gorethink:"id"`
-	Version        string
-	AppliedVersion string
+	ID             string `gorethink:"id,omitempty"`
+	Version        string `gorethink:",omitempty"`
+	AppliedVersion string `gorethink:",omitempty"`
 }
 
 func ConfigFromDesired(dc *DesiredConfig) *Config {
@@ -127,8 +127,8 @@ func ProjectFromName(name string) Project {
 	trueName := util.TrueName(name)
 	return Project{
 		Name:        name,
-		SSHAddress:  "fs-" + trueName + ":22",
-		HTTPAddress: "fn-" + trueName + ":80",
+		SSHAddress:  "fs-" + trueName + ".user:22",
+		HTTPAddress: "fn-" + trueName + ".user:80",
 	}
 }
 

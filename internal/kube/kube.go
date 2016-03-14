@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
@@ -20,6 +21,8 @@ import (
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util/yaml"
 )
+
+const userNamespace = "user"
 
 type Kube struct {
 	C *client.Client
@@ -51,9 +54,13 @@ type Project struct {
 	Frontend *Frontend
 }
 
+var newMu sync.Mutex
+
 func New(gc *gcloud.GCloud) *Kube {
+	newMu.Lock() // util.NewFactory is racy.
 	// RSI: should we be passing in a client config here?
 	factory := util.NewFactory(nil)
+	newMu.Unlock()
 	mapper, typer := factory.Object()
 	client, err := factory.Client()
 	if err != nil {
@@ -75,7 +82,7 @@ func (k *Kube) Ready(p *Project) (bool, error) {
 	for _, rc := range []*kapi.ReplicationController{
 		p.RDB.RC, p.Horizon.RC, p.Frontend.RC} {
 		log.Printf("checking readiness of RC %s", rc.Name)
-		podlist, err := k.C.Pods(kapi.NamespaceDefault).List(kapi.ListOptions{
+		podlist, err := k.C.Pods(userNamespace).List(kapi.ListOptions{
 			LabelSelector: labels.SelectorFromSet(rc.Spec.Selector)})
 		if err != nil {
 			return false, err
@@ -202,7 +209,7 @@ func (k *Kube) CreateFromTemplate(
 		if err != nil {
 			return nil, err
 		}
-		info.Namespace = kapi.NamespaceDefault
+		info.Namespace = userNamespace
 		obj, err := resource.NewHelper(info.Client, info.Mapping).
 			Create(info.Namespace, true, info.Object)
 		if err != nil {

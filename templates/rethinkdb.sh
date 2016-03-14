@@ -13,6 +13,7 @@ apiVersion: v1
 kind: ReplicationController
 metadata:
   name: r0-$project
+  namespace: user
   labels:
     app: rethinkdb
     project: $project
@@ -62,6 +63,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: r-$project
+  namespace: user
   labels:
     app: rethinkdb
     project: $project

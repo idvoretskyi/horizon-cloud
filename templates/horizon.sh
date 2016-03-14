@@ -12,6 +12,7 @@ apiVersion: v1
 kind: ReplicationController
 metadata:
   name: h0-$project
+  namespace: user
   labels:
     app: horizon
     project: $project
@@ -64,6 +65,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: h-$project
+  namespace: user
   labels:
     app: horizon
     project: $project

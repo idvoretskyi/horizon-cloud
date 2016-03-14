@@ -13,6 +13,7 @@ apiVersion: v1
 kind: ReplicationController
 metadata:
   name: f0-$project
+  namespace: user
   labels:
     app: frontend
     project: $project
@@ -71,6 +72,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: fn-$project
+  namespace: user
   labels:
     app: frontend
     project: $project
@@ -90,6 +92,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: fs-$project
+  namespace: user
   labels:
     app: frontend
     project: $project
