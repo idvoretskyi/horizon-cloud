@@ -38,6 +38,7 @@ spec:
           limits:
             cpu: 250m
             memory: 512Mi
+        command: ["rethinkdb", "--bind", "all", "--cache-size", "384"]
         volumeMounts:
         - name: data
           mountPath: /data
