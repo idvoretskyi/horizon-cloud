@@ -16,6 +16,14 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 )
 
+type NoHostMappingError struct {
+	Host string
+}
+
+func (e *NoHostMappingError) Error() string {
+	return fmt.Sprintf("no host mapping exists for %v", e.Host)
+}
+
 type Handler struct {
 	conf        *config
 	targetCache *meetup.Cache
@@ -63,9 +71,7 @@ func (h *Handler) lookupTargetForHost(host string) (string, error) {
 		return "", err
 	}
 	if resp.Project == nil {
-		// RSI: consider passing this on so users can distinguish between
-		// not having registered an alias and other errors in production.
-		return "", fmt.Errorf("no alias registered for `%s`", host)
+		return "", &NoHostMappingError{host}
 	}
 	return resp.Project.HTTPAddress, nil
 }
@@ -149,6 +155,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// RSI: we may have to strip out the `:port` at the end in some cases.
 	target, err := h.getCachedTarget(r.Host)
 	if err != nil {
+		if _, ok := err.(*NoHostMappingError); ok {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
 		http.Error(w, "Couldn't get proxy information for "+r.Host,
 			http.StatusInternalServerError)
 		return

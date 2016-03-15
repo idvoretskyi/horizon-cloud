@@ -6,7 +6,7 @@ running=`mktemp -d`
 trap "rm -rf $running" EXIT
 
 for target in "$@"; do
-    echo "Deploying $target"
+    echo "Building and pushing $target"
     pushd "$target" >/dev/null
     tname=`basename "$target"`
 
@@ -35,7 +35,7 @@ wait
 
 shopt -s nullglob
 for remaining in $running/*; do
-    echo "Failed to deploy `basename $remaining`:"
+    echo "Failed to build or push `basename $remaining`:"
     cat `cat $remaining`/deploy.log
     echo
 done
