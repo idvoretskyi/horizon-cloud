@@ -41,7 +41,7 @@ func applyConfigs(trueName string) {
 
 		// RSI: tear down old project once we actually support changing
 		// configurations.
-		project, err := k.CreateProject(*conf)
+		project, err := k.EnsureProject(*conf)
 
 		if err != nil {
 			// RSI: log serious error.

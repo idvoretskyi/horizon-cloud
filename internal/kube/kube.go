@@ -14,6 +14,7 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 
 	kapi "k8s.io/kubernetes/pkg/api"
+	kerrors "k8s.io/kubernetes/pkg/api/errors"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
@@ -353,7 +354,18 @@ func (k *Kube) createWithVol(
 	}
 }
 
-func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
+func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
+	rc, err := k.C.ReplicationControllers(userNamespace).Get(name)
+	if err != nil {
+		if serr, ok := err.(*kerrors.StatusError); ok && serr.Status().Code == 404 {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return rc, nil
+}
+
+func (k *Kube) EnsureProject(conf api.Config) (*Project, error) {
 	// RSI: Use `NumRDB`, `NumHorizon`, and `NumFrontend`.
 
 	type MaybeRDB struct {
@@ -375,30 +387,96 @@ func (k *Kube) CreateProject(conf api.Config) (*Project, error) {
 	horizonCh := make(chan MaybeHorizon)
 	frontendCh := make(chan MaybeFrontend)
 
-	go k.createWithVol(conf.SizeRDB, gcloud.DiskTypeSSD, func(vol *gcloud.Disk, err error) error {
-		if err != nil {
-			rdbCh <- MaybeRDB{nil, err}
-			return nil
-		}
-		rdb, err := k.CreateRDB(conf.ID, vol.Name)
-		rdbCh <- MaybeRDB{rdb, err}
-		return err
-	})
-
 	go func() {
-		horizon, err := k.CreateHorizon(conf.ID)
-		horizonCh <- MaybeHorizon{horizon, err}
+		rdbCh <- func() MaybeRDB {
+			rc, err := k.getRC("r0-" + conf.ID)
+			if err != nil {
+				return MaybeRDB{nil, err}
+			}
+
+			// RSI: check that the replicationcontroller is what we want.
+			if rc != nil {
+				svc, err := k.C.Services(userNamespace).Get("r-" + conf.ID)
+				if err != nil {
+					// RSI: we should be creating replicationcontrollers and
+					// services separately so we don't have to abort here.
+					return MaybeRDB{nil, err}
+				}
+				volName := rc.Spec.Template.Spec.Volumes[0].GCEPersistentDisk.PDName
+				log.Printf("%s already exists with volume %s", "r0-"+conf.ID, volName)
+				return MaybeRDB{&RDB{volName, rc, svc}, nil}
+			}
+
+			var ret MaybeRDB
+			k.createWithVol(conf.SizeRDB, gcloud.DiskTypeSSD,
+				func(vol *gcloud.Disk, err error) error {
+					if err != nil {
+						ret = MaybeRDB{nil, err}
+						return nil
+					}
+					rdb, err := k.CreateRDB(conf.ID, vol.Name)
+					ret = MaybeRDB{rdb, err}
+					return err
+				})
+			return ret
+		}()
 	}()
 
-	go k.createWithVol(conf.SizeFrontend, gcloud.DiskTypeStandard, func(vol *gcloud.Disk, err error) error {
-		if err != nil {
-			frontendCh <- MaybeFrontend{nil, err}
-			return nil
-		}
-		frontend, err := k.CreateFrontend(conf.ID, vol.Name)
-		frontendCh <- MaybeFrontend{frontend, err}
-		return err
-	})
+	go func() {
+		horizonCh <- func() MaybeHorizon {
+			rc, err := k.getRC("h0-" + conf.ID)
+			if err != nil {
+				return MaybeHorizon{nil, err}
+			}
+			if rc != nil {
+				svc, err := k.C.Services(userNamespace).Get("h-" + conf.ID)
+				if err != nil {
+					return MaybeHorizon{nil, err}
+				}
+				log.Printf("%s already exists", "h0-"+conf.ID)
+				return MaybeHorizon{&Horizon{rc, svc}, nil}
+			}
+
+			horizon, err := k.CreateHorizon(conf.ID)
+			return MaybeHorizon{horizon, err}
+		}()
+	}()
+
+	go func() {
+		frontendCh <- func() MaybeFrontend {
+			rc, err := k.getRC("f0-" + conf.ID)
+			if err != nil {
+				return MaybeFrontend{nil, err}
+			}
+
+			if rc != nil {
+				nginxSVC, err := k.C.Services(userNamespace).Get("fn-" + conf.ID)
+				if err != nil {
+					return MaybeFrontend{nil, err}
+				}
+				sshSVC, err := k.C.Services(userNamespace).Get("fs-" + conf.ID)
+				if err != nil {
+					return MaybeFrontend{nil, err}
+				}
+				volName := rc.Spec.Template.Spec.Volumes[0].GCEPersistentDisk.PDName
+				log.Printf("%s already exists with volume %s", "f0-"+conf.ID, volName)
+				return MaybeFrontend{&Frontend{volName, rc, nginxSVC, sshSVC}, nil}
+			}
+
+			var ret MaybeFrontend
+			k.createWithVol(conf.SizeFrontend, gcloud.DiskTypeStandard,
+				func(vol *gcloud.Disk, err error) error {
+					if err != nil {
+						ret = MaybeFrontend{nil, err}
+						return nil
+					}
+					frontend, err := k.CreateFrontend(conf.ID, vol.Name)
+					ret = MaybeFrontend{frontend, err}
+					return err
+				})
+			return ret
+		}()
+	}()
 
 	rdb := <-rdbCh
 	horizon := <-horizonCh
