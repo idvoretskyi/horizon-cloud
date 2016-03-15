@@ -35,6 +35,8 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
+// RSI: make this return the new configuration that exists in the
+// database rather than the requested configuration.
 func setConfig(rw http.ResponseWriter, req *http.Request) {
 	var dc api.DesiredConfig
 	if !decode(rw, req.Body, &dc) {
