@@ -10,14 +10,15 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/rethinkdb/horizon-cloud/cmd/horizon-cloud-http-proxy/cache"
+	"github.com/encryptio/go-meetup"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 )
 
 type Handler struct {
 	conf        *config
-	targetCache *cache.Cache
+	targetCache *meetup.Cache
 
 	mu      sync.Mutex
 	proxies map[string]*httputil.ReverseProxy
@@ -31,9 +32,26 @@ func NewHandler(conf *config) *Handler {
 		proxies: make(map[string]*httputil.ReverseProxy, 128),
 	}
 
-	h.targetCache = cache.New(h.lookupTargetForHost)
+	h.targetCache = meetup.New(meetup.Options{
+		Get: func(host string) (interface{}, error) {
+			return h.lookupTargetForHost(host)
+		},
+
+		Concurrency:   20,
+		ErrorAge:      time.Second,
+		ExpireAge:     time.Hour,
+		RevalidateAge: time.Minute,
+	})
 
 	return h
+}
+
+func (h *Handler) getCachedTarget(host string) (string, error) {
+	v, err := h.targetCache.Get(host)
+	if err != nil {
+		return "", err
+	}
+	return v.(string), nil
 }
 
 func (h *Handler) lookupTargetForHost(host string) (string, error) {
@@ -129,7 +147,7 @@ func isWebsocket(req *http.Request) bool {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// RSI: we may have to strip out the `:port` at the end in some cases.
-	target, err := h.targetCache.Get(r.Host)
+	target, err := h.getCachedTarget(r.Host)
 	if err != nil {
 		http.Error(w, "Couldn't get proxy information for "+r.Host,
 			http.StatusInternalServerError)

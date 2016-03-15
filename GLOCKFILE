@@ -10,6 +10,7 @@ github.com/davecgh/go-spew 3e6e67c4dcea3ac2f25fd4731abc0e1deaf36216
 github.com/docker/docker 0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d
 github.com/docker/go-units 0bbddae09c5a5419a8c6dcdd7ff90da3d450393b
 github.com/emicklei/go-restful 777bb3f19bcafe2575ffb2a3e46af92509ae9594
+github.com/encryptio/go-meetup 8c6057b24dc8b21d9ffbc73ccd45895656d6c889
 github.com/evanphx/json-patch 7dd4489c2eb6073e5a9d7746c3274c5b5f0387df
 github.com/fsouza/go-dockerclient 0099401a7342ad77e71ca9f9a57c5e72fb80f6b2
 github.com/ghodss/yaml 73d445a93680fa1a78ae23a5839bad48f32ba1ee
@@ -40,8 +41,12 @@ github.com/spf13/viper c975dc1b4eacf4ec7fdbf0873638de5d090ba323
 github.com/ugorji/go f4485b318aadd133842532f841dc205a8e339d74
 golang.org/x/crypto c84e1f8e3a7e322d497cd16c0e8a13c7e127baf3
 golang.org/x/net c2528b2dd8352441850638a8bb678c2ad056fd3e
+golang.org/x/oauth2 2cd4472c321b6cba78e029d99f0e7fe51032fd21
+google.golang.org/api 286e8c9bcb5f84d8dcac21634d79ab16428b1b78
+google.golang.org/cloud 85eedc3316fe8c0d3894478c2c9dad320bd95dfd
 gopkg.in/fatih/pool.v2 cba550ebf9bce999a02e963296d4bc7a486cb715
 gopkg.in/fsnotify.v1 8611c35ab31c1c28aa903d33cf8b6e44a399b09e
+gopkg.in/tomb.v2 14b3d72120e8d10ea6e6b7f87f7175734b1faab8
 gopkg.in/yaml.v2 d466437aa4adc35830964cffc5b5f262c63ddcb4
 k8s.io/kubernetes f366baeaebf849db654b1fb1ae5f5e5124757fb2
 speter.net/go/exp/math/dec/inf 42ca6cd68aa922bc3f32f1e056e61b65945d9ad7
