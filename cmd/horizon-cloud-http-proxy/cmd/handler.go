@@ -151,6 +151,18 @@ func isWebsocket(req *http.Request) bool {
 	return false
 }
 
+func isTLSOnlyHost(host string) bool {
+	return isHSTSHost(host)
+}
+
+func isHSTSHost(host string) bool {
+	// TODO: make this more dynamic
+	if strings.HasSuffix(host, ".hzc.io") {
+		return true
+	}
+	return false
+}
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// RSI: we may have to strip out the `:port` at the end in some cases.
 	target, err := h.getCachedTarget(r.Host)
@@ -163,6 +175,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Couldn't get proxy information for "+r.Host,
 			http.StatusInternalServerError)
 		return
+	}
+
+	if isTLSOnlyHost(r.Host) && r.TLS == nil {
+		httpsURL := *r.URL
+		httpsURL.Scheme = "https"
+		httpsURL.Host = r.Host
+		w.Header().Set("Location", httpsURL.String())
+		w.WriteHeader(http.StatusMovedPermanently)
+		return
+	}
+
+	if isHSTSHost(r.Host) {
+		w.Header().Set("Strict-Transport-Security", "max-age=10886400; includeSubDomains")
 	}
 
 	if isWebsocket(r) {
