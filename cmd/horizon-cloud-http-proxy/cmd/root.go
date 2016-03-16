@@ -38,6 +38,15 @@ var RootCmd = &cobra.Command{
 		}
 
 		handler := NewHandler(conf)
+
+		if tlsAddr := viper.GetString("listen_tls"); tlsAddr != "" {
+			go func() {
+				certFile := viper.GetString("tls_cert")
+				keyFile := viper.GetString("tls_key")
+				log.Fatal(http.ListenAndServeTLS(tlsAddr, certFile, keyFile, handler))
+			}()
+		}
+
 		log.Fatal(http.ListenAndServe(viper.GetString("listen"), handler))
 	},
 }
@@ -55,8 +64,17 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	pf := RootCmd.PersistentFlags()
 
-	pf.StringP("listen", "l", ":80", "Address to listen on.")
+	pf.StringP("listen", "l", ":80", "Address to listen for HTTP connections on.")
 	viper.BindPFlag("listen", pf.Lookup("listen"))
+
+	pf.StringP("listen_tls", "", "", "Address to listen for HTTPS connections on.")
+	viper.BindPFlag("listen_tls", pf.Lookup("listen_tls"))
+
+	pf.StringP("tls_cert", "", "", "Path to TLS certificate chain")
+	viper.BindPFlag("tls_cert", pf.Lookup("tls_cert"))
+
+	pf.StringP("tls_key", "", "", "Path to TLS key")
+	viper.BindPFlag("tls_key", pf.Lookup("tls_key"))
 
 	pf.StringP("api_server", "a", "http://api-server:8000", "API server base URL.")
 	viper.BindPFlag("api_server", pf.Lookup("api_server"))
