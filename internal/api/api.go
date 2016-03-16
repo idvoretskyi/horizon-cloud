@@ -127,11 +127,11 @@ func (gp *GetProjectsReq) Validate() error {
 	return nil
 }
 
-type GetByAliasReq struct {
-	Alias string
+type GetByDomainReq struct {
+	Domain string
 }
 
-func (gp *GetByAliasReq) Validate() error {
+func (gp *GetByDomainReq) Validate() error {
 	return nil
 }
 
@@ -154,7 +154,7 @@ type GetProjectsResp struct {
 	Projects []Project
 }
 
-type GetByAliasResp struct {
+type GetByDomainResp struct {
 	Project *Project
 }
 

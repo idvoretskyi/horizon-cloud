@@ -131,17 +131,17 @@ func getProjects(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsResp{Projects: projects})
 }
 
-func getByAlias(rw http.ResponseWriter, req *http.Request) {
-	var gp api.GetByAliasReq
+func getByDomain(rw http.ResponseWriter, req *http.Request) {
+	var gp api.GetByDomainReq
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	project, err := rdb.GetByAlias(gp.Alias)
+	project, err := rdb.GetByDomain(gp.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetByAliasResp{Project: project})
+	api.WriteJSONResp(rw, http.StatusOK, api.GetByDomainResp{Project: project})
 }
 
 func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
@@ -248,7 +248,7 @@ func main() {
 		{"/v1/configs/get", getConfig, true},
 
 		{"/v1/projects/get", getProjects, true},
-		{"/v1/projects/getByAlias", getByAlias, true},
+		{"/v1/projects/getByDomain", getByDomain, true},
 		{"/v1/users/create", userCreate, true},
 		{"/v1/users/get", userGet, true},
 		{"/v1/users/addKeys", userAddKeys, true},

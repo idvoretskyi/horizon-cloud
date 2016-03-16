@@ -63,8 +63,8 @@ func (h *Handler) getCachedTarget(host string) (string, error) {
 }
 
 func (h *Handler) lookupTargetForHost(host string) (string, error) {
-	resp, err := h.conf.APIClient.GetByAlias(api.GetByAliasReq{
-		Alias: host,
+	resp, err := h.conf.APIClient.GetByDomain(api.GetByDomainReq{
+		Domain: host,
 	})
 	// RSI: log error.
 	if err != nil {

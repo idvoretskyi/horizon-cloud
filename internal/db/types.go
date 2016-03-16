@@ -2,17 +2,12 @@ package db
 
 import "github.com/rethinkdb/horizon-cloud/internal/api"
 
-type Alias struct {
-	Alias   string `gorethink:"id"`
+type Domain struct {
+	Domain  string `gorethink:"id"`
 	Project string
 }
 
 type Project struct {
 	api.Project
 	PublicKeys []string
-}
-
-type User struct {
-	UserName      string `gorethink:"id"`
-	PublicSSHKeys []string
 }

@@ -73,9 +73,9 @@ func (c *Client) GetProjects(opts GetProjectsReq) (*GetProjectsResp, error) {
 	return &ret, nil
 }
 
-func (c *Client) GetByAlias(opts GetByAliasReq) (*GetByAliasResp, error) {
-	var ret GetByAliasResp
-	err := c.jsonRoundTrip("/v1/projects/getByAlias", opts, &ret)
+func (c *Client) GetByDomain(opts GetByDomainReq) (*GetByDomainResp, error) {
+	var ret GetByDomainResp
+	err := c.jsonRoundTrip("/v1/projects/getByDomain", opts, &ret)
 	if err != nil {
 		return nil, err
 	}

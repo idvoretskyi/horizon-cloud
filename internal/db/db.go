@@ -20,7 +20,7 @@ var (
 
 	configs = r.DB("test").Table("configs")
 	users   = r.DB("test").Table("users")
-	aliases = r.DB("test").Table("aliases")
+	domains = r.DB("test").Table("domains")
 )
 
 func New() (*DB, error) {
@@ -65,16 +65,16 @@ func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
 	return projects, nil
 }
 
-func (d *DB) GetByAlias(aliasName string) (*api.Project, error) {
-	var alias Alias
-	err := runOne(aliases.Get(aliasName), d.session, &alias)
+func (d *DB) GetByDomain(domainName string) (*api.Project, error) {
+	var domain Domain
+	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
 		if err != r.ErrEmptyResult {
 			return nil, err
 		}
 		return nil, nil
 	}
-	project := api.ProjectFromName(alias.Project)
+	project := api.ProjectFromName(domain.Project)
 	return &project, nil
 }
 
