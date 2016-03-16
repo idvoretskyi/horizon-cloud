@@ -49,7 +49,7 @@ func (d *DB) SetConfig(c api.Config) error {
 	return d.setBasicType(configs, "config", c.ID, &c)
 }
 
-func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
+func (d *DB) GetProjectsByKey(publicKey string) ([]api.Project, error) {
 	cursor, err := configs.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array"))).Run(d.session)
@@ -66,7 +66,7 @@ func (d *DB) GetProjects(publicKey string) ([]api.Project, error) {
 }
 
 func (d *DB) GetByDomain(domainName string) (*api.Project, error) {
-	var domain Domain
+	var domain api.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
 		if err != r.ErrEmptyResult {
@@ -127,6 +127,24 @@ func (d *DB) UserDelKeys(name string, keys []string) error {
 		return fmt.Errorf("user `%s` does not exist", name)
 	}
 	return nil
+}
+
+func (d *DB) SetDomain(domain api.Domain) error {
+	return d.setBasicType(domains, "domain", domain.Domain, &domain)
+}
+
+func (d *DB) GetDomainsByProject(project string) ([]string, error) {
+	cursor, err := domains.GetAllByIndex("Project", project).Run(d.session)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close()
+	domains := []string{}
+	var dom api.Domain
+	for cursor.Next(&dom) {
+		domains = append(domains, dom.Domain)
+	}
+	return domains, nil
 }
 
 func (d *DB) EnsureConfigConnectable(

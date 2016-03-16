@@ -33,7 +33,7 @@ func (c *Client) EnsureConfigConnectable(
 	opts EnsureConfigConnectableReq) (*EnsureConfigConnectableResp, error) {
 
 	var ret EnsureConfigConnectableResp
-	err := c.jsonRoundTrip("/v1/configs/ensureConnectable", opts, &ret)
+	err := c.jsonRoundTrip(EnsureConfigConnectablePath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (c *Client) GetConfig(
 	opts GetConfigReq) (*GetConfigResp, error) {
 
 	var ret GetConfigResp
-	err := c.jsonRoundTrip("/v1/configs/get", opts, &ret)
+	err := c.jsonRoundTrip(GetConfigPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}
@@ -57,25 +57,28 @@ func (c *Client) WaitConfigApplied(
 	// RSI: retry requests if they fail (but only for network reasons)
 
 	var ret WaitConfigAppliedResp
-	err := c.jsonRoundTrip("/v1/configs/waitApplied", opts, &ret)
+	err := c.jsonRoundTrip(WaitConfigAppliedPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}
 	return &ret, nil
 }
 
-func (c *Client) GetProjects(opts GetProjectsReq) (*GetProjectsResp, error) {
-	var ret GetProjectsResp
-	err := c.jsonRoundTrip("/v1/projects/get", opts, &ret)
+func (c *Client) GetProjectsByKey(
+	opts GetProjectsByKeyReq) (*GetProjectsByKeyResp, error) {
+
+	var ret GetProjectsByKeyResp
+	err := c.jsonRoundTrip(GetProjectsByKeyPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}
 	return &ret, nil
 }
 
-func (c *Client) GetByDomain(opts GetByDomainReq) (*GetByDomainResp, error) {
-	var ret GetByDomainResp
-	err := c.jsonRoundTrip("/v1/projects/getByDomain", opts, &ret)
+func (c *Client) GetProjectByDomain(
+	opts GetProjectByDomainReq) (*GetProjectByDomainResp, error) {
+	var ret GetProjectByDomainResp
+	err := c.jsonRoundTrip(GetProjectByDomainPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}

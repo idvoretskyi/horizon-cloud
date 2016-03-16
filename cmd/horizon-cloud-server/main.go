@@ -7,7 +7,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/gorilla/handlers"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 )
@@ -38,16 +40,18 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 // RSI: make this return the new configuration that exists in the
 // database rather than the requested configuration.
 func setConfig(rw http.ResponseWriter, req *http.Request) {
-	var dc api.DesiredConfig
-	if !decode(rw, req.Body, &dc) {
+	var r api.SetConfigReq
+	if !decode(rw, req.Body, &r) {
 		return
 	}
-	if err := rdb.SetConfig(*api.ConfigFromDesired(&dc)); err != nil {
+	if err := rdb.SetConfig(*api.ConfigFromDesired(&r.DesiredConfig)); err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
 	// RSI: instead read the actual new config out of the database.
-	api.WriteJSONResp(rw, http.StatusOK, api.ConfigFromDesired(&dc))
+	api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{
+		*api.ConfigFromDesired(&r.DesiredConfig),
+	})
 }
 
 func getConfig(rw http.ResponseWriter, req *http.Request) {
@@ -118,30 +122,56 @@ func userDelKeys(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.UserDelKeysResp{})
 }
 
-func getProjects(rw http.ResponseWriter, req *http.Request) {
-	var gp api.GetProjectsReq
-	if !decode(rw, req.Body, &gp) {
+func setDomain(rw http.ResponseWriter, req *http.Request) {
+	var r api.SetDomainReq
+	if !decode(rw, req.Body, &r) {
 		return
 	}
-	projects, err := rdb.GetProjects(gp.PublicKey)
+	err := rdb.SetDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsResp{Projects: projects})
+	api.WriteJSONResp(rw, http.StatusOK, api.SetDomainResp{})
 }
 
-func getByDomain(rw http.ResponseWriter, req *http.Request) {
-	var gp api.GetByDomainReq
-	if !decode(rw, req.Body, &gp) {
+func getDomainsByProject(rw http.ResponseWriter, req *http.Request) {
+	var r api.GetDomainsByProjectReq
+	if !decode(rw, req.Body, &r) {
 		return
 	}
-	project, err := rdb.GetByDomain(gp.Domain)
+	domains, err := rdb.GetDomainsByProject(r.Project)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetByDomainResp{Project: project})
+	api.WriteJSONResp(rw, http.StatusOK, api.GetDomainsByProjectResp{domains})
+}
+
+func getProjectsByKey(rw http.ResponseWriter, req *http.Request) {
+	var gp api.GetProjectsByKeyReq
+	if !decode(rw, req.Body, &gp) {
+		return
+	}
+	projects, err := rdb.GetProjectsByKey(gp.PublicKey)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsByKeyResp{Projects: projects})
+}
+
+func getProjectByDomain(rw http.ResponseWriter, req *http.Request) {
+	var r api.GetProjectByDomainReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	project, err := rdb.GetByDomain(r.Domain)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectByDomainResp{project})
 }
 
 func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
@@ -236,33 +266,39 @@ func main() {
 	}
 	go configSync(rdb)
 
-	handlers := []struct {
+	paths := []struct {
 		Path          string
 		Func          func(w http.ResponseWriter, r *http.Request)
 		RequireSecret bool
 	}{
-		{"/v1/configs/ensureConnectable", ensureConfigConnectable, false},
-		{"/v1/configs/waitApplied", waitConfigApplied, false},
+		{api.EnsureConfigConnectablePath, ensureConfigConnectable, false},
+		{api.WaitConfigAppliedPath, waitConfigApplied, false},
 
-		{"/v1/configs/set", setConfig, true},
-		{"/v1/configs/get", getConfig, true},
+		// Mike uses these.
+		{api.SetConfigPath, setConfig, true},
+		{api.GetConfigPath, getConfig, true},
+		{api.UserCreatePath, userCreate, true},
+		{api.UserGetPath, userGet, true},
+		{api.UserAddKeysPath, userAddKeys, true},
+		{api.UserDelKeysPath, userDelKeys, true},
+		{api.SetDomainPath, setDomain, true},
+		{api.GetDomainsByProjectPath, getDomainsByProject, true},
 
-		{"/v1/projects/get", getProjects, true},
-		{"/v1/projects/getByDomain", getByDomain, true},
-		{"/v1/users/create", userCreate, true},
-		{"/v1/users/get", userGet, true},
-		{"/v1/users/addKeys", userAddKeys, true},
-		{"/v1/users/delKeys", userDelKeys, true},
+		// Chris uses these.
+		{api.GetProjectsByKeyPath, getProjectsByKey, true},
+		{api.GetProjectByDomainPath, getProjectByDomain, true},
 	}
 
-	for _, handler := range handlers {
-		var h http.Handler = http.HandlerFunc(handler.Func)
-		if handler.RequireSecret {
+	mux := http.NewServeMux()
+	for _, path := range paths {
+		var h http.Handler = http.HandlerFunc(path.Func)
+		if path.RequireSecret {
 			h = api.RequireSecret(sharedSecret, h)
 		}
-		http.Handle(handler.Path, h)
+		mux.Handle(path.Path, h)
 	}
+	logMux := handlers.LoggingHandler(os.Stdout, mux)
 
 	log.Printf("Started.")
-	log.Fatal(http.ListenAndServe(*listenAddr, nil))
+	log.Fatal(http.ListenAndServe(*listenAddr, logMux))
 }

@@ -19,6 +19,11 @@ type Target struct {
 	DeployCmd    string
 }
 
+type User struct {
+	Name          string `gorethink:"id"`
+	PublicSSHKeys []string
+}
+
 type DesiredConfig struct {
 	Name         string `gorethink:",omitempty"`
 	NumRDB       int    `gorethink:",omitempty"`
@@ -33,7 +38,7 @@ type DesiredConfig struct {
 }
 
 func (dc *DesiredConfig) Validate() error {
-	if err := ValidateName(dc.Name); err != nil {
+	if err := validateProjectName(dc.Name, "Name"); err != nil {
 		return err
 	}
 	if dc.NumRDB != 1 {
@@ -81,12 +86,40 @@ func ConfigFromDesired(dc *DesiredConfig) *Config {
 	return &conf
 }
 
-func ValidateName(name string) error {
-	// RSI: more validation.
-	if name == "" {
-		return errors.New("Name empty")
+type Domain struct {
+	Domain  string `gorethink:"id"`
+	Project string
+}
+
+func validateDomainName(domain string, fieldName string) error {
+	// RSI: do more validation.
+	if domain == "" {
+		return fmt.Errorf("field `%s` empty", fieldName)
 	}
 	return nil
+}
+
+type Project struct {
+	Name        string
+	SSHAddress  string
+	HTTPAddress string
+}
+
+func validateProjectName(name string, fieldName string) error {
+	// RSI: more validation.
+	if name == "" {
+		return fmt.Errorf("field `%s` empty", fieldName)
+	}
+	return nil
+}
+
+func ProjectFromName(name string) Project {
+	trueName := util.TrueName(name)
+	return Project{
+		Name:        name,
+		SSHAddress:  "fs-" + trueName + ".user:22",
+		HTTPAddress: "fn-" + trueName + ".user:80",
+	}
 }
 
 // RSI: documentation
@@ -96,13 +129,18 @@ type ClusterStartBool bool
 const AllowClusterStart ClusterStartBool = ClusterStartBool(true)
 const DisallowClusterStart ClusterStartBool = ClusterStartBool(false)
 
+////////////////////////////////////////////////////////////////////////////////
+// EnsureConfigConnectable
+
+var EnsureConfigConnectablePath = "/v1/configs/ensureConnectable"
+
 type EnsureConfigConnectableReq struct {
 	Name              string
 	AllowClusterStart ClusterStartBool
 }
 
 func (r *EnsureConfigConnectableReq) Validate() error {
-	err := ValidateName(r.Name)
+	err := validateProjectName(r.Name, "Name")
 	if err != nil {
 		return err
 	}
@@ -116,59 +154,10 @@ type EnsureConfigConnectableResp struct {
 	Config Config
 }
 
-type GetProjectsReq struct {
-	PublicKey string
-}
+////////////////////////////////////////////////////////////////////////////////
+// WaitConfigApplied
 
-func (gp *GetProjectsReq) Validate() error {
-	if !ssh.ValidKey(gp.PublicKey) {
-		return errors.New("invalid public key format")
-	}
-	return nil
-}
-
-type GetByDomainReq struct {
-	Domain string
-}
-
-func (gp *GetByDomainReq) Validate() error {
-	return nil
-}
-
-type Project struct {
-	Name        string
-	SSHAddress  string
-	HTTPAddress string
-}
-
-func ProjectFromName(name string) Project {
-	trueName := util.TrueName(name)
-	return Project{
-		Name:        name,
-		SSHAddress:  "fs-" + trueName + ".user:22",
-		HTTPAddress: "fn-" + trueName + ".user:80",
-	}
-}
-
-type GetProjectsResp struct {
-	Projects []Project
-}
-
-type GetByDomainResp struct {
-	Project *Project
-}
-
-type GetConfigReq struct {
-	Name string
-}
-
-func (gc *GetConfigReq) Validate() error {
-	return ValidateName(gc.Name)
-}
-
-type GetConfigResp struct {
-	Config Config
-}
+var WaitConfigAppliedPath = "/v1/configs/waitApplied"
 
 type WaitConfigAppliedReq struct {
 	Name    string
@@ -176,7 +165,7 @@ type WaitConfigAppliedReq struct {
 }
 
 func (wca *WaitConfigAppliedReq) Validate() error {
-	if err := ValidateName(wca.Name); err != nil {
+	if err := validateProjectName(wca.Name, "Name"); err != nil {
 		return err
 	}
 	return nil
@@ -187,33 +176,76 @@ type WaitConfigAppliedResp struct {
 	Target Target
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// SetConfig
+
+var SetConfigPath = "/v1/configs/set"
+
+type SetConfigReq struct {
+	DesiredConfig
+}
+
+func (r *SetConfigReq) Validate() error {
+	return r.DesiredConfig.Validate()
+}
+
+type SetConfigResp struct {
+	Config
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GetConfig
+
+var GetConfigPath = "/v1/configs/get"
+
+type GetConfigReq struct {
+	Name string
+}
+
+func (r *GetConfigReq) Validate() error {
+	return validateProjectName(r.Name, "Name")
+}
+
+type GetConfigResp struct {
+	Config Config
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// UserCreate
+
+var UserCreatePath = "/v1/users/create"
+
 type UserCreateReq struct {
 	Name string
 }
 
 func (r *UserCreateReq) Validate() error {
-	return ValidateName(r.Name)
+	return validateProjectName(r.Name, "Name")
 }
 
-type UserCreateResp struct {
-}
+type UserCreateResp struct{}
+
+////////////////////////////////////////////////////////////////////////////////
+// UserGet
+
+var UserGetPath = "/v1/users/get"
 
 type UserGetReq struct {
 	Name string
 }
 
 func (r *UserGetReq) Validate() error {
-	return ValidateName(r.Name)
-}
-
-type User struct {
-	Name          string `gorethink:"id"`
-	PublicSSHKeys []string
+	return validateProjectName(r.Name, "Name")
 }
 
 type UserGetResp struct {
 	User User
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// UserAddKeys
+
+var UserAddKeysPath = "/v1/users/addKeys"
 
 type UserAddKeysReq struct {
 	Name string
@@ -226,11 +258,15 @@ func (r *UserAddKeysReq) Validate() error {
 			return errors.New("invalid public key format")
 		}
 	}
-	return ValidateName(r.Name)
+	return validateProjectName(r.Name, "Name")
 }
 
-type UserAddKeysResp struct {
-}
+type UserAddKeysResp struct{}
+
+////////////////////////////////////////////////////////////////////////////////
+// UserDelKeys
+
+var UserDelKeysPath = "/v1/users/delKeys"
 
 type UserDelKeysReq struct {
 	Name string
@@ -243,8 +279,80 @@ func (r *UserDelKeysReq) Validate() error {
 			return errors.New("invalid public key format")
 		}
 	}
-	return ValidateName(r.Name)
+	return validateProjectName(r.Name, "Name")
 }
 
-type UserDelKeysResp struct {
+type UserDelKeysResp struct{}
+
+////////////////////////////////////////////////////////////////////////////////
+// SetDomain
+
+var SetDomainPath = "/v1/domains/set"
+
+type SetDomainReq struct {
+	Domain
+}
+
+func (r *SetDomainReq) Validate() error {
+	err := validateProjectName(r.Project, "Project")
+	if err != nil {
+		return err
+	}
+	return validateDomainName(r.Domain.Domain, "Domain")
+}
+
+type SetDomainResp struct{}
+
+////////////////////////////////////////////////////////////////////////////////
+// GetDomainsByProject
+
+var GetDomainsByProjectPath = "/v1/domains/getByProject"
+
+type GetDomainsByProjectReq struct {
+	Project string
+}
+
+func (r *GetDomainsByProjectReq) Validate() error {
+	return validateProjectName(r.Project, "Project")
+}
+
+type GetDomainsByProjectResp struct {
+	Domains []string
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GetProjectsByKey
+
+var GetProjectsByKeyPath = "/v1/projects/getByKey"
+
+type GetProjectsByKeyReq struct {
+	PublicKey string
+}
+
+func (gp *GetProjectsByKeyReq) Validate() error {
+	if !ssh.ValidKey(gp.PublicKey) {
+		return errors.New("invalid public key format")
+	}
+	return nil
+}
+
+type GetProjectsByKeyResp struct {
+	Projects []Project
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GetProjectByDomain
+
+var GetProjectByDomainPath = "/v1/projects/getByDomain"
+
+type GetProjectByDomainReq struct {
+	Domain string
+}
+
+func (r *GetProjectByDomainReq) Validate() error {
+	return validateDomainName(r.Domain, "Domain")
+}
+
+type GetProjectByDomainResp struct {
+	Project *Project
 }

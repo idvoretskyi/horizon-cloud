@@ -18,6 +18,7 @@ github.com/golang/glog 44145f04b68cf362d9c4df2182967c2275eaefed
 github.com/golang/protobuf b982704f8bb716bb608144408cff30e15fbde841
 github.com/google/cadvisor 49a08d5139ae0111757a110ea3b55fe9a607873d
 github.com/google/gofuzz bbcb9da2d746f8bdbd6a936686a0a6067ada0ec5
+github.com/gorilla/handlers ee54c7b44cab12289237fb8631314790076e728b
 github.com/hailocab/go-hostpool 50839ee41f32bfca8d03a183031aa634b2dc1c64
 github.com/hashicorp/hcl 1c284ec98f4b398443cbabb0d9197f7f4cc0077c
 github.com/imdario/mergo 6633656539c1639d9d78127b7d47c622b5d7b6dc

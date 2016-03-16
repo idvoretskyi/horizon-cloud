@@ -43,7 +43,7 @@ func (c *clientConn) makeServerConfig() *ssh.ServerConfig {
 
 			c.log("key is %s", base64.StdEncoding.EncodeToString(key.Marshal()))
 
-			resp, err := c.config.APIClient.GetProjects(api.GetProjectsReq{
+			resp, err := c.config.APIClient.GetProjectsByKey(api.GetProjectsByKeyReq{
 				PublicKey: base64.StdEncoding.EncodeToString(key.Marshal()),
 			})
 			if err != nil {
