@@ -53,19 +53,18 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	RootCmd.PersistentFlags().StringP(
-		"listen", "l", ":80", "Address to listen on.")
-	viper.BindPFlag("listen", RootCmd.PersistentFlags().Lookup("listen"))
+	pf := RootCmd.PersistentFlags()
 
-	RootCmd.PersistentFlags().StringP(
-		"api_server", "a", "http://api-server:8000", "API server base URL.")
-	viper.BindPFlag("api_server", RootCmd.PersistentFlags().Lookup("api_server"))
+	pf.StringP("listen", "l", ":80", "Address to listen on.")
+	viper.BindPFlag("listen", pf.Lookup("listen"))
 
-	RootCmd.PersistentFlags().StringP(
-		"secret_path", "s",
+	pf.StringP("api_server", "a", "http://api-server:8000", "API server base URL.")
+	viper.BindPFlag("api_server", pf.Lookup("api_server"))
+
+	pf.StringP("secret_path", "s",
 		"/secrets/api-shared-secret/api-shared-secret",
 		"Path to API server shared secret")
-	viper.BindPFlag("secret_path", RootCmd.PersistentFlags().Lookup("secret_path"))
+	viper.BindPFlag("secret_path", pf.Lookup("secret_path"))
 }
 
 // initConfig reads in ENV variables

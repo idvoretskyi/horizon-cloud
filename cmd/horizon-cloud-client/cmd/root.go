@@ -30,21 +30,18 @@ var server = "http://54.193.31.201:8000"
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	pf := RootCmd.PersistentFlags()
 
-	RootCmd.PersistentFlags().StringVarP(
-		&cfgFile, "config", "c", ".hz/cloudconf.toml", "config file")
+	pf.StringVarP(&cfgFile, "config", "c", ".hz/cloudconf.toml", "config file")
 
-	RootCmd.PersistentFlags().StringP(
-		"name", "n", "", "Project name (overrides config).")
-	viper.BindPFlag("name", RootCmd.PersistentFlags().Lookup("name"))
+	pf.StringP("name", "n", "", "Project name (overrides config).")
+	viper.BindPFlag("name", pf.Lookup("name"))
 
-	RootCmd.PersistentFlags().StringP(
-		"identity_file", "i", "", "private key")
-	viper.BindPFlag("identity_file", RootCmd.PersistentFlags().Lookup("identity_file"))
+	pf.StringP("identity_file", "i", "", "private key")
+	viper.BindPFlag("identity_file", pf.Lookup("identity_file"))
 
-	RootCmd.PersistentFlags().StringP(
-		"server", "S", server, "address of horizon cloud server")
-	viper.BindPFlag("server", RootCmd.PersistentFlags().Lookup("server"))
+	pf.StringP("server", "S", server, "address of horizon cloud server")
+	viper.BindPFlag("server", pf.Lookup("server"))
 }
 
 // initConfig reads in config file and ENV variables if set.
