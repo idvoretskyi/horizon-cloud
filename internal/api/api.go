@@ -188,26 +188,26 @@ type WaitConfigAppliedResp struct {
 }
 
 type UserCreateReq struct {
-	UserName string
+	Name string
 }
 
 func (r *UserCreateReq) Validate() error {
-	return ValidateName(r.UserName)
+	return ValidateName(r.Name)
 }
 
 type UserCreateResp struct {
 }
 
 type UserGetReq struct {
-	UserName string
+	Name string
 }
 
 func (r *UserGetReq) Validate() error {
-	return ValidateName(r.UserName)
+	return ValidateName(r.Name)
 }
 
 type User struct {
-	UserName      string `gorethink:"id"`
+	Name          string `gorethink:"id"`
 	PublicSSHKeys []string
 }
 
@@ -216,8 +216,8 @@ type UserGetResp struct {
 }
 
 type UserAddKeysReq struct {
-	UserName string
-	Keys     []string
+	Name string
+	Keys []string
 }
 
 func (r *UserAddKeysReq) Validate() error {
@@ -226,15 +226,15 @@ func (r *UserAddKeysReq) Validate() error {
 			return errors.New("invalid public key format")
 		}
 	}
-	return ValidateName(r.UserName)
+	return ValidateName(r.Name)
 }
 
 type UserAddKeysResp struct {
 }
 
 type UserDelKeysReq struct {
-	UserName string
-	Keys     []string
+	Name string
+	Keys []string
 }
 
 func (r *UserDelKeysReq) Validate() error {
@@ -243,7 +243,7 @@ func (r *UserDelKeysReq) Validate() error {
 			return errors.New("invalid public key format")
 		}
 	}
-	return ValidateName(r.UserName)
+	return ValidateName(r.Name)
 }
 
 type UserDelKeysResp struct {

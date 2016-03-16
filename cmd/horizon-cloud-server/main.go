@@ -71,7 +71,7 @@ func userCreate(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	err := rdb.UserCreate(r.UserName)
+	err := rdb.UserCreate(r.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -84,7 +84,7 @@ func userGet(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	user, err := rdb.UserGet(r.UserName)
+	user, err := rdb.UserGet(r.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -97,7 +97,7 @@ func userAddKeys(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	err := rdb.UserAddKeys(r.UserName, r.Keys)
+	err := rdb.UserAddKeys(r.Name, r.Keys)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -110,7 +110,7 @@ func userDelKeys(rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	err := rdb.UserDelKeys(r.UserName, r.Keys)
+	err := rdb.UserDelKeys(r.Name, r.Keys)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return

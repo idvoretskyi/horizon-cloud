@@ -85,7 +85,7 @@ func (d *DB) GetConfig(name string) (*api.Config, error) {
 }
 
 func (d *DB) UserCreate(name string) error {
-	q := users.Insert(api.User{UserName: name, PublicSSHKeys: []string{}})
+	q := users.Insert(api.User{Name: name, PublicSSHKeys: []string{}})
 	_, err := q.RunWrite(d.session)
 	return err
 }
