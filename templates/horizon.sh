@@ -4,7 +4,6 @@ set -o pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 
-# RSI: sanitize project name, or leave that to go code?
 project="$1"
 
 cat <<EOF

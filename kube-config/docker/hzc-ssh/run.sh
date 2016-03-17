@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-exec /horizon-cloud-ssh-proxy \
+exec /hzc-ssh \
     -client-key "$CLIENT_KEY" \
     -host-key "$HOST_KEY" \
     -listen "$LISTEN" \

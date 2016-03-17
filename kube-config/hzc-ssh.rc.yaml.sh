@@ -47,7 +47,7 @@ spec:
         - name: LISTEN
           value: ":22"
         - name: API_SERVER
-          value: "http://horizon-api:8000"
+          value: "http://hzc-api:8000"
         - name: API_SERVER_SECRET
           value: /secrets/api-shared-secret/api-shared-secret
         volumeMounts:

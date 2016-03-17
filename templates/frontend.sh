@@ -4,7 +4,6 @@ set -o pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 
-# RSI: sanitize project name, or leave that to go code?
 project="$1"
 volume="$2"
 
@@ -57,7 +56,7 @@ spec:
           protocol: TCP
 
       - name: ssh
-        image: `cat ../kube-config/docker/horizon-ssh/gcr_image_id`
+        image: `cat ../kube-config/docker/horizon-openssh/gcr_image_id`
         resources:
           limits:
             cpu: 10m

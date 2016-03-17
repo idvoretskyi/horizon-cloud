@@ -1,8 +1,7 @@
-package cmd
+package main
 
 import (
 	"log"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -11,18 +10,9 @@ import (
 var cfgFile string
 
 var RootCmd = &cobra.Command{
-	Use:   "horizon-cloud-client",
+	Use:   "hzc-client",
 	Short: "Horizon Cloud Client",
 	Long:  `A client for accessing Horizon Cloud.`,
-}
-
-// Execute adds all child commands to the root command sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	if err := RootCmd.Execute(); err != nil {
-		log.Println(err)
-		os.Exit(-1)
-	}
 }
 
 // RSI: we need a domain name.
