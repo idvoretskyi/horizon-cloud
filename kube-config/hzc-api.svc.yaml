@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hzc-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    name: http
+    protocol: TCP
+
+---
+
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: hzc-api
+subsets:
+- addresses:
+  # horizondev
+  - ip: "54.193.31.201"
+  ports:
+  - port: 8000
+    name: http

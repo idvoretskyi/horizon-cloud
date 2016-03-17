@@ -57,7 +57,7 @@ spec:
           protocol: TCP
 
       - name: ssh
-        image: `cat ../kube-config/docker/horizon-ssh/gcr_image_id`
+        image: `cat ../kube-config/docker/horizon-openssh/gcr_image_id`
         resources:
           limits:
             cpu: 10m
