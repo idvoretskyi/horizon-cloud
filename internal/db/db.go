@@ -18,9 +18,9 @@ type DB struct {
 var (
 	ErrCanceled = errors.New("canceled")
 
-	configs = r.DB("test").Table("configs")
-	users   = r.DB("test").Table("users")
-	domains = r.DB("test").Table("domains")
+	configs = r.DB("hzc_api").Table("configs")
+	users   = r.DB("hzc_api").Table("users")
+	domains = r.DB("hzc_api").Table("domains")
 )
 
 func New() (*DB, error) {
