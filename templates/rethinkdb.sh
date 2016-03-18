@@ -75,9 +75,6 @@ spec:
   - port: 28015
     name: driver
     protocol: TCP
-  - port: 29015
-    name: intracluster
-    protocol: TCP
   - port: 8080
     name: webui
     protocol: TCP
