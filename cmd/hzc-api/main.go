@@ -37,21 +37,17 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-// RSI: make this return the new configuration that exists in the
-// database rather than the requested configuration.
 func setConfig(rw http.ResponseWriter, req *http.Request) {
 	var r api.SetConfigReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	if err := rdb.SetConfig(*api.ConfigFromDesired(&r.DesiredConfig)); err != nil {
+	newConf, err := rdb.SetConfig(*api.ConfigFromDesired(&r.DesiredConfig))
+	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	// RSI: instead read the actual new config out of the database.
-	api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{
-		*api.ConfigFromDesired(&r.DesiredConfig),
-	})
+	api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{*newConf})
 }
 
 func getConfig(rw http.ResponseWriter, req *http.Request) {

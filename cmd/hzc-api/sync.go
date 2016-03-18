@@ -56,7 +56,7 @@ func applyConfigs(trueName string) {
 			continue
 		}
 		log.Printf("successfully applied config %s:%s", trueName, conf.Version)
-		err = rdb.SetConfig(api.Config{
+		_, err = rdb.SetConfig(api.Config{
 			ID:             conf.ID,
 			AppliedVersion: conf.Version,
 		})

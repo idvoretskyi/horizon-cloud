@@ -45,8 +45,30 @@ func getBasicError(typeName string, name string) error {
 	return fmt.Errorf("internal error: unable to get %v `%s`", typeName, name)
 }
 
-func (d *DB) SetConfig(c api.Config) error {
-	return d.setBasicType(configs, "config", c.ID, &c)
+func (d *DB) SetConfig(c api.Config) (*api.Config, error) {
+	q := configs.Insert(c, r.InsertOpts{Conflict: "update", ReturnChanges: "always"})
+
+	var resp struct {
+		Errors     int    `gorethink:"errors"`
+		FirstError string `gorethink:"first_error"`
+		Changes    []struct {
+			NewVal *api.Config `gorethink:"new_val"`
+		}
+	}
+	err := runOne(q, d.session, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Errors != 0 {
+		return nil, errors.New(resp.FirstError)
+	}
+
+	if len(resp.Changes) != 1 {
+		return nil, errors.New("Unexpected number of changes in response")
+	}
+
+	return resp.Changes[0].NewVal, nil
 }
 
 func (d *DB) GetProjectsByKey(publicKey string) ([]api.Project, error) {
