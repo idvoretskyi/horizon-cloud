@@ -77,6 +77,7 @@ func (d *DB) GetProjectsByKey(publicKey string) ([]api.Project, error) {
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array"))).Run(d.session)
 	if err != nil {
+		log.Printf("Couldn't get projects by key: %v", err)
 		return nil, err
 	}
 	defer cursor.Close()
