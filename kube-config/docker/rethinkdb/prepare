@@ -1,0 +1,7 @@
+#!/bin/bash
+set -eu
+
+if [[ ! -d rethinkdb ]]; then
+   echo "No directory `pwd`/rethinkdb found, aborting."
+   exit 1
+fi

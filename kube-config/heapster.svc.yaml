@@ -1,0 +1,10 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: heapster
+spec:
+  ports:
+    - port: 80
+      targetPort: 8082
+  selector:
+    k8s-app: heapster

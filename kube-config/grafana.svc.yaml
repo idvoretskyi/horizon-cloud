@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # DO NOT NAME THIS GRAFANA RAAAAA
+  name: grafana-mon
+spec:
+  ports:
+    - port: 80
+      targetPort: 3000
+  selector:
+    k8s-app: influxGrafana
