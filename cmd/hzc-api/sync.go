@@ -4,18 +4,18 @@ import (
 	"log"
 	"sync"
 
-	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/kube"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 )
 
-var configs = make(map[string]*api.Config)
+var configs = make(map[string]*types.Config)
 var configsLock sync.Mutex
 
-func applyConfigs(trueName string) {
+func applyConfigs(rdb *db.DB, trueName string) {
 	for {
-		conf := func() *api.Config {
+		conf := func() *types.Config {
 			configsLock.Lock()
 			defer configsLock.Unlock()
 			conf := configs[trueName]
@@ -56,7 +56,7 @@ func applyConfigs(trueName string) {
 			continue
 		}
 		log.Printf("successfully applied config %s:%s", trueName, conf.Version)
-		_, err = rdb.SetConfig(api.Config{
+		_, err = rdb.SetConfig(types.Config{
 			ID:             conf.ID,
 			AppliedVersion: conf.Version,
 		})
@@ -82,7 +82,7 @@ func configSync(rdb *db.DB) {
 				_, workerRunning := configs[c.NewVal.ID]
 				configs[c.NewVal.ID] = c.NewVal
 				if !workerRunning {
-					go applyConfigs(c.NewVal.ID)
+					go applyConfigs(rdb, c.NewVal.ID)
 				}
 			}()
 		} else {

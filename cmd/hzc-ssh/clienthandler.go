@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -26,7 +27,7 @@ type clientConn struct {
 	sock           net.Conn
 	config         *config
 	logPrefix      string
-	projectTargets []api.Project
+	projectTargets []types.Project
 }
 
 func (c *clientConn) log(f string, i ...interface{}) {
@@ -142,7 +143,7 @@ ENVREAD:
 	// Phase 2: Verify that the project name was given and is valid.
 
 	var projectErr error
-	var project api.Project
+	var project types.Project
 	if projectName == "" {
 		projectErr = errors.New("No project name passed")
 	} else {

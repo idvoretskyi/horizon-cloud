@@ -6,6 +6,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -27,7 +28,7 @@ var deployCmd = &cobra.Command{
 
 		err = withSSHConnection(
 			&commandContext{client, name, viper.GetString("identity_file")},
-			api.DisallowClusterStart,
+			types.DisallowClusterStart,
 			func(sshClient *ssh.Client, resp *api.WaitConfigAppliedResp) error {
 				log.Printf("deploying to %#v (%#v)...", resp.Config, resp.Target)
 				// RSI: check whether dist exists.

@@ -3,15 +3,15 @@ package db
 import (
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	r "github.com/dancannon/gorethink"
-	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
-type DB struct {
+type DBConnection struct {
 	session *r.Session
 }
 
@@ -23,7 +23,7 @@ var (
 	domains = r.DB("hzc_api").Table("domains")
 )
 
-func New() (*DB, error) {
+func New() (*DBConnection, error) {
 	session, err := r.Connect(r.ConnectOpts{
 		Address:           "localhost:28015",
 		Database:          "test",
@@ -35,7 +35,16 @@ func New() (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DB{session}, nil
+	return &DBConnection{session}, nil
+}
+
+func (d *DBConnection) WithLogger(l *hzlog.Logger) *DB {
+	return &DB{d, l}
+}
+
+type DB struct {
+	*DBConnection
+	log *hzlog.Logger
 }
 
 func setBasicError(typeName string, objectName string) error {
@@ -46,14 +55,14 @@ func getBasicError(typeName string, name string) error {
 	return fmt.Errorf("internal error: unable to get %v `%s`", typeName, name)
 }
 
-func (d *DB) SetConfig(c api.Config) (*api.Config, error) {
+func (d *DB) SetConfig(c types.Config) (*types.Config, error) {
 	q := configs.Insert(c, r.InsertOpts{Conflict: "update", ReturnChanges: "always"})
 
 	var resp struct {
 		Errors     int    `gorethink:"errors"`
 		FirstError string `gorethink:"first_error"`
 		Changes    []struct {
-			NewVal *api.Config `gorethink:"new_val"`
+			NewVal *types.Config `gorethink:"new_val"`
 		}
 	}
 	err := runOne(q, d.session, &resp)
@@ -72,25 +81,25 @@ func (d *DB) SetConfig(c api.Config) (*api.Config, error) {
 	return resp.Changes[0].NewVal, nil
 }
 
-func (d *DB) GetProjectsByKey(publicKey string) ([]api.Project, error) {
+func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
 	cursor, err := configs.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array"))).Run(d.session)
 	if err != nil {
-		log.Printf("Couldn't get projects by key: %v", err)
+		d.log.Error("Couldn't get projects by key: %v", err)
 		return nil, err
 	}
 	defer cursor.Close()
-	var projects []api.Project
-	var c api.Config
+	var projects []types.Project
+	var c types.Config
 	for cursor.Next(&c) {
-		projects = append(projects, api.ProjectFromName(c.Name))
+		projects = append(projects, types.ProjectFromName(c.Name))
 	}
 	return projects, nil
 }
 
-func (d *DB) GetByDomain(domainName string) (*api.Project, error) {
-	var domain api.Domain
+func (d *DB) GetByDomain(domainName string) (*types.Project, error) {
+	var domain types.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
 		if err != r.ErrEmptyResult {
@@ -98,24 +107,24 @@ func (d *DB) GetByDomain(domainName string) (*api.Project, error) {
 		}
 		return nil, nil
 	}
-	project := api.ProjectFromName(domain.Project)
+	project := types.ProjectFromName(domain.Project)
 	return &project, nil
 }
 
-func (d *DB) GetConfig(name string) (*api.Config, error) {
-	var c api.Config
+func (d *DB) GetConfig(name string) (*types.Config, error) {
+	var c types.Config
 	err := d.getBasicType(configs, "config", util.TrueName(name), &c)
 	return &c, err
 }
 
 func (d *DB) UserCreate(name string) error {
-	q := users.Insert(api.User{Name: name, PublicSSHKeys: []string{}})
+	q := users.Insert(types.User{Name: name, PublicSSHKeys: []string{}})
 	_, err := q.RunWrite(d.session)
 	return err
 }
 
-func (d *DB) UserGet(name string) (*api.User, error) {
-	var user api.User
+func (d *DB) UserGet(name string) (*types.User, error) {
+	var user types.User
 	err := d.getBasicType(users, "user", name, &user)
 	if err != nil {
 		return nil, err
@@ -153,7 +162,7 @@ func (d *DB) UserDelKeys(name string, keys []string) error {
 	return nil
 }
 
-func (d *DB) SetDomain(domain api.Domain) error {
+func (d *DB) SetDomain(domain types.Domain) error {
 	return d.setBasicType(domains, "domain", domain.Domain, &domain)
 }
 
@@ -164,7 +173,7 @@ func (d *DB) GetDomainsByProject(project string) ([]string, error) {
 	}
 	defer cursor.Close()
 	domains := []string{}
-	var dom api.Domain
+	var dom types.Domain
 	for cursor.Next(&dom) {
 		domains = append(domains, dom.Domain)
 	}
@@ -172,42 +181,42 @@ func (d *DB) GetDomainsByProject(project string) ([]string, error) {
 }
 
 func (d *DB) EnsureConfigConnectable(
-	name string, allowClusterStart api.ClusterStartBool) (*api.Config, error) {
+	name string, allowClusterStart types.ClusterStartBool) (*types.Config, error) {
 
 	if allowClusterStart {
 		var out struct {
 			Changes []struct {
-				NewVal *api.Config `gorethink:"new_val"`
+				NewVal *types.Config `gorethink:"new_val"`
 			} `gorethink:"changes"`
 			FirstError string `gorethink:"first_error"`
 		}
 
-		defaultConfig := r.Expr(api.ConfigFromDesired(api.DefaultDesiredConfig(name)))
+		defaultConfig := r.Expr(types.ConfigFromDesired(types.DefaultDesiredConfig(name)))
 		query := configs.Insert(defaultConfig, r.InsertOpts{ReturnChanges: "always"})
 		err := runOne(query, d.session, &out)
 
 		if err != nil {
-			log.Printf("Couldn't run EnsureConfigConnectable query: %s", err)
+			d.log.Error("Couldn't run EnsureConfigConnectable query: %s", err)
 			return nil, getBasicError("ensureConfigConnectable", name)
 		}
 
 		if len(out.Changes) != 1 {
-			log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
+			d.log.Error("Unexpected EnsureConfigConnectable response: %#v", out)
 			return nil, getBasicError("ensureConfigConnectable", name)
 		}
 
 		if out.Changes[0].NewVal == nil {
-			log.Printf("Unexpected EnsureConfigConnectable response: %#v", out)
+			d.log.Error("Unexpected EnsureConfigConnectable response: %#v", out)
 			return nil, getBasicError("ensureConfigConnectable", name)
 		}
 		return out.Changes[0].NewVal, nil
 
 	} else {
-		var c api.Config
+		var c types.Config
 		query := configs.Get(util.TrueName(name))
 		err := runOne(query, d.session, &c)
 		if err != nil {
-			log.Printf("EnsureConfigConnectable for `%s` failed: %s", name, err)
+			d.log.Error("EnsureConfigConnectable for `%s` failed: %s", name, err)
 			return nil, fmt.Errorf("no cluster `%s`", name)
 		}
 		return &c, err
@@ -215,8 +224,8 @@ func (d *DB) EnsureConfigConnectable(
 }
 
 type ConfigChange struct {
-	OldVal *api.Config `gorethink:"old_val"`
-	NewVal *api.Config `gorethink:"new_val"`
+	OldVal *types.Config `gorethink:"old_val"`
+	NewVal *types.Config `gorethink:"new_val"`
 }
 
 func (d *DB) configChangesLoop(out chan<- ConfigChange) {
@@ -225,8 +234,7 @@ func (d *DB) configChangesLoop(out chan<- ConfigChange) {
 		ch := make(chan ConfigChange)
 		cur, err := query.Run(d.session)
 		if err != nil {
-			// RSI: serious log
-			log.Printf("SERIOUS FSCKING PROBLEM: %s", err)
+			d.log.Error("Couldn't query for config changes: %s", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
@@ -236,7 +244,7 @@ func (d *DB) configChangesLoop(out chan<- ConfigChange) {
 			out <- el
 		}
 		err = cur.Err()
-		log.Printf("Channel closed, retrying: %s", err)
+		d.log.Error("Config changes loop ended: %v", err)
 	}
 }
 
@@ -245,12 +253,12 @@ func (d *DB) ConfigChanges(out chan<- ConfigChange) {
 }
 
 func (d *DB) WaitConfigApplied(
-	name string, version string, cancel <-chan struct{}) (*api.Config, error) {
+	name string, version string, cancel <-chan struct{}) (*types.Config, error) {
 
 	query := configs.Get(util.TrueName(name)).Changes(r.ChangesOpts{IncludeInitial: true})
 	cur, err := query.Run(d.session)
 	if err != nil {
-		// RSI log
+		d.log.Error("Couldn't start waitconfigapplied query: %v", err)
 		return nil, getBasicError("config", name)
 	}
 	defer cur.Close()
@@ -264,8 +272,7 @@ func (d *DB) WaitConfigApplied(
 		case row, ok := <-rows:
 			if !ok {
 				if !canceled {
-					// early changefeed close!
-					// RSI: log cur.Err
+					d.log.Error("Early changefeed close in waitconfigapplied: %v", err)
 					return nil, errors.New("internal error: changefeed closed unexpectedly")
 				}
 				return nil, ErrCanceled
@@ -315,11 +322,11 @@ func (d *DB) setBasicType(
 
 	res, err := table.Insert(i, r.InsertOpts{Conflict: "update"}).RunWrite(d.session)
 	if err != nil {
-		// RSI: log
+		d.log.Error("Couldn't set %v %#v: %v", typeName, id, err)
 		return setBasicError(typeName, id)
 	}
 	if res.Inserted+res.Unchanged+res.Replaced != 1 {
-		// RSI: serious log
+		d.log.Error("Couldn't set %v %#v: unexpected result counts", typeName, id)
 		return setBasicError(typeName, id)
 	}
 	return nil

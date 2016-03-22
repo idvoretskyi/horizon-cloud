@@ -6,6 +6,7 @@ import (
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 )
 
 type commandContext struct {
@@ -32,7 +33,7 @@ func missing(f string) bool {
 
 func withSSHConnection(
 	ctx *commandContext,
-	AllowClusterStart api.ClusterStartBool,
+	AllowClusterStart types.ClusterStartBool,
 	fn func(*ssh.Client, *api.WaitConfigAppliedResp) error) error {
 
 	// RSI: see if we can combine the two client API calls into one

@@ -7,19 +7,17 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 
-	"github.com/gorilla/handlers"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/db"
+	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
+	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 )
 
 // RSI: find a way to figure out which fields were parsed and which
 // were defaulted so that we can error if we get sent incomplete
 // messages.
-
-// RSI: make this non-global.
-var rdb *db.DB
 
 type validator interface {
 	Validate() error
@@ -37,12 +35,12 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-func setConfig(rw http.ResponseWriter, req *http.Request) {
+func setConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.SetConfigReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	newConf, err := rdb.SetConfig(*api.ConfigFromDesired(&r.DesiredConfig))
+	newConf, err := ctx.DB().SetConfig(*types.ConfigFromDesired(&r.DesiredConfig))
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -50,13 +48,13 @@ func setConfig(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{*newConf})
 }
 
-func getConfig(rw http.ResponseWriter, req *http.Request) {
+func getConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var gc api.GetConfigReq
 	if !decode(rw, req.Body, &gc) {
 		return
 	}
 	// RSI(sec): don't let people read other people's configs.
-	config, err := rdb.GetConfig(gc.Name)
+	config, err := ctx.DB().GetConfig(gc.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -66,12 +64,12 @@ func getConfig(rw http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func userCreate(rw http.ResponseWriter, req *http.Request) {
+func userCreate(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.UserCreateReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	err := rdb.UserCreate(r.Name)
+	err := ctx.DB().UserCreate(r.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -79,12 +77,12 @@ func userCreate(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.UserCreateResp{})
 }
 
-func userGet(rw http.ResponseWriter, req *http.Request) {
+func userGet(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.UserGetReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	user, err := rdb.UserGet(r.Name)
+	user, err := ctx.DB().UserGet(r.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -92,12 +90,12 @@ func userGet(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.UserGetResp{User: *user})
 }
 
-func userAddKeys(rw http.ResponseWriter, req *http.Request) {
+func userAddKeys(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.UserAddKeysReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	err := rdb.UserAddKeys(r.Name, r.Keys)
+	err := ctx.DB().UserAddKeys(r.Name, r.Keys)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -105,12 +103,12 @@ func userAddKeys(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.UserAddKeysResp{})
 }
 
-func userDelKeys(rw http.ResponseWriter, req *http.Request) {
+func userDelKeys(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.UserDelKeysReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	err := rdb.UserDelKeys(r.Name, r.Keys)
+	err := ctx.DB().UserDelKeys(r.Name, r.Keys)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -118,12 +116,12 @@ func userDelKeys(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.UserDelKeysResp{})
 }
 
-func setDomain(rw http.ResponseWriter, req *http.Request) {
+func setDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.SetDomainReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	err := rdb.SetDomain(r.Domain)
+	err := ctx.DB().SetDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -131,12 +129,12 @@ func setDomain(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.SetDomainResp{})
 }
 
-func getDomainsByProject(rw http.ResponseWriter, req *http.Request) {
+func getDomainsByProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.GetDomainsByProjectReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	domains, err := rdb.GetDomainsByProject(r.Project)
+	domains, err := ctx.DB().GetDomainsByProject(r.Project)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -144,12 +142,12 @@ func getDomainsByProject(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.GetDomainsByProjectResp{domains})
 }
 
-func getProjectsByKey(rw http.ResponseWriter, req *http.Request) {
+func getProjectsByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var gp api.GetProjectsByKeyReq
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	projects, err := rdb.GetProjectsByKey(gp.PublicKey)
+	projects, err := ctx.DB().GetProjectsByKey(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -157,12 +155,12 @@ func getProjectsByKey(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsByKeyResp{Projects: projects})
 }
 
-func getProjectByDomain(rw http.ResponseWriter, req *http.Request) {
+func getProjectByDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.GetProjectByDomainReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	project, err := rdb.GetByDomain(r.Domain)
+	project, err := ctx.DB().GetByDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -170,13 +168,13 @@ func getProjectByDomain(rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectByDomainResp{project})
 }
 
-func ensureConfigConnectable(rw http.ResponseWriter, req *http.Request) {
+func ensureConfigConnectable(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var creq api.EnsureConfigConnectableReq
 	if !decode(rw, req.Body, &creq) {
 		return
 	}
 	// RSI(sec): don't let people read other people's configs.
-	config, err := rdb.EnsureConfigConnectable(
+	config, err := ctx.DB().EnsureConfigConnectable(
 		creq.Name, creq.AllowClusterStart)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
@@ -192,7 +190,7 @@ const (
 	sshServerFingerprint = `ssh.hzc.io ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfQJqUbNs6n1r0BtWeODDlB3fXUX0/iE+m7KfkkQXMxr7+Bmjz/Tl91NZIch09NozfenYV6IVdamFMdwSDau5nt5/VPd/QuxDUCeXBvB8XOfUw4Arwew4wQMTU27NqngI0FIYbkZw2T7zMDfocLBhwJh7Ms8bJwGezZ9oYKCGuFvvUMMNmrbKTa/SoF4PY1XPXQOXJdry8oyHsWETcr2BT0qWS+3uoG1ipui/LfeVq6A1M71IT/BVjaGQWm+l8T+vJYUQqLgQYc8qKvmA2S/YGqRv87L9W8jhO6lIFMvWvCsQ7ppuLCDIz0DubP6gD0Lj8piI+IcVD7fuMfGOLQo17`
 )
 
-func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
+func waitConfigApplied(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var wca api.WaitConfigAppliedReq
 	if !decode(rw, req.Body, &wca) {
 		return
@@ -218,7 +216,7 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	config, err := rdb.WaitConfigApplied(wca.Name, wca.Version, cancel)
+	config, err := ctx.DB().WaitConfigApplied(wca.Name, wca.Version, cancel)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
@@ -226,7 +224,7 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 
 	api.WriteJSONResp(rw, http.StatusOK, api.WaitConfigAppliedResp{
 		Config: *config,
-		Target: api.Target{
+		Target: types.Target{
 			Hostname:     sshServer,
 			Fingerprints: []string{sshServerFingerprint},
 			Username:     "horizon",
@@ -238,6 +236,15 @@ func waitConfigApplied(rw http.ResponseWriter, req *http.Request) {
 
 func main() {
 	log.SetFlags(log.Lshortfile)
+
+	logger, err := hzlog.MainLogger("hzc-api")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.SetOutput(hzlog.WriterLogger(logger))
+
+	baseCtx := hzhttp.NewContext(logger)
 
 	listenAddr := flag.String("listen", ":8000", "HTTP listening address")
 	sharedSecretFile := flag.String(
@@ -256,15 +263,17 @@ func main() {
 	}
 	sharedSecret := string(data)
 
-	rdb, err = db.New()
+	rdbConn, err := db.New()
 	if err != nil {
-		log.Fatal("unable to connect to RethinkDB: ", err)
+		log.Fatal("Unable to connect to RethinkDB: ", err)
 	}
-	go configSync(rdb)
+	baseCtx = baseCtx.WithDBConnection(rdbConn)
+
+	go configSync(baseCtx.DB())
 
 	paths := []struct {
 		Path          string
-		Func          func(w http.ResponseWriter, r *http.Request)
+		Func          func(ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request)
 		RequireSecret bool
 	}{
 		{api.EnsureConfigConnectablePath, ensureConfigConnectable, false},
@@ -285,16 +294,19 @@ func main() {
 		{api.GetProjectByDomainPath, getProjectByDomain, true},
 	}
 
-	mux := http.NewServeMux()
+	mux := hzhttp.NewMuxer()
 	for _, path := range paths {
-		var h http.Handler = http.HandlerFunc(path.Func)
+		var h hzhttp.Handler = hzhttp.HandlerFunc(path.Func)
 		if path.RequireSecret {
 			h = api.RequireSecret(sharedSecret, h)
 		}
-		mux.Handle(path.Path, h)
+		mux.RegisterPath(path.Path, h)
 	}
-	logMux := handlers.LoggingHandler(os.Stdout, mux)
+	logMux := hzhttp.LogHTTPRequests(mux)
 
-	log.Printf("Started.")
-	log.Fatal(http.ListenAndServe(*listenAddr, logMux))
+	logger.Info("Started.")
+	err = http.ListenAndServe(*listenAddr, hzhttp.BaseContext(baseCtx, logMux))
+	if err != nil {
+		logger.Error("Couldn't serve on %v: %v", *listenAddr, err)
+	}
 }

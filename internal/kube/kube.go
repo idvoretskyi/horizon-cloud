@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrors "k8s.io/kubernetes/pkg/api/errors"
@@ -365,7 +365,7 @@ func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
 	return rc, nil
 }
 
-func (k *Kube) EnsureProject(conf api.Config) (*Project, error) {
+func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 	// RSI: Use `NumRDB`, `NumHorizon`, and `NumFrontend`.
 
 	type MaybeRDB struct {

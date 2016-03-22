@@ -4,130 +4,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pborman/uuid"
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
 var ProjectEnvVarName = "HORIZON_PROJECT"
 
-type Target struct {
-	Hostname     string
-	Fingerprints []string
-	Username     string
-	DeployDir    string
-	DeployCmd    string
-}
-
-type User struct {
-	Name          string `gorethink:"id"`
-	PublicSSHKeys []string
-}
-
-type DesiredConfig struct {
-	Name         string `gorethink:",omitempty"`
-	NumRDB       int    `gorethink:",omitempty"`
-	SizeRDB      int    `gorethink:",omitempty"`
-	NumHorizon   int    `gorethink:",omitempty"`
-	NumFrontend  int    `gorethink:",omitempty"`
-	SizeFrontend int    `gorethink:",omitempty"`
-
-	// This is a pointer to slice because we need the zero value and
-	// non-existence to be distinguishable.
-	Users *[]string `gorethink:",omitempty"`
-}
-
-func (dc *DesiredConfig) Validate() error {
-	if err := validateProjectName(dc.Name, "Name"); err != nil {
-		return err
-	}
-	if dc.NumRDB != 1 {
-		return fmt.Errorf("NumRDB = %d, but only 1 is supported", dc.NumRDB)
-	}
-	if dc.SizeRDB < 10 {
-		return fmt.Errorf("SizeRDB = %d, but only >=10 is supported", dc.SizeRDB)
-	}
-	if dc.NumHorizon != 1 {
-		return fmt.Errorf("NumHorizon = %d, but only 1 is supported", dc.NumHorizon)
-	}
-	if dc.NumFrontend != 1 {
-		return fmt.Errorf("NumFrontend = %d, but only 1 is supported", dc.NumFrontend)
-	}
-	if dc.SizeFrontend < 10 {
-		return fmt.Errorf("SizeFrontend = %d, but only >=10 is supported", dc.SizeFrontend)
-	}
-	return nil
-}
-
-func DefaultDesiredConfig(name string) *DesiredConfig {
-	return &DesiredConfig{
-		Name:         name,
-		NumRDB:       1,
-		SizeRDB:      10,
-		NumHorizon:   1,
-		NumFrontend:  1,
-		SizeFrontend: 1,
-	}
-}
-
-type Config struct {
-	DesiredConfig
-	ID             string `gorethink:"id,omitempty"`
-	Version        string `gorethink:",omitempty"`
-	AppliedVersion string `gorethink:",omitempty"`
-}
-
-func ConfigFromDesired(dc *DesiredConfig) *Config {
-	conf := Config{
-		DesiredConfig: *dc,
-		ID:            util.TrueName(dc.Name),
-		Version:       uuid.New(),
-	}
-	return &conf
-}
-
-type Domain struct {
-	Domain  string `gorethink:"id"`
-	Project string
-}
-
-func validateDomainName(domain string, fieldName string) error {
-	// RSI: do more validation.
-	if domain == "" {
-		return fmt.Errorf("field `%s` empty", fieldName)
-	}
-	return nil
-}
-
-type Project struct {
-	Name        string
-	SSHAddress  string
-	HTTPAddress string
-}
-
-func validateProjectName(name string, fieldName string) error {
-	// RSI: more validation.
-	if name == "" {
-		return fmt.Errorf("field `%s` empty", fieldName)
-	}
-	return nil
-}
-
-func ProjectFromName(name string) Project {
-	trueName := util.TrueName(name)
-	return Project{
-		Name:        name,
-		SSHAddress:  "fs-" + trueName + ".user:22",
-		HTTPAddress: "fn-" + trueName + ".user:80",
-	}
-}
-
 // RSI: documentation
-
-type ClusterStartBool bool
-
-const AllowClusterStart ClusterStartBool = ClusterStartBool(true)
-const DisallowClusterStart ClusterStartBool = ClusterStartBool(false)
 
 ////////////////////////////////////////////////////////////////////////////////
 // EnsureConfigConnectable
@@ -136,22 +20,22 @@ var EnsureConfigConnectablePath = "/v1/configs/ensureConnectable"
 
 type EnsureConfigConnectableReq struct {
 	Name              string
-	AllowClusterStart ClusterStartBool
+	AllowClusterStart types.ClusterStartBool
 }
 
 func (r *EnsureConfigConnectableReq) Validate() error {
-	err := validateProjectName(r.Name, "Name")
+	err := util.ValidateProjectName(r.Name, "Name")
 	if err != nil {
 		return err
 	}
-	if r.AllowClusterStart == AllowClusterStart {
+	if r.AllowClusterStart == types.AllowClusterStart {
 		return fmt.Errorf("you are not authorized to start clusters")
 	}
 	return nil
 }
 
 type EnsureConfigConnectableResp struct {
-	Config Config
+	Config types.Config
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,15 +49,15 @@ type WaitConfigAppliedReq struct {
 }
 
 func (wca *WaitConfigAppliedReq) Validate() error {
-	if err := validateProjectName(wca.Name, "Name"); err != nil {
+	if err := util.ValidateProjectName(wca.Name, "Name"); err != nil {
 		return err
 	}
 	return nil
 }
 
 type WaitConfigAppliedResp struct {
-	Config Config
-	Target Target
+	Config types.Config
+	Target types.Target
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,7 +66,7 @@ type WaitConfigAppliedResp struct {
 var SetConfigPath = "/v1/configs/set"
 
 type SetConfigReq struct {
-	DesiredConfig
+	types.DesiredConfig
 }
 
 func (r *SetConfigReq) Validate() error {
@@ -190,7 +74,7 @@ func (r *SetConfigReq) Validate() error {
 }
 
 type SetConfigResp struct {
-	Config
+	types.Config
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,11 +87,11 @@ type GetConfigReq struct {
 }
 
 func (r *GetConfigReq) Validate() error {
-	return validateProjectName(r.Name, "Name")
+	return util.ValidateProjectName(r.Name, "Name")
 }
 
 type GetConfigResp struct {
-	Config Config
+	Config types.Config
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +104,7 @@ type UserCreateReq struct {
 }
 
 func (r *UserCreateReq) Validate() error {
-	return validateProjectName(r.Name, "Name")
+	return util.ValidateProjectName(r.Name, "Name")
 }
 
 type UserCreateResp struct{}
@@ -235,11 +119,11 @@ type UserGetReq struct {
 }
 
 func (r *UserGetReq) Validate() error {
-	return validateProjectName(r.Name, "Name")
+	return util.ValidateProjectName(r.Name, "Name")
 }
 
 type UserGetResp struct {
-	User User
+	User types.User
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,7 +142,7 @@ func (r *UserAddKeysReq) Validate() error {
 			return errors.New("invalid public key format")
 		}
 	}
-	return validateProjectName(r.Name, "Name")
+	return util.ValidateProjectName(r.Name, "Name")
 }
 
 type UserAddKeysResp struct{}
@@ -279,7 +163,7 @@ func (r *UserDelKeysReq) Validate() error {
 			return errors.New("invalid public key format")
 		}
 	}
-	return validateProjectName(r.Name, "Name")
+	return util.ValidateProjectName(r.Name, "Name")
 }
 
 type UserDelKeysResp struct{}
@@ -290,15 +174,15 @@ type UserDelKeysResp struct{}
 var SetDomainPath = "/v1/domains/set"
 
 type SetDomainReq struct {
-	Domain
+	types.Domain
 }
 
 func (r *SetDomainReq) Validate() error {
-	err := validateProjectName(r.Project, "Project")
+	err := util.ValidateProjectName(r.Project, "Project")
 	if err != nil {
 		return err
 	}
-	return validateDomainName(r.Domain.Domain, "Domain")
+	return util.ValidateDomainName(r.Domain.Domain, "Domain")
 }
 
 type SetDomainResp struct{}
@@ -313,7 +197,7 @@ type GetDomainsByProjectReq struct {
 }
 
 func (r *GetDomainsByProjectReq) Validate() error {
-	return validateProjectName(r.Project, "Project")
+	return util.ValidateProjectName(r.Project, "Project")
 }
 
 type GetDomainsByProjectResp struct {
@@ -337,7 +221,7 @@ func (gp *GetProjectsByKeyReq) Validate() error {
 }
 
 type GetProjectsByKeyResp struct {
-	Projects []Project
+	Projects []types.Project
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,9 +234,9 @@ type GetProjectByDomainReq struct {
 }
 
 func (r *GetProjectByDomainReq) Validate() error {
-	return validateDomainName(r.Domain, "Domain")
+	return util.ValidateDomainName(r.Domain, "Domain")
 }
 
 type GetProjectByDomainResp struct {
-	Project *Project
+	Project *types.Project
 }
