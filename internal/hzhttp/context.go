@@ -38,6 +38,10 @@ func (c *Context) Error(format string, args ...interface{}) {
 	c.logContext.ErrorDepth(2, format, args...)
 }
 
+func (c *Context) UserError(format string, args ...interface{}) {
+	c.logContext.UserErrorDepth(2, format, args...)
+}
+
 // Log logs the current key-value pairs with `message` set to the result of
 // `fmt.Sprintf` on the given arguments.
 func (c *Context) Log(format string, args ...interface{}) {

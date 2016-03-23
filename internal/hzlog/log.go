@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	infoLevelMap  = map[string]interface{}{"level": "info"}
-	errorLevelMap = map[string]interface{}{"level": "error"}
+	infoLevelMap      = map[string]interface{}{"level": "info"}
+	userErrorLevelMap = map[string]interface{}{"level": "user_error"}
+	errorLevelMap     = map[string]interface{}{"level": "error"}
 )
 
 func init() {
@@ -88,6 +89,14 @@ func (c *Logger) InfoDepth(calldepth int, format string, args ...interface{}) {
 
 func (c *Logger) Info(format string, args ...interface{}) {
 	c.InfoDepth(2, format, args...)
+}
+
+func (c *Logger) UserErrorDepth(calldepth int, format string, args ...interface{}) {
+	c.With(userErrorLevelMap).LogDepth(calldepth+1, format, args...)
+}
+
+func (c *Logger) UserError(format string, args ...interface{}) {
+	c.UserErrorDepth(2, format, args...)
 }
 
 func (c *Logger) With(m map[string]interface{}) *Logger {
