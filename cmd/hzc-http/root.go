@@ -54,24 +54,15 @@ func init() {
 	pf := RootCmd.PersistentFlags()
 
 	pf.StringP("listen", "l", ":80", "Address to listen for HTTP connections on.")
-	viper.BindPFlag("listen", pf.Lookup("listen"))
-
 	pf.StringP("listen_tls", "", "", "Address to listen for HTTPS connections on.")
-	viper.BindPFlag("listen_tls", pf.Lookup("listen_tls"))
-
 	pf.StringP("tls_cert", "", "", "Path to TLS certificate chain")
-	viper.BindPFlag("tls_cert", pf.Lookup("tls_cert"))
-
 	pf.StringP("tls_key", "", "", "Path to TLS key")
-	viper.BindPFlag("tls_key", pf.Lookup("tls_key"))
-
 	pf.StringP("api_server", "a", "http://api-server:8000", "API server base URL.")
-	viper.BindPFlag("api_server", pf.Lookup("api_server"))
-
 	pf.StringP("secret_path", "s",
 		"/secrets/api-shared-secret/api-shared-secret",
 		"Path to API server shared secret")
-	viper.BindPFlag("secret_path", pf.Lookup("secret_path"))
+
+	viper.BindPFlags(pf)
 }
 
 // initConfig reads in ENV variables

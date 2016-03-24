@@ -23,15 +23,11 @@ func init() {
 	pf := RootCmd.PersistentFlags()
 
 	pf.StringVarP(&cfgFile, "config", "c", ".hz/cloudconf.toml", "config file")
-
 	pf.StringP("name", "n", "", "Project name (overrides config).")
-	viper.BindPFlag("name", pf.Lookup("name"))
-
 	pf.StringP("identity_file", "i", "", "private key")
-	viper.BindPFlag("identity_file", pf.Lookup("identity_file"))
-
 	pf.StringP("server", "S", server, "address of horizon cloud server")
-	viper.BindPFlag("server", pf.Lookup("server"))
+
+	viper.BindPFlags(pf)
 }
 
 // initConfig reads in config file and ENV variables if set.
