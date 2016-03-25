@@ -50,10 +50,10 @@ spec:
         - name: hzcio-ssl
           mountPath: /secrets/hzcio-ssl
         ports:
-        - containerPort: 80
+        - containerPort: 8080
           name: http
           protocol: TCP
-        - containerPort: 443
+        - containerPort: 4433
           name: https
           protocol: TCP
 EOF

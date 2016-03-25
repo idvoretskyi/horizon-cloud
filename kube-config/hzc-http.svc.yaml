@@ -10,8 +10,10 @@ spec:
     app: hzc-http
   ports:
   - port: 80
+    targetPort: 8080
     name: http
     protocol: TCP
   - port: 443
+    targetPort: 4433
     name: https
     protocol: TCP
