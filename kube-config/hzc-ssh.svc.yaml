@@ -10,5 +10,6 @@ spec:
     app: hzc-ssh
   ports:
   - port: 22
+    targetPort: 2222
     name: ssh
     protocol: TCP

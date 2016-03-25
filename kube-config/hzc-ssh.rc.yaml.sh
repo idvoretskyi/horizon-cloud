@@ -45,7 +45,7 @@ spec:
         - name: HOST_KEY
           value: /secrets/ssh-proxy-keys/host-rsa
         - name: LISTEN
-          value: ":22"
+          value: ":2222"
         - name: API_SERVER
           value: "http://hzc-api:8000"
         - name: API_SERVER_SECRET
@@ -56,7 +56,7 @@ spec:
         - name: api-shared-secret
           mountPath: /secrets/api-shared-secret
         ports:
-        - containerPort: 22
+        - containerPort: 2222
           name: ssh
           protocol: TCP
 EOF
