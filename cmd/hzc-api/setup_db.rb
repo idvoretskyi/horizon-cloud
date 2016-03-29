@@ -3,7 +3,13 @@ include RethinkDB::Shortcuts
 
 r.connect.repl
 
-template = {hzc_api: {configs: [], domains: ['Project'], users: ['PublicSSHKeys']}}
+template = {
+  hzc_api: {
+    configs: [{name: 'Users', multi: true}],
+    domains: [{name: 'Project', multi: false}],
+    users: [{name: 'PublicSSHKeys', multi: true}]
+  }
+}
 
 PP.pp r(template.keys).set_difference(r.db_list).foreach{|x| r.db_create(x)}.run
 template.each {|db_name, tables|
@@ -13,8 +19,10 @@ template.each {|db_name, tables|
   }.run
   tables.each {|table_name, indexes|
     table = db.table(table_name)
-    PP.pp r(indexes).set_difference(table.index_list).foreach {|x|
-      table.index_create(x)
+    PP.pp table.index_list.do {|lst|
+      r(indexes).filter{|index| lst.contains(index['name']).not}.foreach {|idx|
+        table.index_create(idx['name'], multi: idx['multi'])
+      }
     }.run
   }
 }

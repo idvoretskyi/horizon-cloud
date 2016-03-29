@@ -82,9 +82,10 @@ func (d *DB) SetConfig(c types.Config) (*types.Config, error) {
 }
 
 func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
-	cursor, err := configs.GetAllByIndex("Users",
+	q := configs.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
-			Field("id").CoerceTo("array"))).Run(d.session)
+			Field("id").CoerceTo("array")))
+	cursor, err := q.Run(d.session)
 	if err != nil {
 		d.log.Error("Couldn't get projects by key: %v", err)
 		return nil, err
