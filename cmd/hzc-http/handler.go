@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/encryptio/go-meetup"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 )
 
 type NoHostMappingError struct {
@@ -98,43 +98,49 @@ func maybeCloseRead(c net.Conn) {
 	}
 }
 
-func websocketProxy(target string, w http.ResponseWriter, r *http.Request) {
+func websocketProxy(target string, ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
 	d, err := net.Dial("tcp", target)
 	if err != nil {
 		http.Error(w, "Error contacting backend server.", 500)
-		log.Printf("Error dialing websocket backend %s: %v", target, err)
+		ctx.Error("Error dialing websocket backend %s: %v", target, err)
 		return
 	}
 	defer d.Close()
 
 	hj, ok := w.(http.Hijacker)
 	if !ok {
+		ctx.Error("ResponseWriter was not a hijacker")
 		http.Error(w, "internal error", 500)
-		// RSI: log a serious error.
 		return
 	}
 	nc, buf, err := hj.Hijack()
 	if err != nil {
+		ctx.Error("ResponseWriter failed to hijack: %v", err)
 		http.Error(w, "internal error", 500)
-		// RSI: log a serious error.
 		return
 	}
 	defer nc.Close()
 
 	err = r.Write(d)
 	if err != nil {
-		log.Printf("Error copying request to target: %v", err)
+		ctx.Info("Failed to write request to backend: %v", err)
 		return
 	}
 
 	done := make(chan struct{})
 	go func() {
-		io.Copy(d, buf)
+		_, err := io.Copy(d, buf)
+		if err != nil && err != io.EOF {
+			ctx.Info("Failed to copy to backend: %v", err)
+		}
 		maybeCloseWrite(d)
 		maybeCloseRead(nc)
 		close(done)
 	}()
-	io.Copy(nc, d)
+	_, err = io.Copy(nc, d)
+	if err != nil && err != io.EOF {
+		ctx.Info("Failed to copy from client: %v", err)
+	}
 	maybeCloseWrite(nc)
 	maybeCloseRead(d)
 	<-done
@@ -163,7 +169,7 @@ func isHSTSHost(host string) bool {
 	return false
 }
 
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTPContext(ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
 	// RSI: we may have to strip out the `:port` at the end in some cases.
 	target, err := h.getCachedTarget(r.Host)
 	if err != nil {
@@ -172,6 +178,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		ctx.Error("Couldn't get proxy information for %s: %v", r.Host, err)
 		http.Error(w, "Couldn't get proxy information for "+r.Host,
 			http.StatusInternalServerError)
 		return
@@ -191,18 +198,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isWebsocket(r) {
-		log.Printf("%p serving websocket: %s", r, r.URL.Path)
-		websocketProxy(target, w, r)
+		ctx.Info("serving as websocket")
+		websocketProxy(target, ctx, w, r)
 		return
 	}
 
-	log.Printf("%p serving http: %s", r, r.URL.Path)
 	h.mu.Lock()
 	p, ok := h.proxies[target]
 	if !ok {
 		url, err := url.Parse("http://" + target)
 		if err != nil {
 			h.mu.Unlock()
+			ctx.Error("Proxy information invalid for %s: %v", r.Host, err)
 			http.Error(w, "Proxy information invalid for "+r.Host,
 				http.StatusInternalServerError)
 			return

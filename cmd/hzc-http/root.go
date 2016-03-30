@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
+	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -24,6 +26,18 @@ var RootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := &config{}
 
+		log.SetFlags(log.Lshortfile)
+		logger, err := hzlog.MainLogger("hzc-http")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		writerLogger := hzlog.WriterLogger(logger)
+		defer writerLogger.Close()
+		log.SetOutput(writerLogger)
+
+		baseCtx := hzhttp.NewContext(logger)
+
 		secretPath := viper.GetString("secret_path")
 		secret, err := ioutil.ReadFile(secretPath)
 		if err != nil {
@@ -35,17 +49,20 @@ var RootCmd = &cobra.Command{
 			log.Fatalf("Couldn't create API client: %v", err)
 		}
 
-		handler := NewHandler(conf)
+		var handler hzhttp.Handler = NewHandler(conf)
+		handler = hzhttp.LogHTTPRequests(handler)
+
+		plainHandler := hzhttp.BaseContext(baseCtx, handler)
 
 		if tlsAddr := viper.GetString("listen_tls"); tlsAddr != "" {
 			go func() {
 				certFile := viper.GetString("tls_cert")
 				keyFile := viper.GetString("tls_key")
-				log.Fatal(http.ListenAndServeTLS(tlsAddr, certFile, keyFile, handler))
+				log.Fatal(http.ListenAndServeTLS(tlsAddr, certFile, keyFile, plainHandler))
 			}()
 		}
 
-		log.Fatal(http.ListenAndServe(viper.GetString("listen"), handler))
+		log.Fatal(http.ListenAndServe(viper.GetString("listen"), plainHandler))
 	},
 }
 
