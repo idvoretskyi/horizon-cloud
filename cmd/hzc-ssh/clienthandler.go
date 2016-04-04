@@ -6,13 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 
 	"golang.org/x/crypto/ssh"
@@ -26,12 +25,8 @@ var (
 type clientConn struct {
 	sock           net.Conn
 	config         *config
-	logPrefix      string
+	log            *hzlog.Logger
 	projectTargets []types.Project
-}
-
-func (c *clientConn) log(f string, i ...interface{}) {
-	log.Printf(c.logPrefix+f, i...)
 }
 
 func (c *clientConn) makeServerConfig() *ssh.ServerConfig {
@@ -42,13 +37,13 @@ func (c *clientConn) makeServerConfig() *ssh.ServerConfig {
 				return nil, errors.New("Username must be 'horizon'")
 			}
 
-			c.log("key is %s", base64.StdEncoding.EncodeToString(key.Marshal()))
+			c.log.Info("key is %s", base64.StdEncoding.EncodeToString(key.Marshal()))
 
 			resp, err := c.config.APIClient.GetProjectsByKey(api.GetProjectsByKeyReq{
 				PublicKey: base64.StdEncoding.EncodeToString(key.Marshal()),
 			})
 			if err != nil {
-				c.log("Couldn't talk to API: %v", err)
+				c.log.Error("Couldn't talk to API: %v", err)
 				return nil, errors.New("Couldn't talk to API")
 			}
 
@@ -62,9 +57,9 @@ func (c *clientConn) makeServerConfig() *ssh.ServerConfig {
 		},
 		AuthLogCallback: func(conn ssh.ConnMetadata, method string, err error) {
 			if err == nil {
-				c.log("Authentication method=%v succeeded", method)
+				c.log.Info("Authentication method=%v succeeded", method)
 			} else {
-				c.log("Authentication method=%v failed: %v", method, err)
+				c.log.Info("Authentication method=%v failed: %v", method, err)
 			}
 		},
 	}
@@ -81,6 +76,10 @@ func (c *clientConn) handleSSHChannel(
 	upstreamExtra []byte) {
 
 	defer channel.Close()
+
+	logger := c.log.With(map[string]interface{}{
+		"channelid": fmt.Sprintf("%p", channel),
+	})
 
 	var projectName string
 
@@ -114,7 +113,7 @@ ENVREAD:
 				return
 			}
 
-			c.log("request type=%v, extra=%#v", req.Type, string(req.Payload))
+			logger.Info("request type=%v, extra=%#v", req.Type, string(req.Payload))
 
 			pendingRequests = append(pendingRequests, req)
 			switch req.Type {
@@ -138,7 +137,13 @@ ENVREAD:
 	}
 	envTimeout.Stop()
 
-	c.log("got projectName = %#v", projectName)
+	if projectName != "" {
+		logger = logger.With(map[string]interface{}{
+			"projectname": projectName,
+		})
+	}
+
+	logger.Info("got projectName = %#v", projectName)
 
 	// Phase 2: Verify that the project name was given and is valid.
 
@@ -161,6 +166,7 @@ ENVREAD:
 	}
 
 	if projectErr != nil {
+		logger.UserError("Couldn't find an appropriate target: %v", projectErr)
 		fmt.Fprintf(channel.Stderr(),
 			"Couldn't find an appropriate target: %v\n", projectErr)
 		return
@@ -168,12 +174,12 @@ ENVREAD:
 
 	// Phase 3: Connect to target.
 
-	c.log("Connecting to %v (project name %#v)",
+	logger.Info("Connecting to %v (project name %#v)",
 		project.SSHAddress, project.Name)
 
 	clientNet, err := net.Dial("tcp", project.SSHAddress)
 	if err != nil {
-		c.log("Couldn't connect to %v: %v", project.SSHAddress, err)
+		logger.Error("Couldn't connect to %v: %v", project.SSHAddress, err)
 		fmt.Fprintf(channel.Stderr(),
 			"Couldn't connect to server hosting project `%v`\n", project.Name)
 		return
@@ -191,7 +197,7 @@ ENVREAD:
 	clientConn, clientChans, clientReqs, err :=
 		ssh.NewClientConn(clientNet, project.SSHAddress, clientConfig)
 	if err != nil {
-		c.log("Couldn't setup SSH connection to %v: %v", project.SSHAddress, err)
+		logger.Error("Couldn't setup SSH connection to %v: %v", project.SSHAddress, err)
 		fmt.Fprintf(channel.Stderr(),
 			"Couldn't connect to server hosting project `%v`\n", project.Name)
 		return
@@ -201,17 +207,17 @@ ENVREAD:
 
 	go func() {
 		for newCh := range clientChans {
-			c.log("Rejecting upstream channel request")
+			logger.Info("Rejecting upstream channel request")
 			newCh.Reject(ssh.Prohibited, "prohibited")
 		}
 	}()
 
-	c.log("Connected to upstream, creating client channel.")
+	logger.Info("Connected to upstream, creating client channel.")
 
 	clientChannel, clientChannelReqs, err := clientConn.OpenChannel(
 		upstreamType, upstreamExtra)
 	if err != nil {
-		c.log("Couldn't create client channel: %v", err)
+		logger.Error("Couldn't create client channel: %v", err)
 		fmt.Fprintf(channel.Stderr(),
 			"Couldn't connect to server hosting project `%v`\n", project.Name)
 		return
@@ -219,12 +225,12 @@ ENVREAD:
 
 	// Phase 4: Forward channel requests and data.
 
-	c.log("Client channel ready, forwarding requests and data.")
+	logger.Info("Client channel ready, forwarding requests and data.")
 
 	for _, req := range pendingRequests {
 		ok, err := clientChannel.SendRequest(req.Type, req.WantReply, req.Payload)
 		if err != nil {
-			c.log("Error while forwarding pending request: %v", err)
+			logger.Error("Error while forwarding pending request: %v", err)
 			return
 		}
 
@@ -253,7 +259,7 @@ ENVREAD:
 
 			ok, err := clientChannel.SendRequest(req.Type, req.WantReply, req.Payload)
 			if err != nil {
-				c.log("Error while forwarding request: %v", err)
+				logger.Error("Error while forwarding request: %v", err)
 				return
 			}
 
@@ -269,7 +275,7 @@ ENVREAD:
 
 			ok, err := channel.SendRequest(req.Type, req.WantReply, req.Payload)
 			if err != nil {
-				c.log("Error while forwarding client request: %v", err)
+				logger.Error("Error while forwarding client request: %v", err)
 				return
 			}
 
@@ -280,30 +286,31 @@ ENVREAD:
 	}
 }
 
-func handleClientConn(sock net.Conn, config *config) {
-	logPrefix := strings.Replace(
-		fmt.Sprintf("[%v <-> %v] ", sock.RemoteAddr(), sock.LocalAddr()),
-		"%", "%%", -1)
+func handleClientConn(baseLogger *hzlog.Logger, sock net.Conn, config *config) {
+	logger := baseLogger.With(map[string]interface{}{
+		"remoteaddr": sock.RemoteAddr(),
+		"localaddr":  sock.LocalAddr(),
+	})
 
 	c := &clientConn{
-		sock:      sock,
-		config:    config,
-		logPrefix: logPrefix,
+		sock:   sock,
+		config: config,
+		log:    logger,
 	}
 
-	c.log("Accepted new connection")
-	defer c.log("Done with connection")
+	c.log.Info("Accepted new connection")
+	defer c.log.Info("Done with connection")
 	defer sock.Close()
 
 	serverConfig := c.makeServerConfig()
 
 	serverConn, chans, reqs, err := ssh.NewServerConn(sock, serverConfig)
 	if err != nil {
-		c.log("Failed to set up ssh connection: %v", err)
+		c.log.UserError("Failed to set up ssh connection: %v", err)
 		return
 	}
 
-	c.log("Handshake complete, ClientVersion=%#v",
+	c.log.Info("Handshake complete, ClientVersion=%#v",
 		string(serverConn.ClientVersion()))
 
 	go ssh.DiscardRequests(reqs)
@@ -316,14 +323,14 @@ func handleClientConn(sock net.Conn, config *config) {
 		upstreamExtra := newCh.ExtraData()
 
 		if upstreamType != "session" {
-			c.log("Rejecting channel of type %v", newCh.ChannelType())
+			c.log.Info("Rejecting channel of type %v", newCh.ChannelType())
 			newCh.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
 
 		channel, requests, err := newCh.Accept()
 		if err != nil {
-			c.log("Error accepting new channel: %v", err)
+			c.log.UserError("Error accepting new channel: %v", err)
 			continue
 		}
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -26,6 +27,16 @@ func main() {
 	apiServerSecret := flag.String("api-server-secret", "/secrets/api-shared-secret", "Path to API server shared secret")
 
 	flag.Parse()
+
+	log.SetFlags(log.Lshortfile)
+	logger, err := hzlog.MainLogger("hzc-ssh")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	writerLogger := hzlog.WriterLogger(logger)
+	defer writerLogger.Close()
+	log.SetOutput(writerLogger)
 
 	conf := &config{}
 
@@ -67,7 +78,7 @@ func main() {
 			log.Fatalf("Couldn't accept from socket: %v", err)
 		}
 
-		go handleClientConn(s, conf)
+		go handleClientConn(logger, s, conf)
 		// TODO: consider connection count limits
 	}
 }
