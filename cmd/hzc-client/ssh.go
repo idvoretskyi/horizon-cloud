@@ -23,7 +23,7 @@ to quickly create a Cobra application.`,
 }
 
 func init() {
-	RootCmd.AddCommand(sshCmd)
+	//RootCmd.AddCommand(sshCmd) // RSI: deliberately disabled, not sure if we want this to exist.
 
 	// Here you will define your flags and configuration settings.
 
