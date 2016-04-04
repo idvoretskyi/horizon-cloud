@@ -43,6 +43,7 @@ func initConfig() {
 
 	// RSI: do this?
 	// viper.AddConfigPath("~/.hz") // adding home directory as first search path
+	viper.SetEnvPrefix("hz")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
