@@ -1,4 +1,4 @@
 #!/bin/bash
 set -eu
 
-exec hz serve
+exec su -s /bin/sh horizon -c 'exec hz serve'
