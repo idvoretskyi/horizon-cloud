@@ -32,15 +32,17 @@ spec:
     spec:
       containers:
       - name: rethinkdb
-        image: us.gcr.io/horizon-cloud-1239/rethinkdb:1
+        image: `cat ../kube-config/docker/rethinkdb/gcr_image_id`
         resources:
           limits:
             cpu: 250m
             memory: 512Mi
-        command: ["rethinkdb", "--bind", "all", "--cache-size", "384"]
         volumeMounts:
         - name: data
           mountPath: /data
+        env:
+        - name: RDB_CACHE_SIZE
+          value: "384"
         ports:
         - containerPort: 28015
           name: driver
