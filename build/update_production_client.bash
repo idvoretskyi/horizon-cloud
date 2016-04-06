@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf $TMPDIR' EXIT
 
-./build_binaries.bash "$TMPDIR" hzc-client
+./build_binaries.bash "$TMPDIR" hzc-client "linux,darwin"
 
 gsutil cp gs://update.hzc.io/metadata.json "$TMPDIR/metadata.json"
 
