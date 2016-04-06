@@ -6,6 +6,7 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 project="$1"
 volume="$2"
+cluster_name=`cat /secrets/names/cluster`
 
 cat <<EOF
 apiVersion: v1
@@ -38,7 +39,7 @@ spec:
 
       containers:
       - name: nginx
-        image: `cat ../kube-config/docker/horizon-nginx/gcr_image_id`
+        image: `cat ../kube-config/docker/horizon-nginx/gcr_image_id_$cluster_name`
         resources:
           limits:
             cpu: 50m
@@ -56,7 +57,7 @@ spec:
           protocol: TCP
 
       - name: ssh
-        image: `cat ../kube-config/docker/horizon-openssh/gcr_image_id`
+        image: `cat ../kube-config/docker/horizon-openssh/gcr_image_id_$cluster_name`
         resources:
           limits:
             cpu: 10m

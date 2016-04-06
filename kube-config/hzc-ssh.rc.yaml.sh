@@ -7,7 +7,8 @@ name=${basename%%.*}
 
 cd "$(dirname "$(readlink -f "$0")")"
 
-version=`cat $basename docker/$name/gcr_image_id | md5sum | head -c16`
+gcr_id_path=docker/$name/gcr_image_id_`cat /secrets/names/cluster`
+version=`cat $basename $gcr_id_path | md5sum | head -c16`
 
 cat <<EOF
 apiVersion: v1
@@ -36,7 +37,7 @@ spec:
 
       containers:
       - name: proxy
-        image: `cat docker/$name/gcr_image_id`
+        image: `cat $gcr_id_path`
         resources:
           limits: { cpu: "50m", memory: "128Mi" }
         env:

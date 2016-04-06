@@ -20,10 +20,11 @@ for target in "$@"; do
             ./prepare
         fi
         image_id=`docker build . | tail -1 | awk '{print $3}'`
-        gcr_image_id="us.gcr.io/horizon-cloud-1239/$tname:$image_id"
+        cluster_name=`cat /secrets/names/cluster`
+        gcr_image_id="us.gcr.io/$cluster_name/$tname:$image_id"
         docker tag -f "$image_id" "$gcr_image_id"
         gcloud docker push "$gcr_image_id"
-        echo "$gcr_image_id" > gcr_image_id
+        echo "$gcr_image_id" > "gcr_image_id_$cluster_name"
 
         rm "$running/$tname"
     } &> deploy.log &

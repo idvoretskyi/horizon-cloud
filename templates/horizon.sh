@@ -5,6 +5,7 @@ set -o pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 project="$1"
+cluster_name=`cat /secrets/names/cluster`
 
 cat <<EOF
 apiVersion: v1
@@ -31,7 +32,7 @@ spec:
     spec:
       containers:
       - name: horizon
-        image: `cat ../kube-config/docker/horizon/gcr_image_id`
+        image: `cat ../kube-config/docker/horizon/gcr_image_id_$cluster_name`
         resources:
           limits:
             cpu: 50m

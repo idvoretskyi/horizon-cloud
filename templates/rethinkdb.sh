@@ -6,6 +6,7 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 project="$1"
 volume="$2"
+cluster_name=`cat /secrets/names/cluster`
 
 cat <<EOF
 apiVersion: v1
@@ -32,7 +33,7 @@ spec:
     spec:
       containers:
       - name: rethinkdb
-        image: `cat ../kube-config/docker/rethinkdb/gcr_image_id`
+        image: `cat ../kube-config/docker/rethinkdb/gcr_image_id_$cluster_name`
         resources:
           limits:
             cpu: 250m
