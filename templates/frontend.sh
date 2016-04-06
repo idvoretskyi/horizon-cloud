@@ -43,7 +43,7 @@ spec:
         resources:
           limits:
             cpu: 50m
-            memory: 128Mi
+            memory: 128Mi # must be set high to avoid attached volume limits
         volumeMounts:
         - name: data
           readOnly: true
