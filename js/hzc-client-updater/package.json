@@ -1,0 +1,19 @@
+{
+  "name": "hzc-client-updater",
+  "version": "0.0.1-0",
+  "description": "Auto-updater for the Horizon Cloud client",
+  "author": "RethinkDB",
+  "license": "ISC",
+
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "mz": "^2.4.0",
+    "request-promise": "^2.0.1"
+  },
+  "engines": {
+    "node": ">=4.0.0"
+  }
+}
