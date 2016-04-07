@@ -1,6 +1,6 @@
 #!/bin/bash
 set -eu
-cd "$(dirname "$0")"
+MYDIR="$(dirname "$0")"
 
 usage() {
     echo "Usage: $0 outdir programname [programname ...]"
@@ -30,14 +30,14 @@ OLDGOPATH="$GOPATH"
 export GOPATH="$BUILD_DIR"
 
 mkdir -p "$BUILD_DIR/src/$PROJECT"
-rsync -a ../ "$BUILD_DIR/src/$PROJECT/"
+rsync -a "$MYDIR/../" "$BUILD_DIR/src/$PROJECT/"
 
 echo "Copying pre-existing dependency repos..."
 # NB: This step is not neccessary for correctness, but it avoids re-cloning
 # entire repositories for each build if they have already been checked out.
 # glock will handle the case where they don't exist by doing clones from scratch
 # later on.
-cut -d ' ' -f 1 ../GLOCKFILE | while read DEP; do
+cut -d ' ' -f 1 "$MYDIR/../GLOCKFILE" | while read DEP; do
     if [[ -e "$OLDGOPATH/src/$DEP" ]]; then
         mkdir -p "$BUILD_DIR/src/$DEP"
         rsync -a "$OLDGOPATH/src/$DEP/" "$BUILD_DIR/src/$DEP/"

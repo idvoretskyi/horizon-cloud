@@ -1,8 +1,6 @@
 #!/bin/bash
 set -eu
+cd "$(dirname "$0")"
 
-# Disabling cgo avoids linking to libc for DNS resolution support, and thus makes
-# a truly static binary.
-
-CGO_ENABLED=0 go build -o hzc-ssh \
-    github.com/rethinkdb/horizon-cloud/cmd/hzc-ssh
+../../../build/build_binaries.bash . hzc-ssh linux
+mv hzc-ssh-linux-amd64 hzc-ssh
