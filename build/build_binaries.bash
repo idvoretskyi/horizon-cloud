@@ -26,7 +26,7 @@ trap 'rm -rf $BUILD_DIR' EXIT
 echo "Building using $(go version)"
 
 echo "Using build dir $BUILD_DIR"
-OLDGOPATH="$GOPATH"
+OLDGOPATH="${GOPATH:-}"
 export GOPATH="$BUILD_DIR"
 
 mkdir -p "$BUILD_DIR/src/$PROJECT"
