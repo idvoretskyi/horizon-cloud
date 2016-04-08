@@ -1,3 +1,8 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+cat <<EOF
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,8 +22,8 @@ metadata:
   name: hzc-api
 subsets:
 - addresses:
-  # horizondev
-  - ip: "54.193.31.201"
+  - ip: api.`cat /secrets/names/domain`
   ports:
   - port: 8000
     name: http
+EOF
