@@ -48,7 +48,7 @@ spec:
         - name: LISTEN
           value: ":2222"
         - name: API_SERVER
-          value: "http://hzc-api:8000"
+          value: "http://api.`cat /secrets/names/domain`:8000"
         - name: API_SERVER_SECRET
           value: /secrets/api-shared-secret/api-shared-secret
         volumeMounts:

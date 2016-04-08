@@ -42,7 +42,7 @@ spec:
           limits: { cpu: "250m", memory: "128Mi" }
         env:
         - name: API_SERVER
-          value: "http://hzc-api:8000"
+          value: "http://api.`cat /secrets/names/domain`:8000"
         - name: SECRET_PATH
           value: /secrets/api-shared-secret/api-shared-secret
         volumeMounts:
