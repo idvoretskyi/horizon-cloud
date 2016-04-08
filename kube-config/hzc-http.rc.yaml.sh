@@ -32,8 +32,8 @@ spec:
       volumes:
       - name: api-shared-secret
         secret: { secretName: "api-shared-secret" }
-      - name: hzcio-ssl
-        secret: { secretName: "hzcio-ssl" }
+      - name: wildcard-ssl
+        secret: { secretName: "wildcard-ssl" }
 
       containers:
       - name: proxy
@@ -48,8 +48,8 @@ spec:
         volumeMounts:
         - name: api-shared-secret
           mountPath: /secrets/api-shared-secret
-        - name: hzcio-ssl
-          mountPath: /secrets/hzcio-ssl
+        - name: wildcard-ssl
+          mountPath: /secrets/wildcard-ssl
         ports:
         - containerPort: 8080
           name: http
