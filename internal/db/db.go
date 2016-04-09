@@ -26,7 +26,6 @@ var (
 func New() (*DBConnection, error) {
 	session, err := r.Connect(r.ConnectOpts{
 		Address:           "localhost:28015",
-		Database:          "test",
 		AuthKey:           "hzc",
 		MaxIdle:           10,
 		MaxOpen:           10,

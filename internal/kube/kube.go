@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -26,9 +25,10 @@ import (
 const userNamespace = "user"
 
 type Kube struct {
-	C *client.Client
-	M *resource.Mapper
-	G *gcloud.GCloud
+	TemplatePath string
+	C            *client.Client
+	M            *resource.Mapper
+	G            *gcloud.GCloud
 }
 
 type RDB struct {
@@ -57,7 +57,7 @@ type Project struct {
 
 var newMu sync.Mutex
 
-func New(gc *gcloud.GCloud) *Kube {
+func New(templatePath string, gc *gcloud.GCloud) *Kube {
 	newMu.Lock() // util.NewFactory is racy.
 	// RSI: should we be passing in a client config here?
 	factory := util.NewFactory(nil)
@@ -69,7 +69,8 @@ func New(gc *gcloud.GCloud) *Kube {
 		log.Fatalf("unable to connect to Kube: %s", err)
 	}
 	return &Kube{
-		C: client,
+		TemplatePath: templatePath,
+		C:            client,
 		M: &resource.Mapper{
 			ObjectTyper:  typer,
 			RESTMapper:   mapper,
@@ -165,8 +166,7 @@ func (k *Kube) DeleteObject(o runtime.Object) error {
 func (k *Kube) CreateFromTemplate(
 	template string, args ...string) ([]runtime.Object, error) {
 
-	// RSI: make this configurable
-	path := os.Getenv("HOME") + "/go/src/github.com/rethinkdb/horizon-cloud/templates/" + template
+	path := k.TemplatePath + template
 	cmd := exec.Command(path, args...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/db"
@@ -18,6 +19,9 @@ import (
 // RSI: find a way to figure out which fields were parsed and which
 // were defaulted so that we can error if we get sent incomplete
 // messages.
+
+var clusterName string
+var templatePath string
 
 type validator interface {
 	Validate() error
@@ -248,10 +252,18 @@ func main() {
 
 	listenAddr := flag.String("listen", ":8000", "HTTP listening address")
 	sharedSecretFile := flag.String(
-		"shared-secret",
+		"shared_secret",
 		"/secrets/api-shared-secret/api-shared-secret",
 		"Location of API shared secret",
 	)
+
+	flag.StringVar(&clusterName, "cluster_name", "horizon-cloud-1225",
+		"Name of the GCE cluster to use.")
+
+	flag.StringVar(&templatePath, "template_path",
+		os.Getenv("HOME")+"/go/src/github.com/rethinkdb/horizon-cloud/templates/",
+		"Path to the templates to use when creating Kube objects.")
+
 	flag.Parse()
 
 	data, err := ioutil.ReadFile(*sharedSecretFile)

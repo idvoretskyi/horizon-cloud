@@ -30,14 +30,14 @@ func applyConfigs(rdb *db.DB, trueName string) {
 			break
 		}
 
-		gc, err := gcloud.New("horizon-cloud-1239", "us-central1-f") // TODO: generalize
+		gc, err := gcloud.New(clusterName, "us-central1-f") // TODO: generalize
 		if err != nil {
 			// RSI: log serious
 			log.Print(err)
 			continue
 		}
 
-		k := kube.New(gc)
+		k := kube.New(templatePath, gc)
 
 		// RSI: tear down old project once we actually support changing
 		// configurations.
