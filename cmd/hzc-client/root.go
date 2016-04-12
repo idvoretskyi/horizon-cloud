@@ -15,17 +15,19 @@ var RootCmd = &cobra.Command{
 	Long:  `A client for accessing Horizon Cloud.`,
 }
 
-// RSI: we need a domain name.
-var server = "http://54.193.31.201:8000"
+var server = "ssh.hzc.io"
+var fingerprint = "ssh.hzc.io ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCgSnlMGdhrthP2Dgjsp4lIg2Lzsy3ZdOYg0IucHHHJuiLDhKO9rIbg5GIHwJkTbV79ILMGNs+GmvRX2CLo7BbPeDqsdFETEpl0B8lMYz6/uvxZdTUDEBWQHXj3uYPsohxXAMgEQZqvNiE4UTBGsRc1aHYxxlcr3tPwJS76hs6wh9JEnPvU+p6AQ4CaJJzT/50EadgExrD7+I7UecJeB8IMD8+r1ChszzEcZlAcOIxLSVHpgWaR65XMPnSCl7WWRWyb17LDJQfwgq2SriAu83QiicdQE44CW10o2im4I4J/Vqs9nnWR4nlol9sRYBLkIxhJJ4ObI88Qt1yll32kwd/d"
+var configFile = ".hz/cloudconf.toml"
 
 func init() {
 	cobra.OnInitialize(initConfig)
 	pf := RootCmd.PersistentFlags()
 
-	pf.StringVarP(&cfgFile, "config", "c", ".hz/cloudconf.toml", "config file")
+	pf.StringVarP(&cfgFile, "config", "c", configFile, "config file")
 	pf.StringP("name", "n", "", "Project name (overrides config).")
 	pf.StringP("identity_file", "i", "", "private key")
-	pf.StringP("server", "S", server, "address of horizon cloud server")
+	pf.StringP("server", "s", server, "address of horizon cloud ssh server")
+	pf.StringP("fingerprint", "f", fingerprint, "fingerprint of horizon cloud ssh server")
 
 	viper.BindPFlags(pf)
 }

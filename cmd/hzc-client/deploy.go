@@ -6,7 +6,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
-	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -14,40 +13,38 @@ import (
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "deploy a project",
-	Long:  `Deploy the specified project.  If the project doesn't exist, create it.`,
+	Long:  `Deploy the specified project.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client, err := api.NewClient(viper.GetString("server"), "")
-		if err != nil {
-			log.Fatalf("unable to create client: %s", err)
-		}
+		server := viper.GetString("server")
+		identityFile := viper.GetString("identity_file")
 
 		name := viper.GetString("name")
 		if name == "" {
-			log.Fatal("no project name specified (use `-n` or `.horizon/conf`)")
+			log.Fatalf("no project name specified (use `-n` or `%s`)", configFile)
 		}
 
-		err = withSSHConnection(
-			&commandContext{client, name, viper.GetString("identity_file")},
-			types.DisallowClusterStart,
-			func(sshClient *ssh.Client, resp *api.WaitConfigAppliedResp) error {
-				log.Printf("deploying to %#v (%#v)...", resp.Config, resp.Target)
-				// RSI: check whether dist exists.
-				dirName := uuid.New()
-				err := sshClient.RsyncTo(
-					"dist/",
-					resp.Target.DeployDir+dirName+"/",
-					resp.Target.DeployDir+"current/")
-				if err != nil {
-					return err
-				}
-				cmd := "DIR=" + ssh.ShellEscape(dirName) + " " + resp.Target.DeployCmd
-				err = sshClient.RunCommand("bash -c " + ssh.ShellEscape(cmd))
-				if err != nil {
-					return err
-				}
-				return nil
-			},
-		)
+		kh, err := ssh.NewKnownHosts([]string{viper.GetString("fingerprint")})
+		if err != nil {
+			log.Fatalf("failed to deploy: %s", err)
+		}
+		defer kh.Close()
+
+		sshClient := ssh.New(ssh.Options{
+			Host:         server,
+			User:         "horizon",
+			Environment:  map[string]string{api.ProjectEnvVarName: name},
+			KnownHosts:   kh,
+			IdentityFile: identityFile,
+		})
+		log.Printf("deploying to %s...", server)
+		// RSI: check whether dist exists.
+		dirName := uuid.New()
+		err = sshClient.RsyncTo("dist/", "/data/"+dirName+"/", "/data/current/")
+		if err != nil {
+			log.Fatalf("failed to deploy: %s", err)
+		}
+		shellCmd := "DIR=" + ssh.ShellEscape(dirName) + " " + "/home/horizon/post-deploy.sh"
+		err = sshClient.RunCommand("bash -c " + ssh.ShellEscape(shellCmd))
 		if err != nil {
 			log.Fatalf("failed to deploy: %s", err)
 		}
