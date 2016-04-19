@@ -4,8 +4,11 @@ import (
 	"log"
 	"sync"
 
+	"golang.org/x/oauth2/jwt"
+
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
+	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 )
@@ -13,7 +16,7 @@ import (
 var configs = make(map[string]*types.Config)
 var configsLock sync.Mutex
 
-func applyConfigs(rdb *db.DB, trueName string) {
+func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 	for {
 		conf := func() *types.Config {
 			configsLock.Lock()
@@ -30,7 +33,7 @@ func applyConfigs(rdb *db.DB, trueName string) {
 			break
 		}
 
-		gc, err := gcloud.New(clusterName, "us-central1-f") // TODO: generalize
+		gc, err := gcloud.New(serviceAccount, clusterName, "us-central1-f") // TODO: generalize
 		if err != nil {
 			// RSI: log serious
 			log.Print(err)
@@ -67,7 +70,10 @@ func applyConfigs(rdb *db.DB, trueName string) {
 	}
 }
 
-func configSync(rdb *db.DB) {
+func configSync(ctx *hzhttp.Context) {
+	rdb := ctx.DB()
+	serviceAccount := ctx.ServiceAccount()
+
 	// RSI: shut down mid-spinup and see if it recovers.
 	changeChan := make(chan db.ConfigChange)
 	rdb.ConfigChanges(changeChan)
@@ -82,7 +88,7 @@ func configSync(rdb *db.DB) {
 				_, workerRunning := configs[c.NewVal.ID]
 				configs[c.NewVal.ID] = c.NewVal
 				if !workerRunning {
-					go applyConfigs(rdb, c.NewVal.ID)
+					go applyConfigs(serviceAccount, rdb, c.NewVal.ID)
 				}
 			}()
 		} else {

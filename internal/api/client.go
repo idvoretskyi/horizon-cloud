@@ -85,6 +85,16 @@ func (c *Client) GetProjectByDomain(
 	return &ret, nil
 }
 
+func (c *Client) UpdateProjectManifest(
+	opts UpdateProjectManifestReq) (*UpdateProjectManifestResp, error) {
+	var ret UpdateProjectManifestResp
+	err := c.jsonRoundTrip(UpdateProjectManifestPath, opts, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return &ret, nil
+}
+
 func (c *Client) jsonRoundTrip(path string, body interface{}, out interface{}) error {
 	buf, err := json.Marshal(body)
 	if err != nil {
