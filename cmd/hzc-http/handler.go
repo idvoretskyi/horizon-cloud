@@ -169,31 +169,38 @@ func isHSTSHost(host string) bool {
 	return false
 }
 
-func (h *Handler) ServeHTTPContext(ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTPContext(
+	ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
 	// RSI: we may have to strip out the `:port` at the end in some cases.
-	target, err := h.getCachedTarget(r.Host)
+	path := r.URL.Path
+	if path == "" { // We have to check this so the slice is legal.
+		http.Error(w, "no host specified", http.StatusNotFound)
+		return
+	}
+	host := path[1:len(path)]
+	target, err := h.getCachedTarget(host)
 	if err != nil {
 		if _, ok := err.(*NoHostMappingError); ok {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
-		ctx.Error("Couldn't get proxy information for %s: %v", r.Host, err)
-		http.Error(w, "Couldn't get proxy information for "+r.Host,
+		ctx.Error("Couldn't get proxy information for %s: %v", host, err)
+		http.Error(w, "Couldn't get proxy information for "+host,
 			http.StatusInternalServerError)
 		return
 	}
 
-	if isTLSOnlyHost(r.Host) && r.TLS == nil {
+	if isTLSOnlyHost(host) && r.TLS == nil {
 		httpsURL := *r.URL
 		httpsURL.Scheme = "https"
-		httpsURL.Host = r.Host
+		httpsURL.Host = host
 		w.Header().Set("Location", httpsURL.String())
 		w.WriteHeader(http.StatusMovedPermanently)
 		return
 	}
 
-	if isHSTSHost(r.Host) {
+	if isHSTSHost(host) {
 		w.Header().Set("Strict-Transport-Security", "max-age=10886400; includeSubDomains")
 	}
 
@@ -209,8 +216,8 @@ func (h *Handler) ServeHTTPContext(ctx *hzhttp.Context, w http.ResponseWriter, r
 		url, err := url.Parse("http://" + target)
 		if err != nil {
 			h.mu.Unlock()
-			ctx.Error("Proxy information invalid for %s: %v", r.Host, err)
-			http.Error(w, "Proxy information invalid for "+r.Host,
+			ctx.Error("Proxy information invalid for %s: %v", host, err)
+			http.Error(w, "Proxy information invalid for "+host,
 				http.StatusInternalServerError)
 			return
 		}
