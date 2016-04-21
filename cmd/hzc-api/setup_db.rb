@@ -1,7 +1,7 @@
 require 'rethinkdb'
 include RethinkDB::Shortcuts
 
-r.connect.repl
+$c = r.connect(user: 'admin', password: 'hzc').repl
 
 template = {
   hzc_api: {
