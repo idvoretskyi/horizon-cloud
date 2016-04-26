@@ -45,23 +45,15 @@ func (dc *DesiredConfig) Validate() error {
 	if dc.NumHorizon != 1 {
 		return fmt.Errorf("NumHorizon = %d, but only 1 is supported", dc.NumHorizon)
 	}
-	if dc.NumFrontend != 1 {
-		return fmt.Errorf("NumFrontend = %d, but only 1 is supported", dc.NumFrontend)
-	}
-	if dc.SizeFrontend < 10 {
-		return fmt.Errorf("SizeFrontend = %d, but only >=10 is supported", dc.SizeFrontend)
-	}
 	return nil
 }
 
 func DefaultDesiredConfig(name string) *DesiredConfig {
 	return &DesiredConfig{
-		Name:         name,
-		NumRDB:       1,
-		SizeRDB:      10,
-		NumHorizon:   1,
-		NumFrontend:  1,
-		SizeFrontend: 1,
+		Name:       name,
+		NumRDB:     1,
+		SizeRDB:    10,
+		NumHorizon: 1,
 	}
 }
 
