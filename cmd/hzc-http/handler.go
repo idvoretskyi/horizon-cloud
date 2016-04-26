@@ -98,7 +98,9 @@ func maybeCloseRead(c net.Conn) {
 	}
 }
 
-func websocketProxy(target string, ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
+func websocketProxy(
+	target string, ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
+
 	d, err := net.Dial("tcp", target)
 	if err != nil {
 		http.Error(w, "Error contacting backend server.", 500)
@@ -162,7 +164,7 @@ func isTLSOnlyHost(host string) bool {
 }
 
 func isHSTSHost(host string) bool {
-	// TODO: make this more dynamic
+	// RSI: make this more dynamic
 	if strings.HasSuffix(host, ".hzc.io") {
 		return true
 	}
@@ -170,9 +172,10 @@ func isHSTSHost(host string) bool {
 }
 
 func (h *Handler) ServeHTTPContext(
-	ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
-	// RSI: we may have to strip out the `:port` at the end in some cases.
+	ctx *hzhttp.Context, w http.ResponseWriter, orig_r *http.Request) {
+	r := *orig_r
 	path := r.URL.Path
+	r.URL.Path = "/horizon"
 	if path == "" { // We have to check this so the slice is legal.
 		http.Error(w, "no host specified", http.StatusNotFound)
 		return
@@ -204,9 +207,9 @@ func (h *Handler) ServeHTTPContext(
 		w.Header().Set("Strict-Transport-Security", "max-age=10886400; includeSubDomains")
 	}
 
-	if isWebsocket(r) {
+	if isWebsocket(&r) {
 		ctx.Info("serving as websocket")
-		websocketProxy(target, ctx, w, r)
+		websocketProxy(target, ctx, w, &r)
 		return
 	}
 
@@ -227,5 +230,5 @@ func (h *Handler) ServeHTTPContext(
 	}
 	h.mu.Unlock()
 
-	p.ServeHTTP(w, r)
+	p.ServeHTTP(w, &r)
 }

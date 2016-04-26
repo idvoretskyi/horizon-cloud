@@ -89,7 +89,6 @@ type Domain struct {
 
 type Project struct {
 	Name        string
-	SSHAddress  string
 	HTTPAddress string
 }
 
@@ -97,8 +96,7 @@ func ProjectFromName(name string) Project {
 	trueName := util.TrueName(name)
 	return Project{
 		Name:        name,
-		SSHAddress:  "fs-" + trueName + ".user:22",
-		HTTPAddress: "fn-" + trueName + ".user:80",
+		HTTPAddress: "h-" + trueName + ".user:8181",
 	}
 }
 
