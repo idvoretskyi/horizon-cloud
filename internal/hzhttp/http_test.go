@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rethinkdb/horizon-cloud/internal/hzhttp/hzlog"
+	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 )
 
 func TestLogHTTPRequests(t *testing.T) {
@@ -38,6 +38,7 @@ func TestLogHTTPRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	msg.HTTPRequest.RequestID = "" // ignored for testing
 	wantReq := miniReq{
 		Method:     req.Method,
 		URL:        "/",

@@ -4,13 +4,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 )
 
 func TestRequireSecret(t *testing.T) {
 	const secret = "hunter2"
 
+	ctx := hzhttp.NewContext(nil)
+
 	executions := 0
-	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := hzhttp.HandlerFunc(func(c *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 		executions++
@@ -23,7 +27,7 @@ func TestRequireSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	secureH.ServeHTTP(recorder, req)
+	secureH.ServeHTTPContext(ctx, recorder, req)
 
 	if recorder.Code != http.StatusForbidden {
 		t.Errorf("Unauthenticated request returned response code %v", recorder.Code)
@@ -38,7 +42,7 @@ func TestRequireSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set(sharedSecretHeader, secret)
-	secureH.ServeHTTP(recorder, req)
+	secureH.ServeHTTPContext(ctx, recorder, req)
 
 	if recorder.Code != http.StatusOK {
 		t.Errorf("Authenticated request returned response code %v", recorder.Code)
