@@ -21,12 +21,10 @@ type User struct {
 }
 
 type DesiredConfig struct {
-	Name         string `gorethink:",omitempty"`
-	NumRDB       int    `gorethink:",omitempty"`
-	SizeRDB      int    `gorethink:",omitempty"`
-	NumHorizon   int    `gorethink:",omitempty"`
-	NumFrontend  int    `gorethink:",omitempty"`
-	SizeFrontend int    `gorethink:",omitempty"`
+	Name       string `gorethink:",omitempty"`
+	NumRDB     int    `gorethink:",omitempty"`
+	SizeRDB    int    `gorethink:",omitempty"`
+	NumHorizon int    `gorethink:",omitempty"`
 
 	// This is a pointer to slice because we need the zero value and
 	// non-existence to be distinguishable.
