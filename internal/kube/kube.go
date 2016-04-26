@@ -126,7 +126,7 @@ func (k *Kube) Wait(p *Project) error {
 	for {
 		select {
 		case <-timeout.C:
-			return fmt.Errorf("timed out after %d minutes", timeoutMin)
+			return fmt.Errorf("timed out after %v minutes", timeoutMin)
 		case <-time.After(backoff_ms):
 			log.Printf("Polling for readiness")
 			ready, err := k.Ready(p)

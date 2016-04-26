@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/pborman/uuid"
@@ -102,3 +103,32 @@ type ClusterStartBool bool
 
 const AllowClusterStart ClusterStartBool = ClusterStartBool(true)
 const DisallowClusterStart ClusterStartBool = ClusterStartBool(false)
+
+type FileDescription struct {
+	Path        string
+	MD5         []byte
+	ContentType string
+}
+
+func (d *FileDescription) Validate() error {
+	if d.Path == "" {
+		return errors.New("Path must not be empty")
+	}
+	if !util.IsSafeRelPath(d.Path) {
+		return fmt.Errorf("Path %#v is not safe", d.Path)
+	}
+	if len(d.MD5) != 16 {
+		return fmt.Errorf("MD5 must be exactly 16 bytes long (after base64 decoding)")
+	}
+	if d.ContentType == "" {
+		return errors.New("ContentType must be set")
+	}
+	return nil
+}
+
+type FileUploadRequest struct {
+	SourcePath string
+	Method     string
+	URL        string
+	Headers    map[string]string
+}

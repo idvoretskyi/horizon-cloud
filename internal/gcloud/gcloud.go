@@ -9,8 +9,11 @@ import (
 	"github.com/pborman/uuid"
 
 	"golang.org/x/net/context"
-	"golang.org/x/oauth2/google"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/compute/v1"
+	"google.golang.org/cloud"
+	"google.golang.org/cloud/storage"
 )
 
 type DiskType string
@@ -28,26 +31,29 @@ type Disk struct {
 type GCloud struct {
 	client  *http.Client
 	compute *compute.Service
+	storage *storage.Client
 	project string
 	zone    string
 }
 
-func New(project string, zone string) (*GCloud, error) {
-	ctx := context.TODO()
-
-	client, err := google.DefaultClient(ctx, compute.ComputeScope)
-	if err != nil {
-		return nil, err
-	}
+func New(serviceAccount *jwt.Config, project string, zone string) (*GCloud, error) {
+	// TODO: make sure project and zone exist
+	client := serviceAccount.Client(oauth2.NoContext)
 
 	computeSv, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: make sure project and zone exist
+	ctx := context.Background()
+	storageClient, err := storage.NewClient(
+		ctx,
+		cloud.WithTokenSource(serviceAccount.TokenSource(ctx)))
+	if err != nil {
+		return nil, err
+	}
 
-	return &GCloud{client, computeSv, project, zone}, nil
+	return &GCloud{client, computeSv, storageClient, project, zone}, nil
 }
 
 func (g *GCloud) CreateDisk(sizeGB int64, disktype DiskType) (*Disk, error) {
@@ -94,4 +100,8 @@ func (g *GCloud) DeleteDisk(name string) error {
 	log.Printf("Deleting disk %v", name)
 	_, err := g.compute.Disks.Delete(g.project, g.zone, name).Do()
 	return err
+}
+
+func (g *GCloud) StorageClient() *storage.Client {
+	return g.storage
 }

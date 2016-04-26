@@ -35,7 +35,6 @@ func main() {
 	}
 
 	writerLogger := hzlog.WriterLogger(logger)
-	defer writerLogger.Close()
 	log.SetOutput(writerLogger)
 
 	conf := &config{}

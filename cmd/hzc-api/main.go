@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
 	"io/ioutil"
@@ -9,19 +10,28 @@ import (
 	"net/http"
 	"os"
 
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/compute/v1"
+	"google.golang.org/cloud/storage"
+
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/db"
+	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
+	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
 // RSI: find a way to figure out which fields were parsed and which
 // were defaulted so that we can error if we get sent incomplete
 // messages.
 
-var clusterName string
-var templatePath string
+var (
+	clusterName   string
+	templatePath  string
+	storageBucket string
+)
 
 type validator interface {
 	Validate() error
@@ -189,6 +199,80 @@ func ensureConfigConnectable(ctx *hzhttp.Context, rw http.ResponseWriter, req *h
 	})
 }
 
+func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.UpdateProjectManifestReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	// RSI(sec): don't let people update others' projects
+	gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f") // TODO: generalize
+	if err != nil {
+		ctx.Error("Couldn't create gcloud instance: %v", err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			errors.New("Internal error"))
+		return
+	}
+
+	stagingPrefix := "deploy/" + util.TrueName(r.Project) + "/staging/"
+
+	requests, err := requestsForFilelist(
+		ctx,
+		gc.StorageClient(),
+		storageBucket,
+		stagingPrefix,
+		r.Files)
+	if err != nil {
+		ctx.Error("Couldn't create request list for file list: %v", err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			errors.New("Internal error"))
+		return
+	}
+
+	if len(requests) > 0 {
+		api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
+			NeededRequests: requests,
+		})
+		return
+	}
+
+	err = copyAllObjects(ctx, gc.StorageClient(), storageBucket,
+		"horizon/", stagingPrefix+"horizon/")
+	if err != nil {
+		ctx.Error("Couldn't copy horizon objects: %v", err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			errors.New("Internal error"))
+		return
+	}
+
+	domains, err := ctx.DB().GetDomainsByProject(r.Project)
+	if err != nil {
+		ctx.Error("Couldn't get domains for %v: %v", r.Project, err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			errors.New("Internal error"))
+		return
+	}
+
+	for _, domain := range domains {
+		err := copyAllObjects(
+			ctx,
+			gc.StorageClient(),
+			storageBucket,
+			stagingPrefix,
+			"domains/"+domain+"/")
+		if err != nil {
+			ctx.Error("Couldn't copy objects for %v to domains/%v: %v",
+				r.Project, domain, err)
+			api.WriteJSONError(rw, http.StatusInternalServerError,
+				errors.New("Internal error"))
+			return
+		}
+	}
+
+	api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
+		NeededRequests: []types.FileUploadRequest{},
+	})
+}
+
 const (
 	sshServer            = "ssh.hzc.io"
 	sshServerFingerprint = `ssh.hzc.io ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfQJqUbNs6n1r0BtWeODDlB3fXUX0/iE+m7KfkkQXMxr7+Bmjz/Tl91NZIch09NozfenYV6IVdamFMdwSDau5nt5/VPd/QuxDUCeXBvB8XOfUw4Arwew4wQMTU27NqngI0FIYbkZw2T7zMDfocLBhwJh7Ms8bJwGezZ9oYKCGuFvvUMMNmrbKTa/SoF4PY1XPXQOXJdry8oyHsWETcr2BT0qWS+3uoG1ipui/LfeVq6A1M71IT/BVjaGQWm+l8T+vJYUQqLgQYc8qKvmA2S/YGqRv87L9W8jhO6lIFMvWvCsQ7ppuLCDIz0DubP6gD0Lj8piI+IcVD7fuMfGOLQo17`
@@ -257,12 +341,21 @@ func main() {
 		"Location of API shared secret",
 	)
 
-	flag.StringVar(&clusterName, "cluster_name", "horizon-cloud-1225",
+	flag.StringVar(&clusterName, "cluster_name", "horizon-cloud-1239",
 		"Name of the GCE cluster to use.")
 
 	flag.StringVar(&templatePath, "template_path",
 		os.Getenv("HOME")+"/go/src/github.com/rethinkdb/horizon-cloud/templates/",
 		"Path to the templates to use when creating Kube objects.")
+
+	flag.StringVar(&storageBucket, "storage_bucket",
+		"hzc-dev-io-userdata",
+		"Storage bucket to write user objects to")
+
+	serviceAccountFile := flag.String(
+		"service_account",
+		"/secrets/gcloud-service-account/gcloud-service-account.json",
+		"Path to the JSON service account.")
 
 	flag.Parse()
 
@@ -281,7 +374,17 @@ func main() {
 	}
 	baseCtx = baseCtx.WithDBConnection(rdbConn)
 
-	go configSync(baseCtx.DB())
+	serviceAccountData, err := ioutil.ReadFile(*serviceAccountFile)
+	if err != nil {
+		log.Fatal("Unable to read service account file: ", err)
+	}
+	serviceAccount, err := google.JWTConfigFromJSON(serviceAccountData, storage.ScopeFullControl, compute.ComputeScope)
+	if err != nil {
+		log.Fatal("Unable to parse service account: ", err)
+	}
+	baseCtx = baseCtx.WithServiceAccount(serviceAccount)
+
+	go configSync(baseCtx)
 
 	paths := []struct {
 		Path          string
@@ -290,6 +393,7 @@ func main() {
 	}{
 		{api.EnsureConfigConnectablePath, ensureConfigConnectable, false},
 		{api.WaitConfigAppliedPath, waitConfigApplied, false},
+		{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
 		// Mike uses these.
 		{api.SetConfigPath, setConfig, true},

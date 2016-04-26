@@ -3,12 +3,14 @@ package hzhttp
 import (
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
+	"golang.org/x/oauth2/jwt"
 )
 
 // A Context is an immutable source of information for a particular HTTP request.
 type Context struct {
-	logContext *hzlog.Logger
-	dbconn     *db.DBConnection
+	logContext     *hzlog.Logger
+	dbconn         *db.DBConnection
+	serviceAccount *jwt.Config
 }
 
 // NewContext returns a new Context.
@@ -64,4 +66,14 @@ func (c *Context) WithDBConnection(dbconn *db.DBConnection) *Context {
 
 func (c *Context) DB() *db.DB {
 	return c.dbconn.WithLogger(c.logContext)
+}
+
+func (c *Context) WithServiceAccount(conf *jwt.Config) *Context {
+	c2 := *c
+	c2.serviceAccount = conf
+	return &c2
+}
+
+func (c *Context) ServiceAccount() *jwt.Config {
+	return c.serviceAccount
 }

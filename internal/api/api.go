@@ -240,3 +240,33 @@ func (r *GetProjectByDomainReq) Validate() error {
 type GetProjectByDomainResp struct {
 	Project *types.Project
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// UpdateProjectManifest
+
+var UpdateProjectManifestPath = "/v1/projects/updateManifest"
+
+type UpdateProjectManifestReq struct {
+	Project string
+	Files   []types.FileDescription
+}
+
+func (r *UpdateProjectManifestReq) Validate() error {
+	err := util.ValidateProjectName(r.Project, "Project")
+	if err != nil {
+		return err
+	}
+
+	for _, file := range r.Files {
+		err = file.Validate()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type UpdateProjectManifestResp struct {
+	NeededRequests []types.FileUploadRequest
+}

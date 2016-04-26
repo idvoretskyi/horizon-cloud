@@ -15,10 +15,9 @@ github.com/evanphx/json-patch 7dd4489c2eb6073e5a9d7746c3274c5b5f0387df
 github.com/fsouza/go-dockerclient 0099401a7342ad77e71ca9f9a57c5e72fb80f6b2
 github.com/ghodss/yaml 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 github.com/golang/glog 44145f04b68cf362d9c4df2182967c2275eaefed
-github.com/golang/protobuf b982704f8bb716bb608144408cff30e15fbde841
+github.com/golang/protobuf bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
 github.com/google/cadvisor 49a08d5139ae0111757a110ea3b55fe9a607873d
 github.com/google/gofuzz bbcb9da2d746f8bdbd6a936686a0a6067ada0ec5
-github.com/gorilla/handlers ee54c7b44cab12289237fb8631314790076e728b
 github.com/hailocab/go-hostpool 50839ee41f32bfca8d03a183031aa634b2dc1c64
 github.com/hashicorp/hcl 1c284ec98f4b398443cbabb0d9197f7f4cc0077c
 github.com/imdario/mergo 6633656539c1639d9d78127b7d47c622b5d7b6dc
@@ -41,10 +40,11 @@ github.com/spf13/pflag 08b1a584251b5b62f458943640fc8ebd4d50aaa5
 github.com/spf13/viper c975dc1b4eacf4ec7fdbf0873638de5d090ba323
 github.com/ugorji/go f4485b318aadd133842532f841dc205a8e339d74
 golang.org/x/crypto c84e1f8e3a7e322d497cd16c0e8a13c7e127baf3
-golang.org/x/net c2528b2dd8352441850638a8bb678c2ad056fd3e
+golang.org/x/net 815d315ead425c4365077d904a2331ee9e179820
 golang.org/x/oauth2 2cd4472c321b6cba78e029d99f0e7fe51032fd21
 google.golang.org/api 286e8c9bcb5f84d8dcac21634d79ab16428b1b78
-google.golang.org/cloud 85eedc3316fe8c0d3894478c2c9dad320bd95dfd
+google.golang.org/cloud 90d95c0fd227ee148e2753691c9b16f0ba5c870d
+google.golang.org/grpc 306a1ee0fe2c012a074592da8ffe4e33b5204f2a
 gopkg.in/fatih/pool.v2 cba550ebf9bce999a02e963296d4bc7a486cb715
 gopkg.in/fsnotify.v1 8611c35ab31c1c28aa903d33cf8b6e44a399b09e
 gopkg.in/tomb.v2 14b3d72120e8d10ea6e6b7f87f7175734b1faab8

@@ -7,12 +7,14 @@ func TestNames(t *testing.T) {
 		Input  string
 		Output string
 	}{
-		{"", "-e3b0c442"},
-		{"foo", "foo-2c26b46b"},
-		{"horizon-cloud", "horizon-clou-bdc7f4a5"},
+		{"", ""},
+		{"foo", "foo"},
+		{"horizon-cloud", "horizon-cloud"},
+		{"horizon-clou-bdc7f4a5", "horizon-clou-bdc7f4a5"},
 		{"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 			"ffffffffffff-d758d73f"},
 		{"space   the final frontier", "spacethefina-4dd46748"},
+		{"z z", "zz-79b652ee"},
 	}
 
 	for _, test := range tests {
