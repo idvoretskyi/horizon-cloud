@@ -172,8 +172,7 @@ func isHSTSHost(host string) bool {
 }
 
 func (h *Handler) ServeHTTPContext(
-	ctx *hzhttp.Context, w http.ResponseWriter, orig_r *http.Request) {
-	r := *orig_r
+	ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	r.URL.Path = "/horizon"
 	if path == "" { // We have to check this so the slice is legal.
@@ -207,9 +206,9 @@ func (h *Handler) ServeHTTPContext(
 		w.Header().Set("Strict-Transport-Security", "max-age=10886400; includeSubDomains")
 	}
 
-	if isWebsocket(&r) {
+	if isWebsocket(r) {
 		ctx.Info("serving as websocket")
-		websocketProxy(target, ctx, w, &r)
+		websocketProxy(target, ctx, w, r)
 		return
 	}
 
@@ -230,5 +229,5 @@ func (h *Handler) ServeHTTPContext(
 	}
 	h.mu.Unlock()
 
-	p.ServeHTTP(w, &r)
+	p.ServeHTTP(w, r)
 }
