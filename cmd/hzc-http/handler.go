@@ -179,7 +179,7 @@ func (h *Handler) ServeHTTPContext(
 		http.Error(w, "no host specified", http.StatusNotFound)
 		return
 	}
-	host := path[1:len(path)]
+	host := path[1:]
 	target, err := h.getCachedTarget(host)
 	if err != nil {
 		if _, ok := err.(*NoHostMappingError); ok {
