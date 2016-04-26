@@ -354,7 +354,7 @@ func main() {
 
 	serviceAccountFile := flag.String(
 		"service_account",
-		"",
+		"/secrets/gcloud-service-account/gcloud-service-account.json",
 		"Path to the JSON service account.")
 
 	flag.Parse()
