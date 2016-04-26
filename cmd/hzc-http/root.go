@@ -33,7 +33,6 @@ var RootCmd = &cobra.Command{
 		}
 
 		writerLogger := hzlog.WriterLogger(logger)
-		defer writerLogger.Close()
 		log.SetOutput(writerLogger)
 
 		baseCtx := hzhttp.NewContext(logger)

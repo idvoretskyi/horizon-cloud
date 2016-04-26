@@ -12,7 +12,6 @@ func TestWriterLogger(t *testing.T) {
 	SetOutput(buf)
 
 	wl := WriterLogger(BlankLogger())
-	defer wl.Close()
 
 	_, err := wl.Write([]byte("a\nb\n"))
 	if err != nil {
