@@ -1,4 +1,0 @@
-#!/bin/bash
-set -eu
-
-cp /secrets/ssh-proxy-keys/client-rsa.pub authorized_keys

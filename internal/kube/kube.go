@@ -42,17 +42,9 @@ type Horizon struct {
 	SVC *kapi.Service
 }
 
-type Frontend struct {
-	VolumeID string
-	RC       *kapi.ReplicationController
-	NGINXSVC *kapi.Service
-	SSHSVC   *kapi.Service
-}
-
 type Project struct {
-	RDB      *RDB
-	Horizon  *Horizon
-	Frontend *Frontend
+	RDB     *RDB
+	Horizon *Horizon
 }
 
 var newMu sync.Mutex
@@ -81,8 +73,7 @@ func New(templatePath string, gc *gcloud.GCloud) *Kube {
 }
 
 func (k *Kube) Ready(p *Project) (bool, error) {
-	for _, rc := range []*kapi.ReplicationController{
-		p.RDB.RC, p.Horizon.RC, p.Frontend.RC} {
+	for _, rc := range []*kapi.ReplicationController{p.RDB.RC, p.Horizon.RC} {
 		log.Printf("checking readiness of RC %s", rc.Name)
 		podlist, err := k.C.Pods(userNamespace).List(kapi.ListOptions{
 			LabelSelector: labels.SelectorFromSet(rc.Spec.Selector)})
@@ -268,31 +259,6 @@ func (k *Kube) CreateHorizon(project string) (*Horizon, error) {
 	return &Horizon{rc, svc}, nil
 }
 
-func (k *Kube) CreateFrontend(project string, volume string) (*Frontend, error) {
-	objs, err := k.CreateFromTemplate("frontend.sh", project, volume)
-	if err != nil {
-		return nil, err
-	}
-	if len(objs) != 3 {
-		// RSI: logging?
-		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
-	}
-	log.Printf("created frontend\n")
-	rc, ok := objs[0].(*kapi.ReplicationController)
-	if !ok {
-		return nil, fmt.Errorf("unable to create Frontend replication controller")
-	}
-	nginxSVC, ok := objs[1].(*kapi.Service)
-	if !ok {
-		return nil, fmt.Errorf("unable to create NGINX service")
-	}
-	sshSVC, ok := objs[2].(*kapi.Service)
-	if !ok {
-		return nil, fmt.Errorf("unable to create SSH service")
-	}
-	return &Frontend{volume, rc, nginxSVC, sshSVC}, nil
-}
-
 func (k *Kube) DeleteRDB(rdb *RDB) error {
 	var errs []error
 	errs = append(errs, k.G.DeleteDisk(rdb.VolumeID))
@@ -315,20 +281,6 @@ func (k *Kube) DeleteHorizon(horizon *Horizon) error {
 		return err
 	}
 	log.Printf("deleted horizon")
-	return nil
-}
-
-func (k *Kube) DeleteFrontend(f *Frontend) error {
-	var errs []error
-	errs = append(errs, k.G.DeleteDisk(f.VolumeID))
-	errs = append(errs, k.DeleteObject(f.RC))
-	errs = append(errs, k.DeleteObject(f.NGINXSVC))
-	errs = append(errs, k.DeleteObject(f.SSHSVC))
-	err := compositeErr(errs...)
-	if err != nil {
-		return err
-	}
-	log.Printf("deleted frontend")
 	return nil
 }
 
@@ -366,7 +318,7 @@ func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
 }
 
 func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
-	// RSI: Use `NumRDB`, `NumHorizon`, and `NumFrontend`.
+	// RSI: Use `NumRDB` and `NumHorizon`
 
 	type MaybeRDB struct {
 		RDB *RDB
@@ -378,14 +330,8 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 		Err     error
 	}
 
-	type MaybeFrontend struct {
-		Frontend *Frontend
-		Err      error
-	}
-
 	rdbCh := make(chan MaybeRDB)
 	horizonCh := make(chan MaybeHorizon)
-	frontendCh := make(chan MaybeFrontend)
 
 	go func() {
 		rdbCh <- func() MaybeRDB {
@@ -442,47 +388,10 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 		}()
 	}()
 
-	go func() {
-		frontendCh <- func() MaybeFrontend {
-			rc, err := k.getRC("f0-" + conf.ID)
-			if err != nil {
-				return MaybeFrontend{nil, err}
-			}
-
-			if rc != nil {
-				nginxSVC, err := k.C.Services(userNamespace).Get("fn-" + conf.ID)
-				if err != nil {
-					return MaybeFrontend{nil, err}
-				}
-				sshSVC, err := k.C.Services(userNamespace).Get("fs-" + conf.ID)
-				if err != nil {
-					return MaybeFrontend{nil, err}
-				}
-				volName := rc.Spec.Template.Spec.Volumes[0].GCEPersistentDisk.PDName
-				log.Printf("%s already exists with volume %s", "f0-"+conf.ID, volName)
-				return MaybeFrontend{&Frontend{volName, rc, nginxSVC, sshSVC}, nil}
-			}
-
-			var ret MaybeFrontend
-			k.createWithVol(conf.SizeFrontend, gcloud.DiskTypeStandard,
-				func(vol *gcloud.Disk, err error) error {
-					if err != nil {
-						ret = MaybeFrontend{nil, err}
-						return nil
-					}
-					frontend, err := k.CreateFrontend(conf.ID, vol.Name)
-					ret = MaybeFrontend{frontend, err}
-					return err
-				})
-			return ret
-		}()
-	}()
-
 	rdb := <-rdbCh
 	horizon := <-horizonCh
-	frontend := <-frontendCh
 
-	err := compositeErr(rdb.Err, horizon.Err, frontend.Err)
+	err := compositeErr(rdb.Err, horizon.Err)
 	if err != nil {
 		if rdb.RDB != nil {
 			err := k.DeleteRDB(rdb.RDB)
@@ -496,18 +405,11 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 				// RSI: log cleanup failure
 			}
 		}
-		if frontend.Frontend != nil {
-			err := k.DeleteFrontend(frontend.Frontend)
-			if err != nil {
-				// RSI: log cleanup failure
-			}
-		}
 		return nil, err
 	}
 
 	return &Project{
-		RDB:      rdb.RDB,
-		Horizon:  horizon.Horizon,
-		Frontend: frontend.Frontend,
+		RDB:     rdb.RDB,
+		Horizon: horizon.Horizon,
 	}, nil
 }
