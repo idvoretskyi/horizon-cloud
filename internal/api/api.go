@@ -205,6 +205,26 @@ type GetDomainsByProjectResp struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// GetUsersByKey
+
+var GetUsersByKeyPath = "/v1/users/getByKey"
+
+type GetUsersByKeyReq struct {
+	PublicKey string
+}
+
+func (gp *GetUsersByKeyReq) Validate() error {
+	if !ssh.ValidKey(gp.PublicKey) {
+		return errors.New("invalid public key format")
+	}
+	return nil
+}
+
+type GetUsersByKeyResp struct {
+	Users []string
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // GetProjectsByKey
 
 var GetProjectsByKeyPath = "/v1/projects/getByKey"

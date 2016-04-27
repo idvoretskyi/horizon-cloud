@@ -156,6 +156,19 @@ func getDomainsByProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.
 	api.WriteJSONResp(rw, http.StatusOK, api.GetDomainsByProjectResp{domains})
 }
 
+func getUsersByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var gu api.GetUsersByKeyReq
+	if !decode(rw, req.Body, &gu) {
+		return
+	}
+	users, err := ctx.DB().GetUsersByKey(gu.PublicKey)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.GetUsersByKeyResp{Users: users})
+}
+
 func getProjectsByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var gp api.GetProjectsByKeyReq
 	if !decode(rw, req.Body, &gp) {
@@ -406,6 +419,7 @@ func main() {
 		{api.GetDomainsByProjectPath, getDomainsByProject, true},
 
 		// Chris uses these.
+		{api.GetUsersByKeyPath, getUsersByKey, true},
 		{api.GetProjectsByKeyPath, getProjectsByKey, true},
 		{api.GetProjectByDomainPath, getProjectByDomain, true},
 	}

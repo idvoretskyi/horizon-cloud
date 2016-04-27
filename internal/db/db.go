@@ -80,6 +80,22 @@ func (d *DB) SetConfig(c types.Config) (*types.Config, error) {
 	return resp.Changes[0].NewVal, nil
 }
 
+func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
+	q := users.GetAllByIndex("PublicSSHKeys", publicKey)
+	cursor, err := q.Run(d.session)
+	if err != nil {
+		d.log.Error("Couldn't get users by key: %v", err)
+		return nil, err
+	}
+	defer cursor.Close()
+	var users []string
+	var u types.User
+	for cursor.Next(&u) {
+		users = append(users, u.Name)
+	}
+	return users, nil
+}
+
 func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
 	q := configs.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
