@@ -51,6 +51,17 @@ func (c *Client) GetConfig(
 	return &ret, nil
 }
 
+func (c *Client) GetUsersByKey(
+	opts GetUsersByKeyReq) (*GetUsersByKeyResp, error) {
+
+	var ret GetUsersByKeyResp
+	err := c.jsonRoundTrip(GetUsersByKeyPath, opts, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return &ret, nil
+}
+
 func (c *Client) GetProjectsByKey(
 	opts GetProjectsByKeyReq) (*GetProjectsByKeyResp, error) {
 
