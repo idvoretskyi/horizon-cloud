@@ -51,19 +51,6 @@ func (c *Client) GetConfig(
 	return &ret, nil
 }
 
-func (c *Client) WaitConfigApplied(
-	opts WaitConfigAppliedReq) (*WaitConfigAppliedResp, error) {
-
-	// RSI: retry requests if they fail (but only for network reasons)
-
-	var ret WaitConfigAppliedResp
-	err := c.jsonRoundTrip(WaitConfigAppliedPath, opts, &ret)
-	if err != nil {
-		return nil, err
-	}
-	return &ret, nil
-}
-
 func (c *Client) GetProjectsByKey(
 	opts GetProjectsByKeyReq) (*GetProjectsByKeyResp, error) {
 

@@ -39,28 +39,6 @@ type EnsureConfigConnectableResp struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// WaitConfigApplied
-
-var WaitConfigAppliedPath = "/v1/configs/waitApplied"
-
-type WaitConfigAppliedReq struct {
-	Name    string
-	Version string
-}
-
-func (wca *WaitConfigAppliedReq) Validate() error {
-	if err := util.ValidateProjectName(wca.Name, "Name"); err != nil {
-		return err
-	}
-	return nil
-}
-
-type WaitConfigAppliedResp struct {
-	Config types.Config
-	Target types.Target
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // SetConfig
 
 var SetConfigPath = "/v1/configs/set"
