@@ -67,7 +67,6 @@ func getConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	if !decode(rw, req.Body, &gc) {
 		return
 	}
-	// RSI(sec): don't let people read other people's configs.
 	config, err := ctx.DB().GetConfig(gc.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
