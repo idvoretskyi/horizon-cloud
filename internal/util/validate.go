@@ -21,6 +21,24 @@ func ValidateProjectName(name string, fieldName string) error {
 	return nil
 }
 
+// ReasonableToken returns true if the token could possibly be a JWT token.
+func ReasonableToken(token string) bool {
+	dots := 0
+	for _, ch := range token {
+		if ch == '.' {
+			dots++
+		} else if ch >= 'a' && ch <= 'z' ||
+			ch >= 'A' && ch <= 'Z' ||
+			ch >= '0' && ch <= '9' ||
+			ch == '-' || ch == '_' || ch == '=' {
+			// base64, ok
+		} else {
+			return false
+		}
+	}
+	return dots == 2
+}
+
 // IsSafeRelPath returns true iff the path is relative, cannot escape the
 // directory it starts in, and has no invalid characters.
 //

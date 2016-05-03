@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"crypto/md5"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/rethinkdb/horizon-cloud/internal/api"
+	"github.com/rethinkdb/horizon-cloud/internal/ssh"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 	"github.com/spf13/cobra"
@@ -22,6 +25,55 @@ import (
 
 func init() {
 	RootCmd.AddCommand(deployCmd)
+}
+
+func getToken() (string, error) {
+	log.Printf("Getting deploy token...")
+
+	sshServer := viper.GetString("ssh_server")
+	identityFile := viper.GetString("identity_file")
+
+	kh, err := ssh.NewKnownHosts([]string{viper.GetString("fingerprint")})
+	if err != nil {
+		return "", err
+	}
+	defer kh.Close()
+
+	sshClient := ssh.New(ssh.Options{
+		Host:         sshServer,
+		User:         "auth",
+		KnownHosts:   kh,
+		IdentityFile: identityFile,
+	})
+
+	cmd := sshClient.Command("")
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	var resp api.Resp
+	err = json.Unmarshal(buf.Bytes(), &resp)
+	if err != nil {
+		return "", fmt.Errorf("Couldn't unmarshal %#v: %v", buf.String(), err)
+	}
+
+	if !resp.Success {
+		return "", errors.New(resp.Error)
+	}
+
+	var realResponse struct {
+		Token string
+	}
+	err = json.Unmarshal([]byte(*resp.Content), &realResponse)
+	if err != nil {
+		return "", fmt.Errorf("Couldn't unmarshal %#v: %v", buf.String(), err)
+	}
+
+	return realResponse.Token, nil
 }
 
 var deployCmd = &cobra.Command{
@@ -34,25 +86,6 @@ var deployCmd = &cobra.Command{
 			log.Fatalf("no project name specified (use `-n` or `%s`)", cfgFile)
 		}
 
-		/*
-			sshServer := viper.GetString("ssh_server")
-			identityFile := viper.GetString("identity_file")
-
-			kh, err := ssh.NewKnownHosts([]string{viper.GetString("fingerprint")})
-			if err != nil {
-				log.Fatalf("failed to deploy: %s", err)
-			}
-			defer kh.Close()
-
-			sshClient := ssh.New(ssh.Options{
-				Host:         sshServer,
-				User:         "horizon",
-				Environment:  map[string]string{api.ProjectEnvVarName: name},
-				KnownHosts:   kh,
-				IdentityFile: identityFile,
-			})
-		*/
-
 		apiClient, err := api.NewClient(viper.GetString("api_server"), "")
 		if err != nil {
 			log.Fatalf("Couldn't create API client: %v", err)
@@ -62,15 +95,25 @@ var deployCmd = &cobra.Command{
 
 		// RSI: check whether dist exists.
 
+		token, err := getToken()
+		if err != nil {
+			log.Fatalf("Couldn't get token: %v", err)
+		}
+
+		log.Printf("Generating local file list...")
+
 		files, err := createFileList("dist")
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		for {
+			log.Printf("Checking local manifest against server...")
+
 			resp, err := apiClient.UpdateProjectManifest(api.UpdateProjectManifestReq{
 				Project: name,
 				Files:   files,
+				Token:   token,
 			})
 			if err != nil {
 				log.Fatal(err)
@@ -79,6 +122,8 @@ var deployCmd = &cobra.Command{
 			if len(resp.NeededRequests) == 0 {
 				break
 			}
+
+			log.Printf("%v updates needed.", len(resp.NeededRequests))
 
 			err = sendRequests("dist", resp.NeededRequests)
 			if err != nil {

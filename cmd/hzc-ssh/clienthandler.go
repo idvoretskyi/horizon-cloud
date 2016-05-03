@@ -119,6 +119,8 @@ func (c *clientConn) handleSSHChannel(
 		Success: true,
 		Content: &rawMsg,
 	})
+
+	channel.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
 }
 
 func handleClientConn(baseLogger *hzlog.Logger, sock net.Conn, config *config) {

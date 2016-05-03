@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -31,6 +32,7 @@ var (
 	clusterName   string
 	templatePath  string
 	storageBucket string
+	tokenSecret   []byte
 )
 
 type validator interface {
@@ -216,7 +218,38 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	// RSI(sec): don't let people update others' projects
+
+	tokData, err := api.VerifyToken(r.Token, tokenSecret)
+	if err != nil {
+		err = fmt.Errorf("bad token in request: %v", err)
+		ctx.UserError("%v", err)
+		api.WriteJSONError(rw, http.StatusBadRequest, err)
+		return
+	}
+
+	allowedProjects, err := ctx.DB().GetProjectsByUsers(tokData.Users)
+	if err != nil {
+		ctx.Error("Couldn't get project list for users: %v", err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			errors.New("Internal error"))
+		return
+	}
+
+	found := false
+	for _, proj := range allowedProjects {
+		if util.TrueName(proj.Name) == util.TrueName(r.Project) {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		ctx.UserError("User %v not allowed to deploy to project %v", tokData.Users, r.Project)
+		api.WriteJSONError(rw, http.StatusBadRequest,
+			errors.New("You are not allowed to deploy to that project"))
+		return
+	}
+
 	gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f") // TODO: generalize
 	if err != nil {
 		ctx.Error("Couldn't create gcloud instance: %v", err)
@@ -309,6 +342,12 @@ func main() {
 		"Location of API shared secret",
 	)
 
+	tokenSecretFile := flag.String(
+		"token_secret",
+		"/secrets/token-secret/token-secret",
+		"Location of token secret file",
+	)
+
 	flag.StringVar(&clusterName, "cluster_name", "horizon-cloud-1239",
 		"Name of the GCE cluster to use.")
 
@@ -335,6 +374,14 @@ func main() {
 		log.Fatal("Shared secret was not long enough")
 	}
 	sharedSecret := string(data)
+
+	tokenSecret, err = ioutil.ReadFile(*tokenSecretFile)
+	if err != nil {
+		log.Fatal("Unable to read token secret file: ", err)
+	}
+	if len(tokenSecret) < 16 {
+		log.Fatal("Token secret was not long enough")
+	}
 
 	rdbConn, err := db.New()
 	if err != nil {

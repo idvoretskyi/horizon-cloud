@@ -245,6 +245,7 @@ type GetProjectByDomainResp struct {
 var UpdateProjectManifestPath = "/v1/projects/updateManifest"
 
 type UpdateProjectManifestReq struct {
+	Token   string
 	Project string
 	Files   []types.FileDescription
 }
@@ -260,6 +261,10 @@ func (r *UpdateProjectManifestReq) Validate() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if !util.ReasonableToken(r.Token) {
+		return errors.New("Token is not of the correct form")
 	}
 
 	return nil
