@@ -37,6 +37,9 @@ type Options struct {
 	// remote ssh session (via SendEnv.) If nil, no extra environment variables
 	// are sent.
 	Environment map[string]string
+
+	// If RequestTTY is true, then a tty is requested at the remote end.
+	RequestTTY bool
 }
 
 // New constructs a new Client pointing at the given host.
@@ -128,6 +131,12 @@ func (c *Client) sshArgs() []string {
 	_, port, err := net.SplitHostPort(c.opts.Host)
 	if err == nil {
 		args = append(args, "-p", port)
+	}
+
+	if c.opts.RequestTTY {
+		args = append(args, "-t")
+	} else {
+		args = append(args, "-T")
 	}
 
 	return args
