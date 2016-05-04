@@ -15,6 +15,7 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrors "k8s.io/kubernetes/pkg/api/errors"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
+	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/labels"
@@ -27,6 +28,7 @@ const userNamespace = "user"
 type Kube struct {
 	TemplatePath string
 	C            *client.Client
+	Conf         *client.Config
 	M            *resource.Mapper
 	G            *gcloud.GCloud
 }
@@ -60,9 +62,14 @@ func New(templatePath string, gc *gcloud.GCloud) *Kube {
 		// RSI: stop doing this when we support user clusters.
 		log.Fatalf("unable to connect to Kube: %s", err)
 	}
+	conf, err := factory.ClientConfig()
+	if err != nil {
+		log.Fatalf("unable to get client config: %s", err)
+	}
 	return &Kube{
 		TemplatePath: templatePath,
 		C:            client,
+		Conf:         conf,
 		M: &resource.Mapper{
 			ObjectTyper:  typer,
 			RESTMapper:   mapper,
@@ -70,6 +77,54 @@ func New(templatePath string, gc *gcloud.GCloud) *Kube {
 			Decoder:      factory.Decoder(true)},
 		G: gc,
 	}
+}
+
+// Usually all you want to set are `PodName`, `Command`, and maybe `In`.
+type ExecOptions kcmd.ExecOptions
+
+func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
+	var resBuf bytes.Buffer
+	var errBuf bytes.Buffer
+
+	if eo.Namespace == "" {
+		eo.Namespace = "user"
+	}
+	if eo.PodName == "" {
+		return "", "", fmt.Errorf("Kube.Exec requires a podname")
+	}
+
+	if eo.In != nil {
+		eo.Stdin = true
+	}
+
+	// If the user sets these we just write to their writers and return
+	// empty string.
+	if eo.Out == nil {
+		eo.Out = &resBuf
+	}
+	if eo.Err == nil {
+		eo.Err = &errBuf
+	}
+
+	if eo.Executor == nil {
+		eo.Executor = &kcmd.DefaultRemoteExecutor{}
+	}
+	if eo.Client == nil {
+		eo.Client = k.C
+	}
+	if eo.Config == nil {
+		eo.Config = k.Conf
+	}
+
+	real_eo := kcmd.ExecOptions(eo)
+	err := real_eo.Validate()
+	if err != nil {
+		return "", "", err
+	}
+	err = real_eo.Run()
+	// We return the buffers even if there was an error because there
+	// might still be useful stuff in them.
+	return resBuf.String(), errBuf.String(), err
 }
 
 func (k *Kube) Ready(p *Project) (bool, error) {

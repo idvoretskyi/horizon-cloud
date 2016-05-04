@@ -3,6 +3,7 @@ package hzhttp
 import (
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
+	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"golang.org/x/oauth2/jwt"
 )
 
@@ -11,6 +12,7 @@ type Context struct {
 	logContext     *hzlog.Logger
 	dbconn         *db.DBConnection
 	serviceAccount *jwt.Config
+	k              *kube.Kube
 }
 
 // NewContext returns a new Context.
@@ -66,6 +68,16 @@ func (c *Context) WithDBConnection(dbconn *db.DBConnection) *Context {
 
 func (c *Context) DB() *db.DB {
 	return c.dbconn.WithLogger(c.logContext)
+}
+
+func (c *Context) WithKube(k *kube.Kube) *Context {
+	c2 := *c
+	c2.k = k
+	return &c2
+}
+
+func (c *Context) Kube() *kube.Kube {
+	return c.k
 }
 
 func (c *Context) WithServiceAccount(conf *jwt.Config) *Context {

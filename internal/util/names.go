@@ -30,6 +30,7 @@ func init() {
 	safeBytes['-'] = true
 }
 
+// Note that the true name of a true name is that name.
 func TrueName(name string) string {
 	safeName := strings.Map(func(r rune) rune {
 		if r < 0 || r > 255 || !safeBytes[r] {

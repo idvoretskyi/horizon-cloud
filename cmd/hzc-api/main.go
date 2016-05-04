@@ -19,6 +19,7 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
+	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
@@ -195,7 +196,8 @@ func getProjectByDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.R
 	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectByDomainResp{project})
 }
 
-func ensureConfigConnectable(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+func ensureConfigConnectable(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var creq api.EnsureConfigConnectableReq
 	if !decode(rw, req.Body, &creq) {
 		return
@@ -212,13 +214,15 @@ func ensureConfigConnectable(ctx *hzhttp.Context, rw http.ResponseWriter, req *h
 	})
 }
 
-func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+func updateProjectManifest(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.UpdateProjectManifestReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
 	// RSI(sec): don't let people update others' projects
-	gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f") // TODO: generalize
+	// TODO: generalize
+	gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f")
 	if err != nil {
 		ctx.Error("Couldn't create gcloud instance: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -284,6 +288,21 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 	api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
 		NeededRequests: []types.FileUploadRequest{},
 	})
+}
+
+func setProjectHorizonConfig(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.SetProjectHorizonConfigReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	trueName := util.TrueName(r.Project)
+
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectHorizonConfigResp{})
 }
 
 const (
@@ -397,6 +416,15 @@ func main() {
 	}
 	baseCtx = baseCtx.WithServiceAccount(serviceAccount)
 
+	region := "us-central1-f"
+	gc, err := gcloud.New(serviceAccount, clusterName, region)
+	if err != nil {
+		log.Fatal("Unable to create gcloud client: ", err)
+	}
+
+	k := kube.New(templatePath, gc)
+	baseCtx = baseCtx.WithKube(k)
+
 	go configSync(baseCtx)
 
 	paths := []struct {
@@ -404,9 +432,11 @@ func main() {
 		Func          func(ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request)
 		RequireSecret bool
 	}{
+		// Client uses these.
 		{api.EnsureConfigConnectablePath, ensureConfigConnectable, false},
 		{api.WaitConfigAppliedPath, waitConfigApplied, false},
 		{api.UpdateProjectManifestPath, updateProjectManifest, false},
+		{api.SetProjectHorizonConfigPath, setProjectHorizonConfig, false},
 
 		// Mike uses these.
 		{api.SetConfigPath, setConfig, true},
@@ -418,7 +448,7 @@ func main() {
 		{api.SetDomainPath, setDomain, true},
 		{api.GetDomainsByProjectPath, getDomainsByProject, true},
 
-		// Chris uses these.
+		// Other server stuff uses these.
 		{api.GetUsersByKeyPath, getUsersByKey, true},
 		{api.GetProjectsByKeyPath, getProjectsByKey, true},
 		{api.GetProjectByDomainPath, getProjectByDomain, true},

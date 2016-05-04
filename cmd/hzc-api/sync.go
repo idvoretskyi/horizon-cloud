@@ -33,7 +33,8 @@ func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 			break
 		}
 
-		gc, err := gcloud.New(serviceAccount, clusterName, "us-central1-f") // TODO: generalize
+		// TODO: generalize
+		gc, err := gcloud.New(serviceAccount, clusterName, "us-central1-f")
 		if err != nil {
 			// RSI: log serious
 			log.Print(err)
