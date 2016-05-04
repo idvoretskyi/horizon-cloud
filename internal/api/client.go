@@ -51,13 +51,11 @@ func (c *Client) GetConfig(
 	return &ret, nil
 }
 
-func (c *Client) WaitConfigApplied(
-	opts WaitConfigAppliedReq) (*WaitConfigAppliedResp, error) {
+func (c *Client) GetUsersByKey(
+	opts GetUsersByKeyReq) (*GetUsersByKeyResp, error) {
 
-	// RSI: retry requests if they fail (but only for network reasons)
-
-	var ret WaitConfigAppliedResp
-	err := c.jsonRoundTrip(WaitConfigAppliedPath, opts, &ret)
+	var ret GetUsersByKeyResp
+	err := c.jsonRoundTrip(GetUsersByKeyPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}

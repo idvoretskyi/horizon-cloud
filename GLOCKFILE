@@ -7,6 +7,7 @@ github.com/blang/semver 31b736133b98f26d5e078ec9eb591666edfd091f
 github.com/cenkalti/backoff 4dc77674aceaabba2c7e3da25d4c823edfb73f99
 github.com/dancannon/gorethink ef48c048b4f1f4d923de4197e78c1b206c14fa4c
 github.com/davecgh/go-spew 3e6e67c4dcea3ac2f25fd4731abc0e1deaf36216
+github.com/dgrijalva/jwt-go a2c85815a77d0f951e33ba4db5ae93629a1530af
 github.com/docker/docker 0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d
 github.com/docker/go-units 0bbddae09c5a5419a8c6dcdd7ff90da3d450393b
 github.com/emicklei/go-restful 777bb3f19bcafe2575ffb2a3e46af92509ae9594

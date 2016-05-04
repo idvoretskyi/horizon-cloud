@@ -14,17 +14,17 @@ import (
 )
 
 type config struct {
-	HostKey   ssh.Signer
-	ClientKey ssh.Signer
-	APIClient *api.Client
+	HostKey     ssh.Signer
+	APIClient   *api.Client
+	TokenSecret []byte
 }
 
 func main() {
 	listenAddr := flag.String("listen", ":10022", "Address to listen on")
-	hostKeyPath := flag.String("host-key", "", "Path to private host key")
-	clientKeyPath := flag.String("client-key", "", "Path to private client key")
+	hostKeyPath := flag.String("host-key", "/secrets/ssh-proxy-keys/host-rsa", "Path to private host key")
 	apiServer := flag.String("api-server", "http://localhost:8000", "API server base URL")
-	apiServerSecret := flag.String("api-server-secret", "/secrets/api-shared-secret", "Path to API server shared secret")
+	apiServerSecret := flag.String("api-server-secret", "/secrets/api-shared-secret/api-shared-secret", "Path to API server shared secret")
+	tokenSecretPath := flag.String("token-secret", "/secrets/token-secret/token-secret", "Path to token shared secret")
 
 	flag.Parse()
 
@@ -39,12 +39,18 @@ func main() {
 
 	conf := &config{}
 
-	secret, err := ioutil.ReadFile(*apiServerSecret)
+	apiSecret, err := ioutil.ReadFile(*apiServerSecret)
 	if err != nil {
 		log.Fatalf("Couldn't read api server secret from %v: %v", *apiServerSecret, err)
 	}
 
-	conf.APIClient, err = api.NewClient(*apiServer, string(secret))
+	tokenSecret, err := ioutil.ReadFile(*tokenSecretPath)
+	if err != nil {
+		log.Fatalf("Couldn't read token secret from %v: %v", *tokenSecretPath, err)
+	}
+	conf.TokenSecret = tokenSecret
+
+	conf.APIClient, err = api.NewClient(*apiServer, string(apiSecret))
 	if err != nil {
 		log.Fatalf("Couldn't create API client: %v", err)
 	}
@@ -52,11 +58,6 @@ func main() {
 	conf.HostKey, err = loadPrivateKey(*hostKeyPath)
 	if err != nil {
 		log.Fatalf("Couldn't read host key from %v: %v", *hostKeyPath, err)
-	}
-
-	conf.ClientKey, err = loadPrivateKey(*clientKeyPath)
-	if err != nil {
-		log.Fatalf("Couldn't read client key from %v: %v", *clientKeyPath, err)
 	}
 
 	l, err := net.Listen("tcp", *listenAddr)

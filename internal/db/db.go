@@ -114,6 +114,22 @@ func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
 	return projects, nil
 }
 
+func (d *DB) GetProjectsByUsers(users []string) ([]types.Project, error) {
+	q := configs.GetAllByIndex("Users", r.Args(users))
+	cursor, err := q.Run(d.session)
+	if err != nil {
+		d.log.Error("Couldn't get projects by key: %v", err)
+		return nil, err
+	}
+	defer cursor.Close()
+	var projects []types.Project
+	var c types.Config
+	for cursor.Next(&c) {
+		projects = append(projects, types.ProjectFromName(c.Name))
+	}
+	return projects, nil
+}
+
 func (d *DB) GetByDomain(domainName string) (*types.Project, error) {
 	var domain types.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)

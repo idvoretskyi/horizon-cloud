@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-type resp struct {
+type Resp struct {
 	Success bool
 	Error   string           `json:",omitempty"`
 	Content *json.RawMessage `json:",omitempty"`
@@ -20,14 +20,14 @@ func writeJSON(rw http.ResponseWriter, code int, i interface{}) {
 }
 
 func WriteJSONError(rw http.ResponseWriter, code int, err error) {
-	writeJSON(rw, code, resp{
+	writeJSON(rw, code, Resp{
 		Success: false,
 		Error:   err.Error(),
 	})
 }
 
 func WriteJSONResp(rw http.ResponseWriter, code int, i interface{}) {
-	r := resp{Success: true}
+	r := Resp{Success: true}
 	b, err := json.Marshal(i)
 	if err != nil {
 		panic(err)
@@ -38,7 +38,7 @@ func WriteJSONResp(rw http.ResponseWriter, code int, i interface{}) {
 }
 
 func ReadJSONResp(hr *http.Response, i interface{}) error {
-	var resp resp
+	var resp Resp
 	err := json.NewDecoder(hr.Body).Decode(&resp)
 	if err != nil {
 		return err

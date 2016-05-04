@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 )
@@ -14,7 +15,8 @@ type Client struct {
 
 // Options holds parameters for a Client.
 type Options struct {
-	// Host should be set to the hostname of the server to talk to.
+	// Host should be set to the hostname of the server to talk to. It can
+	// optionally include a port number after a colon.
 	Host string
 
 	// User should be set to the username desired. If not set (equal to ""),
@@ -35,6 +37,9 @@ type Options struct {
 	// remote ssh session (via SendEnv.) If nil, no extra environment variables
 	// are sent.
 	Environment map[string]string
+
+	// If RequestTTY is true, then a tty is requested at the remote end.
+	RequestTTY bool
 }
 
 // New constructs a new Client pointing at the given host.
@@ -61,7 +66,7 @@ func (c *Client) RunCommand(cmd string) error {
 // specify a command.
 func (c *Client) Command(remoteCmd string) *exec.Cmd {
 	args := c.sshArgs()
-	args = append(args, c.opts.Host)
+	args = append(args, c.targetHost())
 	if remoteCmd != "" {
 		args = append(args, remoteCmd)
 	}
@@ -79,7 +84,7 @@ func (c *Client) RsyncTo(src, dst string, linkDest string) error {
 	if linkDest != "" {
 		args = append(args, "--link-dest="+linkDest)
 	}
-	args = append(args, "-e", c.sshInvocation(), src, c.opts.Host+":"+dst)
+	args = append(args, "-e", c.sshInvocation(), src, c.targetHost()+":"+dst)
 	cmd := exec.Command("rsync", args...)
 	c.addEnvironment(cmd)
 	return runPassthrough(cmd)
@@ -95,7 +100,7 @@ func (c *Client) RsyncFrom(src, dst string) error {
 		"-avz",
 		"--delete",
 		"-e", c.sshInvocation(),
-		c.opts.Host+":"+src,
+		c.targetHost()+":"+src,
 		dst)
 	c.addEnvironment(cmd)
 	return runPassthrough(cmd)
@@ -123,7 +128,26 @@ func (c *Client) sshArgs() []string {
 		}
 	}
 
+	_, port, err := net.SplitHostPort(c.opts.Host)
+	if err == nil {
+		args = append(args, "-p", port)
+	}
+
+	if c.opts.RequestTTY {
+		args = append(args, "-t")
+	} else {
+		args = append(args, "-T")
+	}
+
 	return args
+}
+
+func (c *Client) targetHost() string {
+	host, _, err := net.SplitHostPort(c.opts.Host)
+	if err == nil {
+		return host
+	}
+	return c.opts.Host
 }
 
 func (c *Client) addEnvironment(cmd *exec.Cmd) {
