@@ -240,35 +240,15 @@ type GetProjectByDomainResp struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SetProjectHorizonConfig
-
-var SetProjectHorizonConfigPath = "/v1/projects/setHorizonConfig"
-
-type SetProjectHorizonConfigReq struct {
-	Project string
-	Config  string
-}
-
-func (r *SetProjectHorizonConfigReq) Validate() error {
-	err := util.ValidateProjectName(r.Project, "Project")
-	if err != nil {
-		return err
-	}
-	// RSI: Validate config at all?  Maybe a length limit?
-	return nil
-}
-
-type SetProjectHorizonConfigResp struct{}
-
-////////////////////////////////////////////////////////////////////////////////
 // UpdateProjectManifest
 
 var UpdateProjectManifestPath = "/v1/projects/updateManifest"
 
 type UpdateProjectManifestReq struct {
-	Token   string
-	Project string
-	Files   []types.FileDescription
+	Token         string
+	Project       string
+	Files         []types.FileDescription
+	HorizonConfig []byte
 }
 
 func (r *UpdateProjectManifestReq) Validate() error {
@@ -287,6 +267,8 @@ func (r *UpdateProjectManifestReq) Validate() error {
 	if !util.ReasonableToken(r.Token) {
 		return errors.New("Token is not of the correct form")
 	}
+
+	// TODO: validate HorizonConfig
 
 	return nil
 }

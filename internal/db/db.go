@@ -80,6 +80,31 @@ func (d *DB) SetConfig(c types.Config) (*types.Config, error) {
 	return resp.Changes[0].NewVal, nil
 }
 
+func (d *DB) HorizonConfigHashMatches(project string, confHash string) (bool, error) {
+	q := configs.Get(util.TrueName(project)).
+		Field("HorizonConfigHash").
+		Default("")
+	var oldConfHash string
+	err := runOne(q, d.session, &confHash)
+	if err != nil {
+		return false, err
+	}
+	return oldConfHash == confHash, nil
+}
+
+func (d *DB) SetHorizonConfigHash(project string, confHash string) error {
+	q := configs.Get(util.TrueName(project)).Update(map[string]string{
+		"HorizonConfigHash": confHash})
+	res, err := q.RunWrite(d.session)
+	if err != nil {
+		return err
+	}
+	if res.Replaced == 0 && res.Unchanged == 0 {
+		return fmt.Errorf("Unable to update Horizon config hash (%v).", res)
+	}
+	return nil
+}
+
 func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
 	q := users.GetAllByIndex("PublicSSHKeys", publicKey)
 	cursor, err := q.Run(d.session)

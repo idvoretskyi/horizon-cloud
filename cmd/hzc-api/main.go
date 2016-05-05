@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -8,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 
@@ -215,6 +219,60 @@ func ensureConfigConnectable(
 	})
 }
 
+// Note: errors from this function are passed to the user.
+func maybeUpdateHorizonConfig(
+	ctx *hzhttp.Context, project string, hzConf []byte) error {
+
+	// This has to be stored in a variable because Go refuses to let you
+	// slice a temporary, DESPITE THE FACT THAT IT IS A FUCKING
+	// GARBAGE-COLLECTED LANGUAGE THAT IS DAMN WELL CAPABLE OF EXTENDING
+	// THE LIFETIME OF SAID TEMPORARY AS LONG AS NECESSARY IF IT WASN'T
+	// TOO LAZY AND INCONSISTENT TO FUCKING BOTHER.
+	shaBytes := sha256.Sum256(hzConf)
+	confHash := hex.EncodeToString(shaBytes[:])
+	matches, err := ctx.DB().HorizonConfigHashMatches(project, confHash)
+	if err != nil {
+		ctx.Error("Error calling hzConfHashmatches(%s, %v): %v", project, confHash, err)
+		return fmt.Errorf("Error accessing existing project configuration.")
+	}
+	if matches {
+		return nil
+	}
+
+	// Update the configuration.
+	k := ctx.Kube()
+	pods, err := k.GetHorizonPodsForProject(project)
+	if err != nil {
+		ctx.Error("Error calling GetHorizonPodsForProject(%s): %v", project, err)
+		return fmt.Errorf("Error accessing horizon instances for project `%s`.", project)
+	}
+	if len(pods) == 0 {
+		err = fmt.Errorf("No pods found for project `%s`.", project)
+		ctx.Error("%v", err)
+		return err
+	}
+
+	pod := pods[rand.Intn(len(pods))]
+	stdout, stderr, err := k.Exec(kube.ExecOptions{
+		PodName: pod,
+		In:      bytes.NewReader(hzConf),
+		Command: []string{"su", "-s", "/bin/sh", "horizon", "-c",
+			"sleep 0.3; cat > /tmp/conf; echo stdout; echo stderr >&2"},
+	})
+	if err != nil {
+		err = fmt.Errorf("Error setting Horizon config:\n"+
+			"\nStdout:\n%s\n"+
+			"\nStderr:\n%s\n"+
+			"\nError:\n%v\n", stdout, stderr, err)
+		ctx.Error("%v", err)
+		return err
+	}
+
+	err = ctx.DB().SetHorizonConfigHash(project, confHash)
+
+	return nil
+}
+
 func updateProjectManifest(
 	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.UpdateProjectManifestReq
@@ -247,7 +305,8 @@ func updateProjectManifest(
 	}
 
 	if !found {
-		ctx.UserError("User %v not allowed to deploy to project %v", tokData.Users, r.Project)
+		ctx.UserError(
+			"User %v not allowed to deploy to project %v", tokData.Users, r.Project)
 		api.WriteJSONError(rw, http.StatusBadRequest,
 			errors.New("You are not allowed to deploy to that project"))
 		return
@@ -281,6 +340,17 @@ func updateProjectManifest(
 		api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
 			NeededRequests: requests,
 		})
+		return
+	}
+
+	// If we get here, the user has successfully uploaded all the files
+	// they need to upload.
+
+	err = maybeUpdateHorizonConfig(ctx, r.Project, r.HorizonConfig)
+	if err != nil {
+		ctx.Error("Unable to update Horizon config: %v", err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to update Horizon config: %v", err))
 		return
 	}
 
@@ -320,21 +390,6 @@ func updateProjectManifest(
 	api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
 		NeededRequests: []types.FileUploadRequest{},
 	})
-}
-
-func setProjectHorizonConfig(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetProjectHorizonConfigReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	trueName := util.TrueName(r.Project)
-
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectHorizonConfigResp{})
 }
 
 const (
@@ -437,7 +492,6 @@ func main() {
 		// Client uses these.
 		{api.EnsureConfigConnectablePath, ensureConfigConnectable, false},
 		{api.UpdateProjectManifestPath, updateProjectManifest, false},
-		{api.SetProjectHorizonConfigPath, setProjectHorizonConfig, false},
 
 		// Mike uses these.
 		{api.SetConfigPath, setConfig, true},

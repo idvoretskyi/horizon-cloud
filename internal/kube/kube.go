@@ -11,12 +11,13 @@ import (
 
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
+	"github.com/rethinkdb/horizon-cloud/internal/util"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrors "k8s.io/kubernetes/pkg/api/errors"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
-	"k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	kutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/runtime"
@@ -52,9 +53,9 @@ type Project struct {
 var newMu sync.Mutex
 
 func New(templatePath string, gc *gcloud.GCloud) *Kube {
-	newMu.Lock() // util.NewFactory is racy.
+	newMu.Lock() // kutil.NewFactory is racy.
 	// RSI: should we be passing in a client config here?
-	factory := util.NewFactory(nil)
+	factory := kutil.NewFactory(nil)
 	newMu.Unlock()
 	mapper, typer := factory.Object()
 	client, err := factory.Client()
@@ -79,10 +80,30 @@ func New(templatePath string, gc *gcloud.GCloud) *Kube {
 	}
 }
 
+func (k *Kube) GetHorizonPodsForProject(projectName string) ([]string, error) {
+	trueName := util.TrueName(projectName)
+	pods, err := k.C.Pods("user").List(kapi.ListOptions{
+		LabelSelector: labels.Set(map[string]string{
+			"app":     "horizon",
+			"project": trueName,
+		}).AsSelector(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]string, len(pods.Items))
+	for index, pod := range pods.Items {
+		ret[index] = pod.Name
+	}
+	return ret, nil
+}
+
 // Usually all you want to set are `PodName`, `Command`, and maybe `In`.
 type ExecOptions kcmd.ExecOptions
 
 func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
+	// RSI: Make these limited in size.
 	var resBuf bytes.Buffer
 	var errBuf bytes.Buffer
 
