@@ -29,17 +29,6 @@ func NewClient(baseURL string, sharedSecret string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) EnsureConfigConnectable(
-	opts EnsureConfigConnectableReq) (*EnsureConfigConnectableResp, error) {
-
-	var ret EnsureConfigConnectableResp
-	err := c.jsonRoundTrip(EnsureConfigConnectablePath, opts, &ret)
-	if err != nil {
-		return nil, err
-	}
-	return &ret, nil
-}
-
 func (c *Client) GetConfig(
 	opts GetConfigReq) (*GetConfigResp, error) {
 

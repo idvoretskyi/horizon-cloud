@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pborman/uuid"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
@@ -21,21 +20,16 @@ type User struct {
 	PublicSSHKeys []string
 }
 
-type DesiredConfig struct {
-	Name       string `gorethink:",omitempty"`
-	NumRDB     int    `gorethink:",omitempty"`
-	SizeRDB    int    `gorethink:",omitempty"`
-	NumHorizon int    `gorethink:",omitempty"`
-
-	// This is a pointer to slice because we need the zero value and
-	// non-existence to be distinguishable.
-	Users *[]string `gorethink:",omitempty"`
+type KubeConfig struct {
+	NumRDB     int `gorethink:",omitempty"`
+	SizeRDB    int `gorethink:",omitempty"`
+	NumHorizon int `gorethink:",omitempty"`
 }
 
-func (dc *DesiredConfig) Validate() error {
-	if err := util.ValidateProjectName(dc.Name, "Name"); err != nil {
-		return err
-	}
+//	if err := util.ValidateProjectName(dc.Name, "Name"); err != nil {
+//		return err
+//	}
+func (dc *KubeConfig) Validate() error {
 	if dc.NumRDB != 1 {
 		return fmt.Errorf("NumRDB = %d, but only 1 is supported", dc.NumRDB)
 	}
@@ -48,29 +42,33 @@ func (dc *DesiredConfig) Validate() error {
 	return nil
 }
 
-func DefaultDesiredConfig(name string) *DesiredConfig {
-	return &DesiredConfig{
-		Name:       name,
+func DefaultKubeConfig() *KubeConfig {
+	return &KubeConfig{
 		NumRDB:     1,
 		SizeRDB:    10,
 		NumHorizon: 1,
 	}
 }
 
-type Config struct {
-	DesiredConfig
-	ID             string `gorethink:"id,omitempty"`
-	Version        string `gorethink:",omitempty"`
-	AppliedVersion string `gorethink:",omitempty"`
+type HorizonConfig []byte
+
+func (hzConf HorizonConfig) Hash() string {
+	return util.BytesToHash(hzConf)
 }
 
-func ConfigFromDesired(dc *DesiredConfig) *Config {
-	conf := Config{
-		DesiredConfig: *dc,
-		ID:            util.TrueName(dc.Name),
-		Version:       uuid.New(),
-	}
-	return &conf
+type Config struct {
+	ID   string `gorethink:"id,omitempty"`
+	Name string `gorethink:",omitempty"`
+
+	KubeConfig               KubeConfig `gorethink:",omitempty"`
+	KubeConfigVersion        int64      `gorethink:",omitempty"`
+	KubeConfigAppliedVersion int64      `gorethink:",omitempty"`
+
+	HorizonConfig               HorizonConfig `gorethink:",omitempty"`
+	HorizonConfigVersion        int64         `gorethink:",omitempty"`
+	HorizonConfigAppliedVersion int64         `gorethink:",omitempty"`
+	HorizonConfigLastError      string        `gorethink:",omitempty"`
+	HorizonConfigErrorVersion   int64         `gorethink:",omitempty"`
 }
 
 type Domain struct {

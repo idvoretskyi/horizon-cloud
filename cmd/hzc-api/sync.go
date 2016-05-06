@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"log"
+	"math/rand"
 	"sync"
 
 	"golang.org/x/oauth2/jwt"
@@ -15,6 +18,33 @@ import (
 
 var configs = make(map[string]*types.Config)
 var configsLock sync.Mutex
+
+// Errors returned from this are shown to users.
+func applyHorizonConfig(k *kube.Kube, trueName string, hzc types.HorizonConfig) error {
+	pods, err := k.GetHorizonPodsForProject(trueName)
+	if err != nil {
+		log.Print(err) // RSI: log serious error
+		return fmt.Errorf("unable to get horizon pods for `%s`", trueName)
+	}
+	if len(pods) == 0 {
+		return fmt.Errorf("no pods found for `%s`", trueName) // RSI: log serious error
+	}
+	pod := pods[rand.Intn(len(pods))]
+	stdout, stderr, err := k.Exec(kube.ExecOptions{
+		PodName: pod,
+		In:      bytes.NewReader([]byte(hzc)),
+		Command: []string{"su", "-s", "/bin/sh", "horizon", "-c",
+			"sleep 0.3; cat > /tmp/conf; echo stdout; echo stderr >&2"},
+	})
+	if err != nil {
+		err = fmt.Errorf("Error setting Horizon config:\n"+
+			"\nStdout:\n%s\n"+
+			"\nStderr:\n%s\n"+
+			"\nError:\n%v\n", stdout, stderr, err)
+		return err
+	}
+	return nil
+}
 
 func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 	for {
@@ -33,36 +63,50 @@ func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 			break
 		}
 
-		// TODO: generalize
 		gc, err := gcloud.New(serviceAccount, clusterName, "us-central1-f")
 		if err != nil {
-			// RSI: log serious
-			log.Print(err)
+			log.Print(err) // RSI: log serious error
 			continue
 		}
-
 		k := kube.New(templatePath, gc)
 
-		// RSI: tear down old project once we actually support changing
-		// configurations.
-		project, err := k.EnsureProject(*conf)
+		if conf.KubeConfigVersion != conf.KubeConfigAppliedVersion {
+			project, err := k.EnsureProject(conf.ID, conf.KubeConfig)
+			if err != nil {
+				log.Printf("%s\n", err) // RSI: log serious error.
+				continue
+			}
+			log.Printf("waiting for Kube config %s:%s", trueName, conf.KubeConfigVersion)
+			err = k.Wait(project)
+			if err != nil {
+				log.Print(err) // RSI: log serious error
+				continue
+			}
+		}
 
-		if err != nil {
-			// RSI: log serious error.
-			log.Printf("%s\n", err)
-			continue
+		if conf.HorizonConfigVersion != conf.HorizonConfigAppliedVersion {
+			err = applyHorizonConfig(k, trueName, conf.HorizonConfig)
+			if err != nil {
+				log.Printf("error applying Horizon config %s:%s (%v)",
+					trueName, conf.HorizonConfigVersion, err)
+				_, err = rdb.SetConfig(types.Config{
+					ID: conf.ID,
+					HorizonConfigLastError:    err.Error(),
+					HorizonConfigErrorVersion: conf.HorizonConfigVersion,
+				})
+				if err != nil {
+					log.Print(err) // RSI: log serious error
+				}
+				continue
+			}
 		}
-		log.Printf("waiting for config %s:%s", trueName, conf.Version)
-		err = k.Wait(project)
-		if err != nil {
-			// RSI: log serious error
-			log.Printf("%s\n", err)
-			continue
-		}
-		log.Printf("successfully applied config %s:%s", trueName, conf.Version)
+
+		log.Printf("successfully applied config %s:%s/%s",
+			trueName, conf.KubeConfigVersion, conf.HorizonConfigVersion)
 		_, err = rdb.SetConfig(types.Config{
-			ID:             conf.ID,
-			AppliedVersion: conf.Version,
+			ID: conf.ID,
+			KubeConfigAppliedVersion:    conf.KubeConfigVersion,
+			HorizonConfigAppliedVersion: conf.HorizonConfigVersion,
 		})
 		if err != nil {
 			// RSI: log serious error.
@@ -80,7 +124,8 @@ func configSync(ctx *hzhttp.Context) {
 	rdb.ConfigChanges(changeChan)
 	for c := range changeChan {
 		if c.NewVal != nil {
-			if c.NewVal.AppliedVersion == c.NewVal.Version {
+			if c.NewVal.KubeConfigVersion == c.NewVal.KubeConfigAppliedVersion &&
+				c.NewVal.HorizonConfigVersion == c.NewVal.HorizonConfigAppliedVersion {
 				continue
 			}
 			func() {

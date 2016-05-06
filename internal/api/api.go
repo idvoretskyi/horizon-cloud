@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
@@ -14,41 +13,16 @@ var ProjectEnvVarName = "HORIZON_PROJECT"
 // RSI: documentation
 
 ////////////////////////////////////////////////////////////////////////////////
-// EnsureConfigConnectable
-
-var EnsureConfigConnectablePath = "/v1/configs/ensureConnectable"
-
-type EnsureConfigConnectableReq struct {
-	Name              string
-	AllowClusterStart types.ClusterStartBool
-}
-
-func (r *EnsureConfigConnectableReq) Validate() error {
-	err := util.ValidateProjectName(r.Name, "Name")
-	if err != nil {
-		return err
-	}
-	if r.AllowClusterStart == types.AllowClusterStart {
-		return fmt.Errorf("you are not authorized to start clusters")
-	}
-	return nil
-}
-
-type EnsureConfigConnectableResp struct {
-	Config types.Config
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // SetConfig
 
+// RSI: fix this, add a separate addUser command.
 var SetConfigPath = "/v1/configs/set"
 
 type SetConfigReq struct {
-	types.DesiredConfig
 }
 
 func (r *SetConfigReq) Validate() error {
-	return r.DesiredConfig.Validate()
+	return nil
 }
 
 type SetConfigResp struct {

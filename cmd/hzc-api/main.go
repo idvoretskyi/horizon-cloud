@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -11,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 
@@ -57,16 +53,17 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 }
 
 func setConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetConfigReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	newConf, err := ctx.DB().SetConfig(*types.ConfigFromDesired(&r.DesiredConfig))
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{*newConf})
+	// RSI: fix this
+	// var r api.SetConfigReq
+	// if !decode(rw, req.Body, &r) {
+	// 	return
+	// }
+	// newConf, err := ctx.DB().SetConfig(*types.ConfigFromDesired(&r.DesiredConfig))
+	// if err != nil {
+	// 	api.WriteJSONError(rw, http.StatusInternalServerError, err)
+	// 	return
+	// }
+	// api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{*newConf})
 }
 
 func getConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
@@ -201,80 +198,35 @@ func getProjectByDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.R
 	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectByDomainResp{project})
 }
 
-func ensureConfigConnectable(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var creq api.EnsureConfigConnectableReq
-	if !decode(rw, req.Body, &creq) {
-		return
-	}
-	// RSI(sec): don't let people read other people's configs.
-	config, err := ctx.DB().EnsureConfigConnectable(
-		creq.Name, creq.AllowClusterStart)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.EnsureConfigConnectableResp{
-		Config: *config,
-	})
-}
-
 // Note: errors from this function are passed to the user.
 func maybeUpdateHorizonConfig(
-	ctx *hzhttp.Context, project string, hzConf []byte) error {
-
-	// This has to be stored in a variable because Go refuses to let you
-	// slice a temporary, DESPITE THE FACT THAT IT IS A FUCKING
-	// GARBAGE-COLLECTED LANGUAGE THAT IS DAMN WELL CAPABLE OF EXTENDING
-	// THE LIFETIME OF SAID TEMPORARY AS LONG AS NECESSARY IF IT WASN'T
-	// TOO LAZY AND INCONSISTENT TO FUCKING BOTHER.
-	shaBytes := sha256.Sum256(hzConf)
-	confHash := hex.EncodeToString(shaBytes[:])
-	matches, err := ctx.DB().HorizonConfigHashMatches(project, confHash)
+	ctx *hzhttp.Context, project string, hzConf types.HorizonConfig) error {
+	newVersion, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
 	if err != nil {
-		ctx.Error("Error calling hzConfHashmatches(%s, %v): %v", project, confHash, err)
-		return fmt.Errorf("Error accessing existing project configuration.")
+		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
+			project, hzConf, err)
+		return fmt.Errorf("error talking to database")
 	}
-	if matches {
+	// No need to do anything.
+	if newVersion == 0 {
 		return nil
 	}
 
-	// Update the configuration.
-	k := ctx.Kube()
-	pods, err := k.GetHorizonPodsForProject(project)
+	lastError, err := ctx.DB().WaitForHorizonConfigVersion(project, newVersion)
 	if err != nil {
-		ctx.Error("Error calling GetHorizonPodsForProject(%s): %v", project, err)
-		return fmt.Errorf("Error accessing horizon instances for project `%s`.", project)
+		ctx.Error("Error calling WaitForHorizonConfigVersion(%v, %v): %v, %v",
+			project, newVersion, lastError, err)
 	}
-	if len(pods) == 0 {
-		err = fmt.Errorf("No pods found for project `%s`.", project)
-		ctx.Error("%v", err)
-		return err
+	if lastError != "" {
+		return fmt.Errorf("error applying Horizon config: %v", lastError)
 	}
-
-	pod := pods[rand.Intn(len(pods))]
-	stdout, stderr, err := k.Exec(kube.ExecOptions{
-		PodName: pod,
-		In:      bytes.NewReader(hzConf),
-		Command: []string{"su", "-s", "/bin/sh", "horizon", "-c",
-			"sleep 0.3; cat > /tmp/conf; echo stdout; echo stderr >&2"},
-	})
-	if err != nil {
-		err = fmt.Errorf("Error setting Horizon config:\n"+
-			"\nStdout:\n%s\n"+
-			"\nStderr:\n%s\n"+
-			"\nError:\n%v\n", stdout, stderr, err)
-		ctx.Error("%v", err)
-		return err
-	}
-
-	err = ctx.DB().SetHorizonConfigHash(project, confHash)
 
 	return nil
 }
 
 func updateProjectManifest(
 	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+
 	var r api.UpdateProjectManifestReq
 	if !decode(rw, req.Body, &r) {
 		return
@@ -483,6 +435,7 @@ func main() {
 	baseCtx = baseCtx.WithKube(k)
 
 	go configSync(baseCtx)
+	maybeUpdateHorizonConfig(baseCtx, "test", []byte("bar"))
 
 	paths := []struct {
 		Path          string
@@ -490,7 +443,6 @@ func main() {
 		RequireSecret bool
 	}{
 		// Client uses these.
-		{api.EnsureConfigConnectablePath, ensureConfigConnectable, false},
 		{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
 		// Mike uses these.

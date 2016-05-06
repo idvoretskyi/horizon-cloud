@@ -393,7 +393,8 @@ func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
 	return rc, nil
 }
 
-func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
+func (k *Kube) EnsureProject(
+	trueName string, conf types.KubeConfig) (*Project, error) {
 	// RSI: Use `NumRDB` and `NumHorizon`
 
 	type MaybeRDB struct {
@@ -411,21 +412,21 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 
 	go func() {
 		rdbCh <- func() MaybeRDB {
-			rc, err := k.getRC("r0-" + conf.ID)
+			rc, err := k.getRC("r0-" + trueName)
 			if err != nil {
 				return MaybeRDB{nil, err}
 			}
 
 			// RSI: check that the replicationcontroller is what we want.
 			if rc != nil {
-				svc, err := k.C.Services(userNamespace).Get("r-" + conf.ID)
+				svc, err := k.C.Services(userNamespace).Get("r-" + trueName)
 				if err != nil {
 					// RSI: we should be creating replicationcontrollers and
 					// services separately so we don't have to abort here.
 					return MaybeRDB{nil, err}
 				}
 				volName := rc.Spec.Template.Spec.Volumes[0].GCEPersistentDisk.PDName
-				log.Printf("%s already exists with volume %s", "r0-"+conf.ID, volName)
+				log.Printf("%s already exists with volume %s", "r0-"+trueName, volName)
 				return MaybeRDB{&RDB{volName, rc, svc}, nil}
 			}
 
@@ -436,7 +437,7 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 						ret = MaybeRDB{nil, err}
 						return nil
 					}
-					rdb, err := k.CreateRDB(conf.ID, vol.Name)
+					rdb, err := k.CreateRDB(trueName, vol.Name)
 					ret = MaybeRDB{rdb, err}
 					return err
 				})
@@ -446,20 +447,20 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 
 	go func() {
 		horizonCh <- func() MaybeHorizon {
-			rc, err := k.getRC("h0-" + conf.ID)
+			rc, err := k.getRC("h0-" + trueName)
 			if err != nil {
 				return MaybeHorizon{nil, err}
 			}
 			if rc != nil {
-				svc, err := k.C.Services(userNamespace).Get("h-" + conf.ID)
+				svc, err := k.C.Services(userNamespace).Get("h-" + trueName)
 				if err != nil {
 					return MaybeHorizon{nil, err}
 				}
-				log.Printf("%s already exists", "h0-"+conf.ID)
+				log.Printf("%s already exists", "h0-"+trueName)
 				return MaybeHorizon{&Horizon{rc, svc}, nil}
 			}
 
-			horizon, err := k.CreateHorizon(conf.ID)
+			horizon, err := k.CreateHorizon(trueName)
 			return MaybeHorizon{horizon, err}
 		}()
 	}()

@@ -80,6 +80,60 @@ func (d *DB) SetConfig(c types.Config) (*types.Config, error) {
 	return resp.Changes[0].NewVal, nil
 }
 
+func (d *DB) MaybeUpdateHorizonConfig(
+	project string, hzConf types.HorizonConfig) (int64, error) {
+	q := r.Expr(hzConf).Do(func(hzc r.Term) r.Term {
+		return configs.Get(util.TrueName(project)).Update(func(config r.Term) r.Term {
+			return r.Branch(
+				config.Field("HorizonConfig").Eq(hzc).Default(false),
+				nil,
+				map[string]r.Term{
+					"HorizonConfig":        r.Expr(hzc),
+					"HorizonConfigVersion": config.Field("HorizonConfigVersion").Default(0).Add(1),
+				})
+		}, r.UpdateOpts{ReturnChanges: true})
+	})
+	res, err := q.RunWrite(d.session)
+	if err != nil {
+		return 0, err
+	}
+
+	if res.Unchanged == 1 {
+		return 0, nil
+	}
+	if res.Replaced != 1 {
+		return 0, fmt.Errorf("maybeUpdateHorizonConfig failed to update (%v)", res)
+	}
+	if len(res.Changes) != 1 {
+		return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
+	}
+	newVal := res.Changes[0].NewValue
+	if newVal == nil {
+		return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
+	}
+
+	var newVer int64
+	switch m := newVal.(type) {
+	case map[string]interface{}:
+		newVersion := m["HorizonConfigVersion"]
+		switch v := newVersion.(type) {
+		case float64:
+			newVer = int64(v)
+		default:
+			return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
+		}
+	default:
+		return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
+	}
+
+	return newVer, nil
+}
+
+func (d *DB) WaitForHorizonConfigVersion(project string, version int64) (string, error) {
+	// RSI: do this
+	return "", nil
+}
+
 func (d *DB) HorizonConfigHashMatches(project string, confHash string) (bool, error) {
 	q := configs.Get(util.TrueName(project)).
 		Field("HorizonConfigHash").
@@ -237,49 +291,6 @@ func (d *DB) GetDomainsByProject(project string) ([]string, error) {
 	return domains, nil
 }
 
-func (d *DB) EnsureConfigConnectable(
-	name string, allowClusterStart types.ClusterStartBool) (*types.Config, error) {
-
-	if allowClusterStart {
-		var out struct {
-			Changes []struct {
-				NewVal *types.Config `gorethink:"new_val"`
-			} `gorethink:"changes"`
-			FirstError string `gorethink:"first_error"`
-		}
-
-		defaultConfig := r.Expr(types.ConfigFromDesired(types.DefaultDesiredConfig(name)))
-		query := configs.Insert(defaultConfig, r.InsertOpts{ReturnChanges: "always"})
-		err := runOne(query, d.session, &out)
-
-		if err != nil {
-			d.log.Error("Couldn't run EnsureConfigConnectable query: %s", err)
-			return nil, getBasicError("ensureConfigConnectable", name)
-		}
-
-		if len(out.Changes) != 1 {
-			d.log.Error("Unexpected EnsureConfigConnectable response: %#v", out)
-			return nil, getBasicError("ensureConfigConnectable", name)
-		}
-
-		if out.Changes[0].NewVal == nil {
-			d.log.Error("Unexpected EnsureConfigConnectable response: %#v", out)
-			return nil, getBasicError("ensureConfigConnectable", name)
-		}
-		return out.Changes[0].NewVal, nil
-
-	} else {
-		var c types.Config
-		query := configs.Get(util.TrueName(name))
-		err := runOne(query, d.session, &c)
-		if err != nil {
-			d.log.Error("EnsureConfigConnectable for `%s` failed: %s", name, err)
-			return nil, fmt.Errorf("no cluster `%s`", name)
-		}
-		return &c, err
-	}
-}
-
 type ConfigChange struct {
 	OldVal *types.Config `gorethink:"old_val"`
 	NewVal *types.Config `gorethink:"new_val"`
@@ -307,51 +318,6 @@ func (d *DB) configChangesLoop(out chan<- ConfigChange) {
 
 func (d *DB) ConfigChanges(out chan<- ConfigChange) {
 	go d.configChangesLoop(out)
-}
-
-func (d *DB) WaitConfigApplied(
-	name string, version string, cancel <-chan struct{}) (*types.Config, error) {
-
-	query := configs.Get(util.TrueName(name)).Changes(r.ChangesOpts{IncludeInitial: true})
-	cur, err := query.Run(d.session)
-	if err != nil {
-		d.log.Error("Couldn't start waitconfigapplied query: %v", err)
-		return nil, getBasicError("config", name)
-	}
-	defer cur.Close()
-
-	rows := make(chan ConfigChange)
-	cur.Listen(rows)
-
-	canceled := false
-	for {
-		select {
-		case row, ok := <-rows:
-			if !ok {
-				if !canceled {
-					d.log.Error("Early changefeed close in waitconfigapplied: %v", err)
-					return nil, errors.New("internal error: changefeed closed unexpectedly")
-				}
-				return nil, ErrCanceled
-			}
-
-			if row.NewVal == nil {
-				return nil, fmt.Errorf("configuration deleted")
-			} else {
-				if version != "" && row.NewVal.Version != version {
-					return nil, fmt.Errorf("configuration superseded by %s", row.NewVal.Version)
-				}
-				if row.NewVal.AppliedVersion == row.NewVal.Version {
-					return row.NewVal, nil
-				}
-			}
-
-		case <-cancel:
-			cur.Close()
-			canceled = true
-			cancel = nil
-		}
-	}
 }
 
 func runOne(query r.Term, session *r.Session, out interface{}) error {
