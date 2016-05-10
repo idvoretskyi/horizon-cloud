@@ -490,11 +490,10 @@ func main() {
 		// Client uses these.
 		{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
-		// Mike uses these.
+		// Web interface uses these.
 		{api.GetProject, getProject, true},
 		{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
 		{api.AddProjectUsersPath, addProjectUsers, true},
-
 		{api.UserCreatePath, userCreate, true},
 		{api.UserGetPath, userGet, true},
 		{api.UserAddKeysPath, userAddKeys, true},
