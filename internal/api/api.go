@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/rethinkdb/horizon-cloud/internal/ssh"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
@@ -13,37 +14,73 @@ var ProjectEnvVarName = "HORIZON_PROJECT"
 // RSI: documentation
 
 ////////////////////////////////////////////////////////////////////////////////
-// SetConfig
+// SetProjectKubeConfig
 
-// RSI: fix this, add a separate addUser command.
-var SetConfigPath = "/v1/configs/set"
+var SetProjectKubeConfigPath = "/v1/projects/setKubeConfig"
 
-type SetConfigReq struct {
+type SetProjectKubeConfigReq struct {
+	Project    string
+	KubeConfig KubeConfig
 }
 
-func (r *SetConfigReq) Validate() error {
-	return nil
+func (r *SetProjectKubeConfigReq) Validate() error {
+	err := util.ValidateProjectName(r.Project, "Project")
+	if err != nil {
+		return err
+	}
+	return r.KubeConfig.Validate()
 }
 
-type SetConfigResp struct {
-	types.Config
+type SetProjectKubeConfigResp struct {
+	types.Project
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetConfig
+// AddProjectUsers
 
-var GetConfigPath = "/v1/configs/get"
+var AddProjectUsersPath = "/v1/projects/addUsers"
 
-type GetConfigReq struct {
-	Name string
+type AddProjectUsersReq struct {
+	Project string
+	Users   []string
 }
 
-func (r *GetConfigReq) Validate() error {
-	return util.ValidateProjectName(r.Name, "Name")
+func (r *AddProjectUsersReq) Validate() error {
+	err := util.ValidateProjectName(r.Project, "Project")
+	if err != nil {
+		return err
+	}
+	if len(r.Users) == 0 {
+		return fmt.Errorf("no users specified")
+	}
+	for user := range users {
+		err := util.ValidateUserName(user, "Users")
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-type GetConfigResp struct {
-	Config types.Config
+type AddProjectUsersResp struct {
+	types.Project
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GetProject
+
+var GetProjectPath = "/v1/projects/get"
+
+type GetProjectReq struct {
+	Project string
+}
+
+func (r *GetProjectReq) Validate() error {
+	return util.ValidateProjectName(r.Project, "Project")
+}
+
+type GetProjectResp struct {
+	types.Project
 }
 
 ////////////////////////////////////////////////////////////////////////////////

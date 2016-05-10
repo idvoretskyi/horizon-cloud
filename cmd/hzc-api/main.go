@@ -15,6 +15,7 @@ import (
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/cloud/storage"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
@@ -25,7 +26,7 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
-// RSI: find a way to figure out which fields were parsed and which
+// TODO: find a way to figure out which fields were parsed and which
 // were defaulted so that we can error if we get sent incomplete
 // messages.
 
@@ -52,32 +53,65 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-func setConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	// RSI: fix this
-	// var r api.SetConfigReq
-	// if !decode(rw, req.Body, &r) {
-	// 	return
-	// }
-	// newConf, err := ctx.DB().SetConfig(*types.ConfigFromDesired(&r.DesiredConfig))
-	// if err != nil {
-	// 	api.WriteJSONError(rw, http.StatusInternalServerError, err)
-	// 	return
-	// }
-	// api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{*newConf})
-}
-
-func getConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var gc api.GetConfigReq
-	if !decode(rw, req.Body, &gc) {
+func setProjectKubeConfig(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.SetProjectKubeConfigReq
+	if !decode(rw, req.Body, &r) {
 		return
 	}
-	config, err := ctx.DB().GetConfig(gc.Name)
+	project, err := ctx.DB().SetProjectKubeConfig(r.Project, r.KubeConfig)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
+	if project == nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to retrieve project."))
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectKubeConfigResp{
+		Project: *project,
+	})
+}
+
+func AddProjectUsers(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.SetProjectKubeConfigReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	project, err := ctx.DB().AddProjectUsers(r.Project, r.Users)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	if project == nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to retrieve project."))
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectKubeConfigResp{
+		Project: *project,
+	})
+}
+
+func getProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.GetProjectReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	project, err := ctx.DB().GetProject(r.Project)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	if newConf == nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to retrieve project."))
+		return
+	}
 	api.WriteJSONResp(rw, http.StatusOK, api.GetConfigResp{
-		Config: *config,
+		Project: *project,
 	})
 }
 
@@ -207,21 +241,31 @@ func maybeUpdateHorizonConfig(
 			project, hzConf, err)
 		return fmt.Errorf("error talking to database")
 	}
+	spew.Dump(newVersion)
 	// No need to do anything.
 	if newVersion == 0 {
 		return nil
 	}
 
-	lastError, err := ctx.DB().WaitForHorizonConfigVersion(project, newVersion)
+	hzState, err := ctx.DB().WaitForHorizonConfigVersion(project, newVersion)
 	if err != nil {
-		ctx.Error("Error calling WaitForHorizonConfigVersion(%v, %v): %v, %v",
-			project, newVersion, lastError, err)
+		ctx.Error("Error calling WaitForHorizonConfigVersion(%v, %v): %v",
+			project, newVersion, err)
+		return fmt.Errorf("Error waiting for Horizon Config to be applied.")
 	}
-	if lastError != "" {
-		return fmt.Errorf("error applying Horizon config: %v", lastError)
+	spew.Dump(hzState)
+	switch hzState.Typ {
+	case db.HZError:
+		return fmt.Errorf("error applying Horizon config: %v", hzState.LastError)
+	case db.HZApplied:
+		return nil
+	case db.HZSuperseded:
+		return fmt.Errorf("Horizon config superseded by later config")
+	case db.HZDeleted:
+		return fmt.Errorf("Horizon config superseded by project deletion")
 	}
 
-	return nil
+	panic("hzState.Typ switch is not exhaustive")
 }
 
 func updateProjectManifest(
@@ -435,7 +479,8 @@ func main() {
 	baseCtx = baseCtx.WithKube(k)
 
 	go configSync(baseCtx)
-	maybeUpdateHorizonConfig(baseCtx, "test", []byte("bar"))
+	// RSI: remove
+	maybeUpdateHorizonConfig(baseCtx, "test", []byte("baz"))
 
 	paths := []struct {
 		Path          string
@@ -446,8 +491,10 @@ func main() {
 		{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
 		// Mike uses these.
-		{api.SetConfigPath, setConfig, true},
-		{api.GetConfigPath, getConfig, true},
+		{api.GetProject, getProject, true},
+		{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
+		{api.AddProjectUsersPath, addProjectUsers, true},
+
 		{api.UserCreatePath, userCreate, true},
 		{api.UserGetPath, userGet, true},
 		{api.UserAddKeysPath, userAddKeys, true},

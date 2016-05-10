@@ -6,6 +6,7 @@ import (
 	"time"
 
 	r "github.com/dancannon/gorethink"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
@@ -18,9 +19,9 @@ type DBConnection struct {
 var (
 	ErrCanceled = errors.New("canceled")
 
-	configs = r.DB("hzc_api").Table("configs")
-	users   = r.DB("hzc_api").Table("users")
-	domains = r.DB("hzc_api").Table("domains")
+	projects = r.DB("hzc_api").Table("projects")
+	users    = r.DB("hzc_api").Table("users")
+	domains  = r.DB("hzc_api").Table("domains")
 )
 
 func New() (*DBConnection, error) {
@@ -54,36 +55,65 @@ func getBasicError(typeName string, name string) error {
 	return fmt.Errorf("internal error: unable to get %v `%s`", typeName, name)
 }
 
-func (d *DB) SetConfig(c types.Config) (*types.Config, error) {
-	q := configs.Insert(c, r.InsertOpts{Conflict: "update", ReturnChanges: "always"})
-
-	var resp struct {
-		Errors     int    `gorethink:"errors"`
-		FirstError string `gorethink:"first_error"`
-		Changes    []struct {
-			NewVal *types.Config `gorethink:"new_val"`
-		}
+type projectWriteResp struct {
+	Errors     int    `gorethink:"errors"`
+	Unchanged  int    `gorethink:"errors"`
+	FirstError string `gorethink:"first_error"`
+	Changes    []struct {
+		NewVal *types.Project `gorethink:"new_val"`
 	}
+}
+
+func (d *DB) runProjectWriteDetailed(
+	q r.Term) (*types.Project, projectWriteResp, error) {
+	var resp projectWriteResp
 	err := runOne(q, d.session, &resp)
 	if err != nil {
 		return nil, err
 	}
-
 	if resp.Errors != 0 {
 		return nil, errors.New(resp.FirstError)
 	}
-
 	if len(resp.Changes) != 1 {
-		return nil, errors.New("Unexpected number of changes in response")
+		return nil, fmt.Errorf("Unexpected number of changes in response: %v", resp)
 	}
+	return resp.Changes[0].NewVal, resp.Unchanged != 0, nil
+}
 
-	return resp.Changes[0].NewVal, nil
+func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
+	p, _, err := d.runProjectWriteDetailed(q)
+	return p, err
+}
+
+func (d *DB) SetProjectKubeConfig(
+	project string, kc KubeConfig) (*types.Project, error) {
+	q := projects.Insert(types.Project{
+		"ID":                util.TrueName(project),
+		"Name":              project,
+		"KubeConfig":        kc,
+		"KubeConfigVersion": 1,
+	}, r.InsertOpts{Conflict: func(id r.Term, oldVal r.Term, newVal r.Term) r.Term {
+		return oldVal.Merge(map[string]r.Term{
+			"KubeConfig":        newVal.Get("KubeConfig"),
+			"KubeConfigVersion": oldVal.Get("KubeConfigVersion").Add(1),
+		})
+	}, ReturnChanges: "always"})
+	return d.runProjectWrite(q)
+}
+
+func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, error) {
+	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
+		return map[string]r.Term{
+			"Users": oldVal.Get("Users").Default([]string{}).SetUnion(users),
+		}
+	}, r.UpdateOpts{ReturnChanges: "always"})
+	return d.runProjectWrite(q)
 }
 
 func (d *DB) MaybeUpdateHorizonConfig(
 	project string, hzConf types.HorizonConfig) (int64, error) {
 	q := r.Expr(hzConf).Do(func(hzc r.Term) r.Term {
-		return configs.Get(util.TrueName(project)).Update(func(config r.Term) r.Term {
+		return projects.Get(util.TrueName(project)).Update(func(config r.Term) r.Term {
 			return r.Branch(
 				config.Field("HorizonConfig").Eq(hzc).Default(false),
 				nil,
@@ -91,51 +121,64 @@ func (d *DB) MaybeUpdateHorizonConfig(
 					"HorizonConfig":        r.Expr(hzc),
 					"HorizonConfigVersion": config.Field("HorizonConfigVersion").Default(0).Add(1),
 				})
-		}, r.UpdateOpts{ReturnChanges: true})
+		}, r.UpdateOpts{ReturnChanges: "always"})
 	})
-	res, err := q.RunWrite(d.session)
-	if err != nil {
+	project, resp, err := d.runProjectWriteDetailed(q)
+	if resp.Unchanged != 0 {
+		// We return a special value if nothing changed so that we can skip waiting.
 		return 0, err
 	}
-
-	if res.Unchanged == 1 {
-		return 0, nil
-	}
-	if res.Replaced != 1 {
-		return 0, fmt.Errorf("maybeUpdateHorizonConfig failed to update (%v)", res)
-	}
-	if len(res.Changes) != 1 {
-		return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
-	}
-	newVal := res.Changes[0].NewValue
-	if newVal == nil {
-		return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
-	}
-
-	var newVer int64
-	switch m := newVal.(type) {
-	case map[string]interface{}:
-		newVersion := m["HorizonConfigVersion"]
-		switch v := newVersion.(type) {
-		case float64:
-			newVer = int64(v)
-		default:
-			return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
-		}
-	default:
-		return 0, fmt.Errorf("maybeUpdateHorizonConfig got unexpected changes (%v)", res)
-	}
-
-	return newVer, nil
+	return project.HorizonConfigVersion, nil
 }
 
-func (d *DB) WaitForHorizonConfigVersion(project string, version int64) (string, error) {
-	// RSI: do this
-	return "", nil
+type HZStateType int
+
+const (
+	HZError      HZStateType = 0
+	HZApplied    HZStateType = 1
+	HZSuperseded HZStateType = 2
+	HZDeleted    HZStateType = 3
+)
+
+type HZState struct {
+	Typ       HZStateType
+	LastError string
+}
+
+func (d *DB) WaitForHorizonConfigVersion(
+	project string, version int64) (HZState, error) {
+	q := projects.Get(util.TrueName(project)).Changes(r.ChangesOpts{IncludeInitial: true})
+	cursor, err := q.Run(d.session)
+	if err != nil {
+		d.log.Error("WaitForHorizonConfigVersion(%s, %d): %v", project, version, err)
+		return HZState{}, err
+	}
+	defer cursor.Close()
+	var c ConfigChange
+	for cursor.Next(&c) {
+		spew.Dump(c)
+		if c.NewVal == nil {
+			return HZState{Typ: HZDeleted}, nil
+		}
+		if c.NewVal.HorizonConfigAppliedVersion == version {
+			return HZState{Typ: HZApplied}, nil
+		}
+		if c.NewVal.HorizonConfigErrorVersion == version {
+			return HZState{Typ: HZError, LastError: c.NewVal.HorizonConfigLastError}, nil
+		}
+		if c.NewVal.HorizonConfigAppliedVersion > version ||
+			c.NewVal.HorizonConfigErrorVersion > version {
+			return HZState{Typ: HZSuperseded}, nil
+		}
+	}
+
+	err = fmt.Errorf("Changefeed aborted unexpectedly.")
+	d.log.Error("WaitForHorizonConfigVersion(%s, %d): %v", project, version, err)
+	return HZState{}, err
 }
 
 func (d *DB) HorizonConfigHashMatches(project string, confHash string) (bool, error) {
-	q := configs.Get(util.TrueName(project)).
+	q := projects.Get(util.TrueName(project)).
 		Field("HorizonConfigHash").
 		Default("")
 	var oldConfHash string
@@ -147,7 +190,7 @@ func (d *DB) HorizonConfigHashMatches(project string, confHash string) (bool, er
 }
 
 func (d *DB) SetHorizonConfigHash(project string, confHash string) error {
-	q := configs.Get(util.TrueName(project)).Update(map[string]string{
+	q := projects.Get(util.TrueName(project)).Update(map[string]string{
 		"HorizonConfigHash": confHash})
 	res, err := q.RunWrite(d.session)
 	if err != nil {
@@ -176,7 +219,7 @@ func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
 }
 
 func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
-	q := configs.GetAllByIndex("Users",
+	q := projects.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array")))
 	cursor, err := q.Run(d.session)
@@ -186,7 +229,7 @@ func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
 	}
 	defer cursor.Close()
 	var projects []types.Project
-	var c types.Config
+	var c types.Project
 	for cursor.Next(&c) {
 		projects = append(projects, types.ProjectFromName(c.Name))
 	}
@@ -194,7 +237,7 @@ func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
 }
 
 func (d *DB) GetProjectsByUsers(users []string) ([]types.Project, error) {
-	q := configs.GetAllByIndex("Users", r.Args(users))
+	q := projects.GetAllByIndex("Users", r.Args(users))
 	cursor, err := q.Run(d.session)
 	if err != nil {
 		d.log.Error("Couldn't get projects by key: %v", err)
@@ -202,7 +245,7 @@ func (d *DB) GetProjectsByUsers(users []string) ([]types.Project, error) {
 	}
 	defer cursor.Close()
 	var projects []types.Project
-	var c types.Config
+	var c types.Project
 	for cursor.Next(&c) {
 		projects = append(projects, types.ProjectFromName(c.Name))
 	}
@@ -222,10 +265,10 @@ func (d *DB) GetByDomain(domainName string) (*types.Project, error) {
 	return &project, nil
 }
 
-func (d *DB) GetConfig(name string) (*types.Config, error) {
-	var c types.Config
-	err := d.getBasicType(configs, "config", util.TrueName(name), &c)
-	return &c, err
+func (d *DB) GetProject(name string) (*types.Project, error) {
+	var p types.Project
+	err := d.getBasicType(projects, "project", util.TrueName(name), &p)
+	return &p, err
 }
 
 func (d *DB) UserCreate(name string) error {
@@ -292,12 +335,12 @@ func (d *DB) GetDomainsByProject(project string) ([]string, error) {
 }
 
 type ConfigChange struct {
-	OldVal *types.Config `gorethink:"old_val"`
-	NewVal *types.Config `gorethink:"new_val"`
+	OldVal *types.Project `gorethink:"old_val"`
+	NewVal *types.Project `gorethink:"new_val"`
 }
 
 func (d *DB) configChangesLoop(out chan<- ConfigChange) {
-	query := configs.Changes(r.ChangesOpts{IncludeInitial: true})
+	query := projects.Changes(r.ChangesOpts{IncludeInitial: true})
 	for {
 		ch := make(chan ConfigChange)
 		cur, err := query.Run(d.session)

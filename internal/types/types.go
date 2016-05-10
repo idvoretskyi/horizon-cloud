@@ -26,9 +26,6 @@ type KubeConfig struct {
 	NumHorizon int `gorethink:",omitempty"`
 }
 
-//	if err := util.ValidateProjectName(dc.Name, "Name"); err != nil {
-//		return err
-//	}
 func (dc *KubeConfig) Validate() error {
 	if dc.NumRDB != 1 {
 		return fmt.Errorf("NumRDB = %d, but only 1 is supported", dc.NumRDB)
@@ -42,23 +39,16 @@ func (dc *KubeConfig) Validate() error {
 	return nil
 }
 
-func DefaultKubeConfig() *KubeConfig {
-	return &KubeConfig{
-		NumRDB:     1,
-		SizeRDB:    10,
-		NumHorizon: 1,
-	}
-}
-
 type HorizonConfig []byte
 
 func (hzConf HorizonConfig) Hash() string {
 	return util.BytesToHash(hzConf)
 }
 
-type Config struct {
-	ID   string `gorethink:"id,omitempty"`
-	Name string `gorethink:",omitempty"`
+type Project struct {
+	ID    string   `gorethink:"id,omitempty"`
+	Name  string   `gorethink:",omitempty"`
+	Users []string `gorethink:",omitempty"`
 
 	KubeConfig               KubeConfig `gorethink:",omitempty"`
 	KubeConfigVersion        int64      `gorethink:",omitempty"`
