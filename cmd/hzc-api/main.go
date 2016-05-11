@@ -65,11 +65,11 @@ func setConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 }
 
 func getConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var gc api.GetConfigReq
-	if !decode(rw, req.Body, &gc) {
+	var r api.GetConfigReq
+	if !decode(rw, req.Body, &r) {
 		return
 	}
-	config, err := ctx.DB().GetConfig(gc.Name)
+	config, err := ctx.DB().GetConfig(r.Name)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
