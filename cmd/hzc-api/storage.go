@@ -113,17 +113,19 @@ func (o objectAttrsByName) Swap(i, j int)      { o[i], o[j] = o[j], o[i] }
 func copyAllObjects(
 	ctx *hzhttp.Context,
 	client *storage.Client,
-	bucket, srcPrefix, dstPrefix string) error {
+	srcBucket, srcPrefix string,
+	dstBucket, dstPrefix string) error {
 
-	ctx.Info("copying all objects in bucket %#v, prefix %#v to prefix %#v",
-		bucket, srcPrefix, dstPrefix)
+	ctx.Info("copying all objects in bucket %#v prefix %#v to bucket %#v prefix %#v",
+		srcBucket, srcPrefix, dstBucket, dstPrefix)
 
-	bucketH := client.Bucket(bucket)
+	srcBucketH := client.Bucket(srcBucket)
+	dstBucketH := client.Bucket(dstBucket)
 
 	srcContents := make([]*storage.ObjectAttrs, 0, 32)
 	listQ := &storage.Query{Prefix: srcPrefix}
 	for listQ != nil {
-		list, err := bucketH.List(nil, listQ)
+		list, err := srcBucketH.List(nil, listQ)
 		if err != nil {
 			return err
 		}
@@ -141,7 +143,7 @@ func copyAllObjects(
 	dstContents := make([]*storage.ObjectAttrs, 0, 32)
 	listQ = &storage.Query{Prefix: dstPrefix}
 	for listQ != nil {
-		list, err := bucketH.List(nil, listQ)
+		list, err := dstBucketH.List(nil, listQ)
 		if err != nil {
 			return err
 		}
@@ -169,7 +171,7 @@ func copyAllObjects(
 			// same file
 
 			if !bytes.Equal(srcF.MD5, dstF.MD5) {
-				_, err := bucketH.Object(srcF.Name).CopyTo(nil, bucketH.Object(dstF.Name), srcF)
+				_, err := srcBucketH.Object(srcF.Name).CopyTo(nil, dstBucketH.Object(dstF.Name), srcF)
 				if err != nil {
 					return err
 				}
@@ -182,7 +184,7 @@ func copyAllObjects(
 
 			newDestName := dstPrefix + strings.TrimPrefix(srcF.Name, srcPrefix)
 
-			_, err := bucketH.Object(srcF.Name).CopyTo(nil, bucketH.Object(newDestName), srcF)
+			_, err := srcBucketH.Object(srcF.Name).CopyTo(nil, dstBucketH.Object(newDestName), srcF)
 			if err != nil {
 				return err
 			}
@@ -191,7 +193,7 @@ func copyAllObjects(
 		} else if srcN > dstN {
 			// destination file now nonexistent
 
-			err := bucketH.Object(dstF.Name).Delete(nil)
+			err := dstBucketH.Object(dstF.Name).Delete(nil)
 			if err != nil {
 				return err
 			}
@@ -208,7 +210,7 @@ func copyAllObjects(
 		for _, srcF := range srcContents {
 			newDestName := dstPrefix + strings.TrimPrefix(srcF.Name, srcPrefix)
 
-			_, err := bucketH.Object(srcF.Name).CopyTo(nil, bucketH.Object(newDestName), srcF)
+			_, err := srcBucketH.Object(srcF.Name).CopyTo(nil, dstBucketH.Object(newDestName), srcF)
 			if err != nil {
 				return err
 			}
@@ -219,7 +221,7 @@ func copyAllObjects(
 		// all remaining destination files are now nonexistent
 
 		for _, dstF := range dstContents {
-			err := bucketH.Object(dstF.Name).Delete(nil)
+			err := dstBucketH.Object(dstF.Name).Delete(nil)
 			if err != nil {
 				return err
 			}

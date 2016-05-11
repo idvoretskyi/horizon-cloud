@@ -280,8 +280,9 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 		return
 	}
 
-	err = copyAllObjects(ctx, gc.StorageClient(), storageBucket,
-		"horizon/", stagingPrefix+"horizon/")
+	err = copyAllObjects(ctx, gc.StorageClient(),
+		storageBucket, "horizon/",
+		storageBucket, stagingPrefix+"horizon/")
 	if err != nil {
 		ctx.Error("Couldn't copy horizon objects: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -301,9 +302,8 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 		err := copyAllObjects(
 			ctx,
 			gc.StorageClient(),
-			storageBucket,
-			stagingPrefix,
-			"domains/"+domain+"/")
+			storageBucket, stagingPrefix,
+			storageBucket, "domains/"+domain+"/")
 		if err != nil {
 			ctx.Error("Couldn't copy objects for %v to domains/%v: %v",
 				r.Project, domain, err)
