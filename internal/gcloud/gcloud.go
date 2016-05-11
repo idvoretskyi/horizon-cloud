@@ -29,11 +29,12 @@ type Disk struct {
 }
 
 type GCloud struct {
-	client  *http.Client
-	compute *compute.Service
-	storage *storage.Client
-	project string
-	zone    string
+	client       *http.Client
+	compute      *compute.Service
+	storage      *storage.Client
+	storageAdmin *storage.AdminClient
+	project      string
+	zone         string
 }
 
 func New(serviceAccount *jwt.Config, project string, zone string) (*GCloud, error) {
@@ -46,14 +47,20 @@ func New(serviceAccount *jwt.Config, project string, zone string) (*GCloud, erro
 	}
 
 	ctx := context.Background()
-	storageClient, err := storage.NewClient(
-		ctx,
-		cloud.WithTokenSource(serviceAccount.TokenSource(ctx)))
+	authOption := cloud.WithTokenSource(serviceAccount.TokenSource(ctx))
+
+	storageClient, err := storage.NewClient(ctx, authOption)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GCloud{client, computeSv, storageClient, project, zone}, nil
+	storageAdminClient, err := storage.NewAdminClient(ctx, project, authOption)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GCloud{client, computeSv, storageClient, storageAdminClient,
+		project, zone}, nil
 }
 
 func (g *GCloud) CreateDisk(sizeGB int64, disktype DiskType) (*Disk, error) {
@@ -104,4 +111,8 @@ func (g *GCloud) DeleteDisk(name string) error {
 
 func (g *GCloud) StorageClient() *storage.Client {
 	return g.storage
+}
+
+func (g *GCloud) StorageAdminClient() *storage.AdminClient {
+	return g.storageAdmin
 }
