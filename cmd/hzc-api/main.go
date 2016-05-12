@@ -15,7 +15,6 @@ import (
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/cloud/storage"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
@@ -245,7 +244,6 @@ func maybeUpdateHorizonConfig(
 			project, hzConf, err)
 		return fmt.Errorf("error talking to database")
 	}
-	spew.Dump(newVersion)
 	// No need to do anything.
 	if newVersion == 0 {
 		return nil
@@ -257,7 +255,6 @@ func maybeUpdateHorizonConfig(
 			project, newVersion, err)
 		return fmt.Errorf("Error waiting for Horizon Config to be applied.")
 	}
-	spew.Dump(hzState)
 	switch hzState.Typ {
 	case db.HZError:
 		return fmt.Errorf("error applying Horizon config: %v", hzState.LastError)
