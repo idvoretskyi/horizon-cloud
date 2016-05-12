@@ -480,8 +480,6 @@ func main() {
 	baseCtx = baseCtx.WithKube(k)
 
 	go projectSync(baseCtx)
-	// RSI: remove
-	maybeUpdateHorizonConfig(baseCtx, "test", []byte("baz"))
 
 	paths := []struct {
 		Path          string
