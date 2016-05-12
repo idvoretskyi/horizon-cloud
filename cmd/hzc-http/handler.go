@@ -63,17 +63,17 @@ func (h *Handler) getCachedTarget(host string) (string, error) {
 }
 
 func (h *Handler) lookupTargetForHost(host string) (string, error) {
-	resp, err := h.conf.APIClient.GetProjectByDomain(api.GetProjectByDomainReq{
+	resp, err := h.conf.APIClient.GetProjectAddrByDomain(api.GetProjectAddrByDomainReq{
 		Domain: host,
 	})
 	// RSI: log error.
 	if err != nil {
 		return "", err
 	}
-	if resp.Project == nil {
+	if resp.ProjectAddr == nil {
 		return "", &NoHostMappingError{host}
 	}
-	return resp.Project.HTTPAddress, nil
+	return resp.ProjectAddr.HTTPAddr, nil
 }
 
 func maybeCloseWrite(c net.Conn) {

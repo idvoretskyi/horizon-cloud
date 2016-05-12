@@ -29,11 +29,9 @@ func NewClient(baseURL string, sharedSecret string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetConfig(
-	opts GetConfigReq) (*GetConfigResp, error) {
-
-	var ret GetConfigResp
-	err := c.jsonRoundTrip(GetConfigPath, opts, &ret)
+func (c *Client) GetProject(opts GetProjectReq) (*GetProjectResp, error) {
+	var ret GetProjectResp
+	err := c.jsonRoundTrip(GetProjectPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}
@@ -51,21 +49,21 @@ func (c *Client) GetUsersByKey(
 	return &ret, nil
 }
 
-func (c *Client) GetProjectsByKey(
-	opts GetProjectsByKeyReq) (*GetProjectsByKeyResp, error) {
+func (c *Client) GetProjectAddrsByKey(
+	opts GetProjectAddrsByKeyReq) (*GetProjectAddrsByKeyResp, error) {
 
-	var ret GetProjectsByKeyResp
-	err := c.jsonRoundTrip(GetProjectsByKeyPath, opts, &ret)
+	var ret GetProjectAddrsByKeyResp
+	err := c.jsonRoundTrip(GetProjectAddrsByKeyPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}
 	return &ret, nil
 }
 
-func (c *Client) GetProjectByDomain(
-	opts GetProjectByDomainReq) (*GetProjectByDomainResp, error) {
-	var ret GetProjectByDomainResp
-	err := c.jsonRoundTrip(GetProjectByDomainPath, opts, &ret)
+func (c *Client) GetProjectAddrByDomain(
+	opts GetProjectAddrByDomainReq) (*GetProjectAddrByDomainResp, error) {
+	var ret GetProjectAddrByDomainResp
+	err := c.jsonRoundTrip(GetProjectAddrByDomainPath, opts, &ret)
 	if err != nil {
 		return nil, err
 	}

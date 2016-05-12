@@ -20,7 +20,7 @@ var SetProjectKubeConfigPath = "/v1/projects/setKubeConfig"
 
 type SetProjectKubeConfigReq struct {
 	Project    string
-	KubeConfig KubeConfig
+	KubeConfig types.KubeConfig
 }
 
 func (r *SetProjectKubeConfigReq) Validate() error {
@@ -53,8 +53,8 @@ func (r *AddProjectUsersReq) Validate() error {
 	if len(r.Users) == 0 {
 		return fmt.Errorf("no users specified")
 	}
-	for user := range users {
-		err := util.ValidateUserName(user, "Users")
+	for _, user := range r.Users {
+		err := util.ValidateUserName(user)
 		if err != nil {
 			return err
 		}
@@ -214,40 +214,40 @@ type GetUsersByKeyResp struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetProjectsByKey
+// GetProjectAddrsByKey
 
-var GetProjectsByKeyPath = "/v1/projects/getByKey"
+var GetProjectAddrsByKeyPath = "/v1/projects/getAddrsByKey"
 
-type GetProjectsByKeyReq struct {
+type GetProjectAddrsByKeyReq struct {
 	PublicKey string
 }
 
-func (gp *GetProjectsByKeyReq) Validate() error {
+func (gp *GetProjectAddrsByKeyReq) Validate() error {
 	if !ssh.ValidKey(gp.PublicKey) {
 		return errors.New("invalid public key format")
 	}
 	return nil
 }
 
-type GetProjectsByKeyResp struct {
-	Projects []types.Project
+type GetProjectAddrsByKeyResp struct {
+	ProjectAddrs []types.ProjectAddr
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetProjectByDomain
+// GetProjectAddrByDomain
 
-var GetProjectByDomainPath = "/v1/projects/getByDomain"
+var GetProjectAddrByDomainPath = "/v1/projects/getByDomain"
 
-type GetProjectByDomainReq struct {
+type GetProjectAddrByDomainReq struct {
 	Domain string
 }
 
-func (r *GetProjectByDomainReq) Validate() error {
+func (r *GetProjectAddrByDomainReq) Validate() error {
 	return util.ValidateDomainName(r.Domain, "Domain")
 }
 
-type GetProjectByDomainResp struct {
-	Project *types.Project
+type GetProjectAddrByDomainResp struct {
+	ProjectAddr *types.ProjectAddr
 }
 
 ////////////////////////////////////////////////////////////////////////////////

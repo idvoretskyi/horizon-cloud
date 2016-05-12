@@ -65,19 +65,19 @@ type projectWriteResp struct {
 }
 
 func (d *DB) runProjectWriteDetailed(
-	q r.Term) (*types.Project, projectWriteResp, error) {
+	q r.Term) (*types.Project, *projectWriteResp, error) {
 	var resp projectWriteResp
 	err := runOne(q, d.session, &resp)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if resp.Errors != 0 {
-		return nil, errors.New(resp.FirstError)
+		return nil, nil, errors.New(resp.FirstError)
 	}
 	if len(resp.Changes) != 1 {
-		return nil, fmt.Errorf("Unexpected number of changes in response: %v", resp)
+		return nil, nil, fmt.Errorf("Unexpected number of changes in response: %v", resp)
 	}
-	return resp.Changes[0].NewVal, resp.Unchanged != 0, nil
+	return resp.Changes[0].NewVal, &resp, nil
 }
 
 func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
@@ -86,12 +86,12 @@ func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
 }
 
 func (d *DB) SetProjectKubeConfig(
-	project string, kc KubeConfig) (*types.Project, error) {
+	project string, kc types.KubeConfig) (*types.Project, error) {
 	q := projects.Insert(types.Project{
-		"ID":                util.TrueName(project),
-		"Name":              project,
-		"KubeConfig":        kc,
-		"KubeConfigVersion": 1,
+		ID:                util.TrueName(project),
+		Name:              project,
+		KubeConfig:        kc,
+		KubeConfigVersion: 1,
 	}, r.InsertOpts{Conflict: func(id r.Term, oldVal r.Term, newVal r.Term) r.Term {
 		return oldVal.Merge(map[string]r.Term{
 			"KubeConfig":        newVal.Get("KubeConfig"),
@@ -101,19 +101,28 @@ func (d *DB) SetProjectKubeConfig(
 	return d.runProjectWrite(q)
 }
 
+func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, error) {
+	q := projects.Get(projectPatch.ID).Update(projectPatch)
+	res, err := q.RunWrite(d.session)
+	if err != nil {
+		return false, nil
+	}
+	return res.Replaced == 1, nil
+}
+
 func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, error) {
 	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
-		return map[string]r.Term{
+		return r.Expr(map[string]r.Term{
 			"Users": oldVal.Get("Users").Default([]string{}).SetUnion(users),
-		}
+		})
 	}, r.UpdateOpts{ReturnChanges: "always"})
 	return d.runProjectWrite(q)
 }
 
 func (d *DB) MaybeUpdateHorizonConfig(
-	project string, hzConf types.HorizonConfig) (int64, error) {
+	projectName string, hzConf types.HorizonConfig) (int64, error) {
 	q := r.Expr(hzConf).Do(func(hzc r.Term) r.Term {
-		return projects.Get(util.TrueName(project)).Update(func(config r.Term) r.Term {
+		return projects.Get(util.TrueName(projectName)).Update(func(config r.Term) r.Term {
 			return r.Branch(
 				config.Field("HorizonConfig").Eq(hzc).Default(false),
 				nil,
@@ -124,9 +133,12 @@ func (d *DB) MaybeUpdateHorizonConfig(
 		}, r.UpdateOpts{ReturnChanges: "always"})
 	})
 	project, resp, err := d.runProjectWriteDetailed(q)
+	if err != nil {
+		return 0, err
+	}
 	if resp.Unchanged != 0 {
 		// We return a special value if nothing changed so that we can skip waiting.
-		return 0, err
+		return 0, nil
 	}
 	return project.HorizonConfigVersion, nil
 }
@@ -154,7 +166,7 @@ func (d *DB) WaitForHorizonConfigVersion(
 		return HZState{}, err
 	}
 	defer cursor.Close()
-	var c ConfigChange
+	var c ProjectChange
 	for cursor.Next(&c) {
 		spew.Dump(c)
 		if c.NewVal == nil {
@@ -218,25 +230,25 @@ func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
 	return users, nil
 }
 
-func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
+func (d *DB) GetProjectAddrsByKey(publicKey string) ([]types.ProjectAddr, error) {
 	q := projects.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array")))
 	cursor, err := q.Run(d.session)
 	if err != nil {
-		d.log.Error("Couldn't get projects by key: %v", err)
+		d.log.Error("Couldn't get projectAddrs by key: %v", err)
 		return nil, err
 	}
 	defer cursor.Close()
-	var projects []types.Project
-	var c types.Project
-	for cursor.Next(&c) {
-		projects = append(projects, types.ProjectFromName(c.Name))
+	var projectAddrs []types.ProjectAddr
+	var p types.Project
+	for cursor.Next(&p) {
+		projectAddrs = append(projectAddrs, types.ProjectAddrFromName(p.Name))
 	}
-	return projects, nil
+	return projectAddrs, nil
 }
 
-func (d *DB) GetProjectsByUsers(users []string) ([]types.Project, error) {
+func (d *DB) GetProjectAddrsByUsers(users []string) ([]types.ProjectAddr, error) {
 	q := projects.GetAllByIndex("Users", r.Args(users))
 	cursor, err := q.Run(d.session)
 	if err != nil {
@@ -244,15 +256,15 @@ func (d *DB) GetProjectsByUsers(users []string) ([]types.Project, error) {
 		return nil, err
 	}
 	defer cursor.Close()
-	var projects []types.Project
-	var c types.Project
-	for cursor.Next(&c) {
-		projects = append(projects, types.ProjectFromName(c.Name))
+	var projectAddrs []types.ProjectAddr
+	var p types.Project
+	for cursor.Next(&p) {
+		projectAddrs = append(projectAddrs, types.ProjectAddrFromName(p.Name))
 	}
-	return projects, nil
+	return projectAddrs, nil
 }
 
-func (d *DB) GetByDomain(domainName string) (*types.Project, error) {
+func (d *DB) GetProjectAddrByDomain(domainName string) (*types.ProjectAddr, error) {
 	var domain types.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
@@ -261,8 +273,8 @@ func (d *DB) GetByDomain(domainName string) (*types.Project, error) {
 		}
 		return nil, nil
 	}
-	project := types.ProjectFromName(domain.Project)
-	return &project, nil
+	projectAddr := types.ProjectAddrFromName(domain.Project)
+	return &projectAddr, nil
 }
 
 func (d *DB) GetProject(name string) (*types.Project, error) {
@@ -334,15 +346,15 @@ func (d *DB) GetDomainsByProject(project string) ([]string, error) {
 	return domains, nil
 }
 
-type ConfigChange struct {
+type ProjectChange struct {
 	OldVal *types.Project `gorethink:"old_val"`
 	NewVal *types.Project `gorethink:"new_val"`
 }
 
-func (d *DB) configChangesLoop(out chan<- ConfigChange) {
+func (d *DB) projectChangesLoop(out chan<- ProjectChange) {
 	query := projects.Changes(r.ChangesOpts{IncludeInitial: true})
 	for {
-		ch := make(chan ConfigChange)
+		ch := make(chan ProjectChange)
 		cur, err := query.Run(d.session)
 		if err != nil {
 			d.log.Error("Couldn't query for config changes: %s", err)
@@ -359,8 +371,8 @@ func (d *DB) configChangesLoop(out chan<- ConfigChange) {
 	}
 }
 
-func (d *DB) ConfigChanges(out chan<- ConfigChange) {
-	go d.configChangesLoop(out)
+func (d *DB) ProjectChanges(out chan<- ProjectChange) {
+	go d.projectChangesLoop(out)
 }
 
 func runOne(query r.Term, session *r.Session, out interface{}) error {

@@ -16,8 +16,8 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 )
 
-var configs = make(map[string]*types.Config)
-var configsLock sync.Mutex
+var projects = make(map[string]*types.Project)
+var projectsLock sync.Mutex
 
 // Errors returned from this are shown to users.
 func applyHorizonConfig(k *kube.Kube, trueName string, hzc types.HorizonConfig) error {
@@ -46,16 +46,16 @@ func applyHorizonConfig(k *kube.Kube, trueName string, hzc types.HorizonConfig) 
 	return nil
 }
 
-func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
+func applyProjects(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 	for {
-		conf := func() *types.Config {
-			configsLock.Lock()
-			defer configsLock.Unlock()
-			conf := configs[trueName]
+		conf := func() *types.Project {
+			projectsLock.Lock()
+			defer projectsLock.Unlock()
+			conf := projects[trueName]
 			if conf == nil {
-				delete(configs, trueName)
+				delete(projects, trueName)
 			} else {
-				configs[trueName] = nil
+				projects[trueName] = nil
 			}
 			return conf
 		}()
@@ -89,8 +89,7 @@ func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 			if err != nil {
 				log.Printf("error applying Horizon config %s:%s (%v)",
 					trueName, conf.HorizonConfigVersion, err)
-				_, err = rdb.SetConfig(types.Config{
-					ID: conf.ID,
+				_, err = rdb.UpdateProject(conf.ID, types.Project{
 					HorizonConfigLastError:    err.Error(),
 					HorizonConfigErrorVersion: conf.HorizonConfigVersion,
 				})
@@ -101,10 +100,9 @@ func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 			}
 		}
 
-		log.Printf("successfully applied config %s:%s/%s",
+		log.Printf("successfully applied project %s:%s/%s",
 			trueName, conf.KubeConfigVersion, conf.HorizonConfigVersion)
-		_, err = rdb.SetConfig(types.Config{
-			ID: conf.ID,
+		_, err = rdb.UpdateProject(conf.ID, types.Project{
 			KubeConfigAppliedVersion:    conf.KubeConfigVersion,
 			HorizonConfigAppliedVersion: conf.HorizonConfigVersion,
 		})
@@ -115,13 +113,13 @@ func applyConfigs(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 	}
 }
 
-func configSync(ctx *hzhttp.Context) {
+func projectSync(ctx *hzhttp.Context) {
 	rdb := ctx.DB()
 	serviceAccount := ctx.ServiceAccount()
 
 	// RSI: shut down mid-spinup and see if it recovers.
-	changeChan := make(chan db.ConfigChange)
-	rdb.ConfigChanges(changeChan)
+	changeChan := make(chan db.ProjectChange)
+	rdb.ProjectChanges(changeChan)
 	for c := range changeChan {
 		if c.NewVal != nil {
 			if c.NewVal.KubeConfigVersion == c.NewVal.KubeConfigAppliedVersion &&
@@ -129,12 +127,12 @@ func configSync(ctx *hzhttp.Context) {
 				continue
 			}
 			func() {
-				configsLock.Lock()
-				defer configsLock.Unlock()
-				_, workerRunning := configs[c.NewVal.ID]
-				configs[c.NewVal.ID] = c.NewVal
+				projectsLock.Lock()
+				defer projectsLock.Unlock()
+				_, workerRunning := projects[c.NewVal.ID]
+				projects[c.NewVal.ID] = c.NewVal
 				if !workerRunning {
-					go applyConfigs(serviceAccount, rdb, c.NewVal.ID)
+					go applyProjects(serviceAccount, rdb, c.NewVal.ID)
 				}
 			}()
 		} else {

@@ -66,16 +66,16 @@ type Domain struct {
 	Project string
 }
 
-type Project struct {
-	Name        string
-	HTTPAddress string
+type ProjectAddr struct {
+	Name     string
+	HTTPAddr string
 }
 
-func ProjectFromName(name string) Project {
+func ProjectAddrFromName(name string) ProjectAddr {
 	trueName := util.TrueName(name)
-	return Project{
-		Name:        name,
-		HTTPAddress: "h-" + trueName + ".user:8181",
+	return ProjectAddr{
+		Name:     name,
+		HTTPAddr: "h-" + trueName + ".user:8181",
 	}
 }
 

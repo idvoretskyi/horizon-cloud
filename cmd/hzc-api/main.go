@@ -74,9 +74,9 @@ func setProjectKubeConfig(
 	})
 }
 
-func AddProjectUsers(
+func addProjectUsers(
 	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetProjectKubeConfigReq
+	var r api.AddProjectUsersReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
@@ -90,7 +90,7 @@ func AddProjectUsers(
 			fmt.Errorf("Unable to retrieve project."))
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectKubeConfigResp{
+	api.WriteJSONResp(rw, http.StatusOK, api.AddProjectUsersResp{
 		Project: *project,
 	})
 }
@@ -105,12 +105,12 @@ func getProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) 
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	if newConf == nil {
+	if project == nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError,
 			fmt.Errorf("Unable to retrieve project."))
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetConfigResp{
+	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectResp{
 		Project: *project,
 	})
 }
@@ -206,30 +206,34 @@ func getUsersByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Reques
 	api.WriteJSONResp(rw, http.StatusOK, api.GetUsersByKeyResp{Users: users})
 }
 
-func getProjectsByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var gp api.GetProjectsByKeyReq
+func getProjectAddrsByKey(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var gp api.GetProjectAddrsByKeyReq
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	projects, err := ctx.DB().GetProjectsByKey(gp.PublicKey)
+	projectAddrs, err := ctx.DB().GetProjectAddrsByKey(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsByKeyResp{Projects: projects})
+	api.WriteJSONResp(rw, http.StatusOK,
+		api.GetProjectAddrsByKeyResp{ProjectAddrs: projectAddrs})
 }
 
-func getProjectByDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.GetProjectByDomainReq
+func getProjectAddrByDomain(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.GetProjectAddrByDomainReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	project, err := ctx.DB().GetByDomain(r.Domain)
+	projectAddr, err := ctx.DB().GetProjectAddrByDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectByDomainResp{project})
+	api.WriteJSONResp(rw, http.StatusOK,
+		api.GetProjectAddrByDomainResp{ProjectAddr: projectAddr})
 }
 
 // Note: errors from this function are passed to the user.
@@ -284,7 +288,7 @@ func updateProjectManifest(
 		return
 	}
 
-	allowedProjects, err := ctx.DB().GetProjectsByUsers(tokData.Users)
+	allowedProjectAddrs, err := ctx.DB().GetProjectAddrsByUsers(tokData.Users)
 	if err != nil {
 		ctx.Error("Couldn't get project list for users: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -293,8 +297,8 @@ func updateProjectManifest(
 	}
 
 	found := false
-	for _, proj := range allowedProjects {
-		if util.TrueName(proj.Name) == util.TrueName(r.Project) {
+	for _, projectAddr := range allowedProjectAddrs {
+		if util.TrueName(projectAddr.Name) == util.TrueName(r.Project) {
 			found = true
 			break
 		}
@@ -478,7 +482,7 @@ func main() {
 	k := kube.New(templatePath, gc)
 	baseCtx = baseCtx.WithKube(k)
 
-	go configSync(baseCtx)
+	go projectSync(baseCtx)
 	// RSI: remove
 	maybeUpdateHorizonConfig(baseCtx, "test", []byte("baz"))
 
@@ -491,7 +495,7 @@ func main() {
 		{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
 		// Web interface uses these.
-		{api.GetProject, getProject, true},
+		{api.GetProjectPath, getProject, true},
 		{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
 		{api.AddProjectUsersPath, addProjectUsers, true},
 		{api.UserCreatePath, userCreate, true},
@@ -503,8 +507,8 @@ func main() {
 
 		// Other server stuff uses these.
 		{api.GetUsersByKeyPath, getUsersByKey, true},
-		{api.GetProjectsByKeyPath, getProjectsByKey, true},
-		{api.GetProjectByDomainPath, getProjectByDomain, true},
+		{api.GetProjectAddrsByKeyPath, getProjectAddrsByKey, true},
+		{api.GetProjectAddrByDomainPath, getProjectAddrByDomain, true},
 	}
 
 	mux := hzhttp.NewMuxer()
