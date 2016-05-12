@@ -41,10 +41,6 @@ func (dc *KubeConfig) Validate() error {
 
 type HorizonConfig []byte
 
-func (hzConf HorizonConfig) Hash() string {
-	return util.BytesToHash(hzConf)
-}
-
 type Project struct {
 	ID    string   `gorethink:"id,omitempty"`
 	Name  string   `gorethink:",omitempty"`
