@@ -6,7 +6,6 @@ import (
 	"time"
 
 	r "github.com/dancannon/gorethink"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
@@ -168,7 +167,6 @@ func (d *DB) WaitForHorizonConfigVersion(
 	defer cursor.Close()
 	var c ProjectChange
 	for cursor.Next(&c) {
-		spew.Dump(c)
 		if c.NewVal == nil {
 			return HZState{Typ: HZDeleted}, nil
 		}
