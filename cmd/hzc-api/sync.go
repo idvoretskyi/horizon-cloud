@@ -32,7 +32,7 @@ func applyHorizonConfig(k *kube.Kube, trueName string, hzc types.HorizonConfig) 
 	pod := pods[rand.Intn(len(pods))]
 	stdout, stderr, err := k.Exec(kube.ExecOptions{
 		PodName: pod,
-		In:      bytes.NewReader([]byte(hzc)),
+		In:      bytes.NewReader(hzc),
 		Command: []string{"su", "-s", "/bin/sh", "horizon", "-c",
 			"sleep 0.3; cat > /tmp/conf; echo stdout; echo stderr >&2"},
 	})
