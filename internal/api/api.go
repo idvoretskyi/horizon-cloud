@@ -259,7 +259,7 @@ type UpdateProjectManifestReq struct {
 	Token         string
 	Project       string
 	Files         []types.FileDescription
-	HorizonConfig []byte
+	HorizonConfig types.HorizonConfig
 }
 
 func (r *UpdateProjectManifestReq) Validate() error {

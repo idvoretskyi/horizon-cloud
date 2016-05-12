@@ -235,9 +235,9 @@ func getProjectAddrByDomain(
 		api.GetProjectAddrByDomainResp{ProjectAddr: projectAddr})
 }
 
-// Note: errors from this function are passed to the user.
 func maybeUpdateHorizonConfig(
 	ctx *hzhttp.Context, project string, hzConf types.HorizonConfig) error {
+	// Note: errors from this function are passed to the user.
 	newVersion, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
 	if err != nil {
 		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
