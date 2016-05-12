@@ -21,6 +21,14 @@ func ValidateProjectName(name string, fieldName string) error {
 	return nil
 }
 
+func ValidateUserName(name string) error {
+	// RSI: more validation.
+	if name == "" {
+		return fmt.Errorf("empty user provided")
+	}
+	return nil
+}
+
 // ReasonableToken returns true if the token could possibly be a JWT token.
 func ReasonableToken(token string) bool {
 	dots := 0

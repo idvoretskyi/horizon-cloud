@@ -14,62 +14,73 @@ var ProjectEnvVarName = "HORIZON_PROJECT"
 // RSI: documentation
 
 ////////////////////////////////////////////////////////////////////////////////
-// EnsureConfigConnectable
+// SetProjectKubeConfig
 
-var EnsureConfigConnectablePath = "/v1/configs/ensureConnectable"
+var SetProjectKubeConfigPath = "/v1/projects/setKubeConfig"
 
-type EnsureConfigConnectableReq struct {
-	Name              string
-	AllowClusterStart types.ClusterStartBool
+type SetProjectKubeConfigReq struct {
+	Project    string
+	KubeConfig types.KubeConfig
 }
 
-func (r *EnsureConfigConnectableReq) Validate() error {
-	err := util.ValidateProjectName(r.Name, "Name")
+func (r *SetProjectKubeConfigReq) Validate() error {
+	err := util.ValidateProjectName(r.Project, "Project")
 	if err != nil {
 		return err
 	}
-	if r.AllowClusterStart == types.AllowClusterStart {
-		return fmt.Errorf("you are not authorized to start clusters")
+	return r.KubeConfig.Validate()
+}
+
+type SetProjectKubeConfigResp struct {
+	types.Project
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AddProjectUsers
+
+var AddProjectUsersPath = "/v1/projects/addUsers"
+
+type AddProjectUsersReq struct {
+	Project string
+	Users   []string
+}
+
+func (r *AddProjectUsersReq) Validate() error {
+	err := util.ValidateProjectName(r.Project, "Project")
+	if err != nil {
+		return err
+	}
+	if len(r.Users) == 0 {
+		return fmt.Errorf("no users specified")
+	}
+	for _, user := range r.Users {
+		err := util.ValidateUserName(user)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-type EnsureConfigConnectableResp struct {
-	Config types.Config
+type AddProjectUsersResp struct {
+	types.Project
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SetConfig
+// GetProject
 
-var SetConfigPath = "/v1/configs/set"
+var GetProjectPath = "/v1/projects/get"
 
-type SetConfigReq struct {
-	types.DesiredConfig
+type GetProjectReq struct {
+	Project string
 }
 
-func (r *SetConfigReq) Validate() error {
-	return r.DesiredConfig.Validate()
+func (r *GetProjectReq) Validate() error {
+	return util.ValidateProjectName(r.Project, "Project")
 }
 
-type SetConfigResp struct {
-	types.Config
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// GetConfig
-
-var GetConfigPath = "/v1/configs/get"
-
-type GetConfigReq struct {
-	Name string
-}
-
-func (r *GetConfigReq) Validate() error {
-	return util.ValidateProjectName(r.Name, "Name")
-}
-
-type GetConfigResp struct {
-	Config types.Config
+type GetProjectResp struct {
+	types.Project
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,40 +214,40 @@ type GetUsersByKeyResp struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetProjectsByKey
+// GetProjectAddrsByKey
 
-var GetProjectsByKeyPath = "/v1/projects/getByKey"
+var GetProjectAddrsByKeyPath = "/v1/projects/getAddrsByKey"
 
-type GetProjectsByKeyReq struct {
+type GetProjectAddrsByKeyReq struct {
 	PublicKey string
 }
 
-func (gp *GetProjectsByKeyReq) Validate() error {
+func (gp *GetProjectAddrsByKeyReq) Validate() error {
 	if !ssh.ValidKey(gp.PublicKey) {
 		return errors.New("invalid public key format")
 	}
 	return nil
 }
 
-type GetProjectsByKeyResp struct {
-	Projects []types.Project
+type GetProjectAddrsByKeyResp struct {
+	ProjectAddrs []types.ProjectAddr
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// GetProjectByDomain
+// GetProjectAddrByDomain
 
-var GetProjectByDomainPath = "/v1/projects/getByDomain"
+var GetProjectAddrByDomainPath = "/v1/projects/getByDomain"
 
-type GetProjectByDomainReq struct {
+type GetProjectAddrByDomainReq struct {
 	Domain string
 }
 
-func (r *GetProjectByDomainReq) Validate() error {
+func (r *GetProjectAddrByDomainReq) Validate() error {
 	return util.ValidateDomainName(r.Domain, "Domain")
 }
 
-type GetProjectByDomainResp struct {
-	Project *types.Project
+type GetProjectAddrByDomainResp struct {
+	ProjectAddr *types.ProjectAddr
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,7 +259,7 @@ type UpdateProjectManifestReq struct {
 	Token         string
 	Project       string
 	Files         []types.FileDescription
-	HorizonConfig []byte
+	HorizonConfig types.HorizonConfig
 }
 
 func (r *UpdateProjectManifestReq) Validate() error {
