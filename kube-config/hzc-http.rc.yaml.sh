@@ -19,7 +19,7 @@ metadata:
     app: $name
     version: "$version"
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     app: $name
     version: "$version"

@@ -107,13 +107,19 @@ var deployCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
+		hzc, err := ioutil.ReadFile(".hz/config.toml")
+		if err != nil {
+			log.Fatalf("unable to read config: %v", err)
+		}
+
 		for {
 			log.Printf("Checking local manifest against server...")
 
 			resp, err := apiClient.UpdateProjectManifest(api.UpdateProjectManifestReq{
-				Project: name,
-				Files:   files,
-				Token:   token,
+				Project:       name,
+				Files:         files,
+				Token:         token,
+				HorizonConfig: hzc,
 			})
 			if err != nil {
 				log.Fatal(err)
@@ -149,7 +155,8 @@ func createFileList(basePath string) ([]types.FileDescription, error) {
 	for i := range files {
 		files[i].Path = filepath.ToSlash(strings.TrimPrefix(files[i].Path, trim))
 		if strings.HasPrefix(files[i].Path, "horizon/") {
-			return nil, errors.New("the directory name \"horizon\" is reserved and must not exist")
+			return nil, errors.New(
+				"the directory name \"horizon\" is reserved and must not exist")
 		}
 	}
 

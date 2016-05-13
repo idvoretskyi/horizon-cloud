@@ -5,7 +5,7 @@ $c = r.connect(user: 'admin', password: 'hzc').repl
 
 template = {
   hzc_api: {
-    configs: [{name: 'Users', multi: true}],
+    projects: [{name: 'Users', multi: true}],
     domains: [{name: 'Project', multi: false}],
     users: [{name: 'PublicSSHKeys', multi: true}]
   }

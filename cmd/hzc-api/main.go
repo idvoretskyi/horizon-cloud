@@ -20,11 +20,12 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
+	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
-// RSI: find a way to figure out which fields were parsed and which
+// TODO: find a way to figure out which fields were parsed and which
 // were defaulted so that we can error if we get sent incomplete
 // messages.
 
@@ -51,31 +52,65 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-func setConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetConfigReq
+func setProjectKubeConfig(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.SetProjectKubeConfigReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	newConf, err := ctx.DB().SetConfig(*types.ConfigFromDesired(&r.DesiredConfig))
+	project, err := ctx.DB().SetProjectKubeConfig(r.Project, r.KubeConfig)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetConfigResp{*newConf})
+	if project == nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to retrieve project."))
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectKubeConfigResp{
+		Project: *project,
+	})
 }
 
-func getConfig(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.GetConfigReq
+func addProjectUsers(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.AddProjectUsersReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	config, err := ctx.DB().GetConfig(r.Name)
+	project, err := ctx.DB().AddProjectUsers(r.Project, r.Users)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetConfigResp{
-		Config: *config,
+	if project == nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to retrieve project."))
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.AddProjectUsersResp{
+		Project: *project,
+	})
+}
+
+func getProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.GetProjectReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	project, err := ctx.DB().GetProject(r.Project)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	if project == nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to retrieve project."))
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectResp{
+		Project: *project,
 	})
 }
 
@@ -170,54 +205,88 @@ func getUsersByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Reques
 	api.WriteJSONResp(rw, http.StatusOK, api.GetUsersByKeyResp{Users: users})
 }
 
-func getProjectsByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var gp api.GetProjectsByKeyReq
+func getProjectAddrsByKey(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var gp api.GetProjectAddrsByKeyReq
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	projects, err := ctx.DB().GetProjectsByKey(gp.PublicKey)
+	projectAddrs, err := ctx.DB().GetProjectAddrsByKey(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsByKeyResp{Projects: projects})
+	api.WriteJSONResp(rw, http.StatusOK,
+		api.GetProjectAddrsByKeyResp{ProjectAddrs: projectAddrs})
 }
 
-func getProjectByDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.GetProjectByDomainReq
+func getProjectAddrByDomain(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.GetProjectAddrByDomainReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	project, err := ctx.DB().GetByDomain(r.Domain)
+	projectAddr, err := ctx.DB().GetProjectAddrByDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectByDomainResp{project})
+	api.WriteJSONResp(rw, http.StatusOK,
+		api.GetProjectAddrByDomainResp{ProjectAddr: projectAddr})
 }
 
-func ensureConfigConnectable(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var creq api.EnsureConfigConnectableReq
-	if !decode(rw, req.Body, &creq) {
-		return
-	}
-	// RSI(sec): don't let people read other people's configs.
-	config, err := ctx.DB().EnsureConfigConnectable(
-		creq.Name, creq.AllowClusterStart)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.EnsureConfigConnectableResp{
-		Config: *config,
+func maybeUpdateHorizonConfig(
+	ctx *hzhttp.Context, project string, hzConf types.HorizonConfig) error {
+	// Note: errors from this function are passed to the user.
+
+	ctx = ctx.WithLog(map[string]interface{}{
+		"action": "maybeUpdateHorizonConfig",
 	})
+
+	newVersion, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
+	ctx.Info("version %v (%v)", newVersion, err)
+	if err != nil {
+		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
+			project, hzConf, err)
+		return fmt.Errorf("error talking to database")
+	}
+	// No need to do anything.
+	if newVersion == 0 {
+		return nil
+	}
+
+	hzState, err := ctx.DB().WaitForHorizonConfigVersion(project, newVersion)
+	ctx.Info("hzState %v (%v)", hzState, err)
+	if err != nil {
+		ctx.Error("Error calling WaitForHorizonConfigVersion(%v, %v): %v",
+			project, newVersion, err)
+		return fmt.Errorf("Error waiting for Horizon Config to be applied.")
+	}
+	switch hzState.Typ {
+	case db.HZError:
+		return fmt.Errorf("error applying Horizon config: %v", hzState.LastError)
+	case db.HZApplied:
+		return nil
+	case db.HZSuperseded:
+		return fmt.Errorf("Horizon config superseded by later config")
+	case db.HZDeleted:
+		return fmt.Errorf("Horizon config superseded by project deletion")
+	}
+
+	panic("hzState.Typ switch is not exhaustive")
 }
 
-func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+func updateProjectManifest(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+
 	var r api.UpdateProjectManifestReq
 	if !decode(rw, req.Body, &r) {
 		return
 	}
+
+	ctx = ctx.WithLog(map[string]interface{}{
+		"project": util.TrueName(r.Project),
+	})
 
 	tokData, err := api.VerifyToken(r.Token, tokenSecret)
 	if err != nil {
@@ -227,7 +296,7 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 		return
 	}
 
-	allowedProjects, err := ctx.DB().GetProjectsByUsers(tokData.Users)
+	allowedProjectAddrs, err := ctx.DB().GetProjectAddrsByUsers(tokData.Users)
 	if err != nil {
 		ctx.Error("Couldn't get project list for users: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -236,21 +305,23 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 	}
 
 	found := false
-	for _, proj := range allowedProjects {
-		if util.TrueName(proj.Name) == util.TrueName(r.Project) {
+	for _, projectAddr := range allowedProjectAddrs {
+		if util.TrueName(projectAddr.Name) == util.TrueName(r.Project) {
 			found = true
 			break
 		}
 	}
 
 	if !found {
-		ctx.UserError("User %v not allowed to deploy to project %v", tokData.Users, r.Project)
+		ctx.UserError(
+			"User %v not allowed to deploy to project %v", tokData.Users, r.Project)
 		api.WriteJSONError(rw, http.StatusBadRequest,
 			errors.New("You are not allowed to deploy to that project"))
 		return
 	}
 
-	gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f") // TODO: generalize
+	// TODO: generalize
+	gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f")
 	if err != nil {
 		ctx.Error("Couldn't create gcloud instance: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -277,6 +348,17 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 		api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
 			NeededRequests: requests,
 		})
+		return
+	}
+
+	// If we get here, the user has successfully uploaded all the files
+	// they need to upload.
+
+	err = maybeUpdateHorizonConfig(ctx, r.Project, r.HorizonConfig)
+	if err != nil {
+		ctx.Error("Unable to update Horizon config: %v", err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to update Horizon config: %v", err))
 		return
 	}
 
@@ -317,11 +399,6 @@ func updateProjectManifest(ctx *hzhttp.Context, rw http.ResponseWriter, req *htt
 		NeededRequests: []types.FileUploadRequest{},
 	})
 }
-
-const (
-	sshServer            = "ssh.hzc.io"
-	sshServerFingerprint = `ssh.hzc.io ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfQJqUbNs6n1r0BtWeODDlB3fXUX0/iE+m7KfkkQXMxr7+Bmjz/Tl91NZIch09NozfenYV6IVdamFMdwSDau5nt5/VPd/QuxDUCeXBvB8XOfUw4Arwew4wQMTU27NqngI0FIYbkZw2T7zMDfocLBhwJh7Ms8bJwGezZ9oYKCGuFvvUMMNmrbKTa/SoF4PY1XPXQOXJdry8oyHsWETcr2BT0qWS+3uoG1ipui/LfeVq6A1M71IT/BVjaGQWm+l8T+vJYUQqLgQYc8qKvmA2S/YGqRv87L9W8jhO6lIFMvWvCsQ7ppuLCDIz0DubP6gD0Lj8piI+IcVD7fuMfGOLQo17`
-)
 
 func main() {
 	log.SetFlags(log.Lshortfile)
@@ -399,19 +476,29 @@ func main() {
 	}
 	baseCtx = baseCtx.WithServiceAccount(serviceAccount)
 
-	go configSync(baseCtx)
+	region := "us-central1-f"
+	gc, err := gcloud.New(serviceAccount, clusterName, region)
+	if err != nil {
+		log.Fatal("Unable to create gcloud client: ", err)
+	}
+
+	k := kube.New(templatePath, gc)
+	baseCtx = baseCtx.WithKube(k)
+
+	go projectSync(baseCtx)
 
 	paths := []struct {
 		Path          string
 		Func          func(ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request)
 		RequireSecret bool
 	}{
-		{api.EnsureConfigConnectablePath, ensureConfigConnectable, false},
+		// Client uses these.
 		{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
-		// Mike uses these.
-		{api.SetConfigPath, setConfig, true},
-		{api.GetConfigPath, getConfig, true},
+		// Web interface uses these.
+		{api.GetProjectPath, getProject, true},
+		{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
+		{api.AddProjectUsersPath, addProjectUsers, true},
 		{api.UserCreatePath, userCreate, true},
 		{api.UserGetPath, userGet, true},
 		{api.UserAddKeysPath, userAddKeys, true},
@@ -419,10 +506,10 @@ func main() {
 		{api.SetDomainPath, setDomain, true},
 		{api.GetDomainsByProjectPath, getDomainsByProject, true},
 
-		// Chris uses these.
+		// Other server stuff uses these.
 		{api.GetUsersByKeyPath, getUsersByKey, true},
-		{api.GetProjectsByKeyPath, getProjectsByKey, true},
-		{api.GetProjectByDomainPath, getProjectByDomain, true},
+		{api.GetProjectAddrsByKeyPath, getProjectAddrsByKey, true},
+		{api.GetProjectAddrByDomainPath, getProjectAddrByDomain, true},
 	}
 
 	mux := hzhttp.NewMuxer()

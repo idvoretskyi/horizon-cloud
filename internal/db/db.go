@@ -18,15 +18,16 @@ type DBConnection struct {
 var (
 	ErrCanceled = errors.New("canceled")
 
-	configs = r.DB("hzc_api").Table("configs")
-	users   = r.DB("hzc_api").Table("users")
-	domains = r.DB("hzc_api").Table("domains")
+	projects = r.DB("hzc_api").Table("projects")
+	users    = r.DB("hzc_api").Table("users")
+	domains  = r.DB("hzc_api").Table("domains")
 )
 
 func New() (*DBConnection, error) {
 	session, err := r.Connect(r.ConnectOpts{
 		Address:           "localhost:28015",
-		AuthKey:           "hzc",
+		Username:          "admin",
+		Password:          "hzc",
 		MaxIdle:           10,
 		MaxOpen:           10,
 		HostDecayDuration: time.Second * 10,
@@ -54,30 +55,142 @@ func getBasicError(typeName string, name string) error {
 	return fmt.Errorf("internal error: unable to get %v `%s`", typeName, name)
 }
 
-func (d *DB) SetConfig(c types.Config) (*types.Config, error) {
-	q := configs.Insert(c, r.InsertOpts{Conflict: "update", ReturnChanges: "always"})
+type projectWriteResp struct {
+	Errors     int    `gorethink:"errors"`
+	Unchanged  int    `gorethink:"unchanged"`
+	FirstError string `gorethink:"first_error"`
+	Changes    []struct {
+		NewVal *types.Project `gorethink:"new_val"`
+	} `gorethink:"changes"`
+}
 
-	var resp struct {
-		Errors     int    `gorethink:"errors"`
-		FirstError string `gorethink:"first_error"`
-		Changes    []struct {
-			NewVal *types.Config `gorethink:"new_val"`
+func (d *DB) runProjectWriteDetailed(
+	q r.Term) (*types.Project, *projectWriteResp, error) {
+	var resp projectWriteResp
+	err := runOne(q, d.session, &resp)
+
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp.Errors != 0 {
+		return nil, nil, errors.New(resp.FirstError)
+	}
+	if len(resp.Changes) != 1 {
+		return nil, nil, fmt.Errorf("Unexpected number of changes in response: %v", resp)
+	}
+	return resp.Changes[0].NewVal, &resp, nil
+}
+
+func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
+	p, _, err := d.runProjectWriteDetailed(q)
+	return p, err
+}
+
+func (d *DB) SetProjectKubeConfig(
+	project string, kc types.KubeConfig) (*types.Project, error) {
+	q := projects.Insert(types.Project{
+		ID:    util.TrueName(project),
+		Name:  project,
+		Users: []string{},
+
+		KubeConfig:        kc,
+		KubeConfigVersion: 1,
+
+		HorizonConfig: []byte{},
+	}, r.InsertOpts{Conflict: func(id r.Term, oldVal r.Term, newVal r.Term) r.Term {
+		return oldVal.Merge(map[string]r.Term{
+			"KubeConfig":        newVal.Field("KubeConfig"),
+			"KubeConfigVersion": oldVal.Field("KubeConfigVersion").Add(1),
+		})
+	}, ReturnChanges: "always"})
+	return d.runProjectWrite(q)
+}
+
+func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, error) {
+	q := projects.Get(projectID).Update(projectPatch)
+	res, err := q.RunWrite(d.session)
+	if err != nil {
+		return false, nil
+	}
+	return res.Replaced == 1, nil
+}
+
+func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, error) {
+	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
+		return r.Expr(map[string]r.Term{
+			"Users": oldVal.Field("Users").Default([]string{}).SetUnion(users),
+		})
+	}, r.UpdateOpts{ReturnChanges: "always"})
+	return d.runProjectWrite(q)
+}
+
+func (d *DB) MaybeUpdateHorizonConfig(
+	projectName string, hzConf types.HorizonConfig) (int64, error) {
+	q := r.Expr(hzConf).Do(func(hzc r.Term) r.Term {
+		return projects.Get(util.TrueName(projectName)).Update(func(config r.Term) r.Term {
+			return r.Branch(
+				config.Field("HorizonConfig").Eq(hzc).Default(false),
+				nil,
+				map[string]r.Term{
+					"HorizonConfig":        r.Expr(hzc),
+					"HorizonConfigVersion": config.Field("HorizonConfigVersion").Default(0).Add(1),
+				})
+		}, r.UpdateOpts{ReturnChanges: "always"})
+	})
+	project, resp, err := d.runProjectWriteDetailed(q)
+	if err != nil {
+		return 0, err
+	}
+	if resp.Unchanged != 0 {
+		// We return a special value if nothing changed so that we can skip waiting.
+		return 0, nil
+	}
+	return project.HorizonConfigVersion, nil
+}
+
+type HZStateType int
+
+const (
+	HZError      HZStateType = 0
+	HZApplied    HZStateType = 1
+	HZSuperseded HZStateType = 2
+	HZDeleted    HZStateType = 3
+)
+
+type HZState struct {
+	Typ       HZStateType
+	LastError string
+}
+
+func (d *DB) WaitForHorizonConfigVersion(
+	project string, version int64) (HZState, error) {
+	q := projects.Get(util.TrueName(project)).Changes(r.ChangesOpts{IncludeInitial: true})
+	cursor, err := q.Run(d.session)
+	if err != nil {
+		d.log.Error("WaitForHorizonConfigVersion(%s, %d): %v", project, version, err)
+		return HZState{}, err
+	}
+	defer cursor.Close()
+	var c ProjectChange
+	for cursor.Next(&c) {
+		if c.NewVal == nil {
+			return HZState{Typ: HZDeleted}, nil
+		}
+		if c.NewVal.HorizonConfigAppliedVersion == version {
+			return HZState{Typ: HZApplied}, nil
+		}
+		if c.NewVal.HorizonConfigErrorVersion == version {
+			return HZState{Typ: HZError, LastError: c.NewVal.HorizonConfigLastError}, nil
+		}
+		if c.NewVal.HorizonConfigAppliedVersion > version ||
+			c.NewVal.HorizonConfigErrorVersion > version {
+			return HZState{Typ: HZSuperseded}, nil
 		}
 	}
-	err := runOne(q, d.session, &resp)
-	if err != nil {
-		return nil, err
-	}
 
-	if resp.Errors != 0 {
-		return nil, errors.New(resp.FirstError)
-	}
-
-	if len(resp.Changes) != 1 {
-		return nil, errors.New("Unexpected number of changes in response")
-	}
-
-	return resp.Changes[0].NewVal, nil
+	err = fmt.Errorf("Changefeed aborted unexpectedly.")
+	d.log.Error("WaitForHorizonConfigVersion(%s, %d): %v", project, version, err)
+	return HZState{}, err
 }
 
 func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
@@ -96,41 +209,41 @@ func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
 	return users, nil
 }
 
-func (d *DB) GetProjectsByKey(publicKey string) ([]types.Project, error) {
-	q := configs.GetAllByIndex("Users",
+func (d *DB) GetProjectAddrsByKey(publicKey string) ([]types.ProjectAddr, error) {
+	q := projects.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array")))
 	cursor, err := q.Run(d.session)
 	if err != nil {
-		d.log.Error("Couldn't get projects by key: %v", err)
+		d.log.Error("Couldn't get projectAddrs by key: %v", err)
 		return nil, err
 	}
 	defer cursor.Close()
-	var projects []types.Project
-	var c types.Config
-	for cursor.Next(&c) {
-		projects = append(projects, types.ProjectFromName(c.Name))
+	var projectAddrs []types.ProjectAddr
+	var p types.Project
+	for cursor.Next(&p) {
+		projectAddrs = append(projectAddrs, types.ProjectAddrFromName(p.Name))
 	}
-	return projects, nil
+	return projectAddrs, nil
 }
 
-func (d *DB) GetProjectsByUsers(users []string) ([]types.Project, error) {
-	q := configs.GetAllByIndex("Users", r.Args(users))
+func (d *DB) GetProjectAddrsByUsers(users []string) ([]types.ProjectAddr, error) {
+	q := projects.GetAllByIndex("Users", r.Args(users))
 	cursor, err := q.Run(d.session)
 	if err != nil {
 		d.log.Error("Couldn't get projects by key: %v", err)
 		return nil, err
 	}
 	defer cursor.Close()
-	var projects []types.Project
-	var c types.Config
-	for cursor.Next(&c) {
-		projects = append(projects, types.ProjectFromName(c.Name))
+	var projectAddrs []types.ProjectAddr
+	var p types.Project
+	for cursor.Next(&p) {
+		projectAddrs = append(projectAddrs, types.ProjectAddrFromName(p.Name))
 	}
-	return projects, nil
+	return projectAddrs, nil
 }
 
-func (d *DB) GetByDomain(domainName string) (*types.Project, error) {
+func (d *DB) GetProjectAddrByDomain(domainName string) (*types.ProjectAddr, error) {
 	var domain types.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
@@ -139,14 +252,14 @@ func (d *DB) GetByDomain(domainName string) (*types.Project, error) {
 		}
 		return nil, nil
 	}
-	project := types.ProjectFromName(domain.Project)
-	return &project, nil
+	projectAddr := types.ProjectAddrFromName(domain.Project)
+	return &projectAddr, nil
 }
 
-func (d *DB) GetConfig(name string) (*types.Config, error) {
-	var c types.Config
-	err := d.getBasicType(configs, "config", util.TrueName(name), &c)
-	return &c, err
+func (d *DB) GetProject(name string) (*types.Project, error) {
+	var p types.Project
+	err := d.getBasicType(projects, "project", util.TrueName(name), &p)
+	return &p, err
 }
 
 func (d *DB) UserCreate(name string) error {
@@ -212,65 +325,22 @@ func (d *DB) GetDomainsByProject(project string) ([]string, error) {
 	return domains, nil
 }
 
-func (d *DB) EnsureConfigConnectable(
-	name string, allowClusterStart types.ClusterStartBool) (*types.Config, error) {
-
-	if allowClusterStart {
-		var out struct {
-			Changes []struct {
-				NewVal *types.Config `gorethink:"new_val"`
-			} `gorethink:"changes"`
-			FirstError string `gorethink:"first_error"`
-		}
-
-		defaultConfig := r.Expr(types.ConfigFromDesired(types.DefaultDesiredConfig(name)))
-		query := configs.Insert(defaultConfig, r.InsertOpts{ReturnChanges: "always"})
-		err := runOne(query, d.session, &out)
-
-		if err != nil {
-			d.log.Error("Couldn't run EnsureConfigConnectable query: %s", err)
-			return nil, getBasicError("ensureConfigConnectable", name)
-		}
-
-		if len(out.Changes) != 1 {
-			d.log.Error("Unexpected EnsureConfigConnectable response: %#v", out)
-			return nil, getBasicError("ensureConfigConnectable", name)
-		}
-
-		if out.Changes[0].NewVal == nil {
-			d.log.Error("Unexpected EnsureConfigConnectable response: %#v", out)
-			return nil, getBasicError("ensureConfigConnectable", name)
-		}
-		return out.Changes[0].NewVal, nil
-
-	} else {
-		var c types.Config
-		query := configs.Get(util.TrueName(name))
-		err := runOne(query, d.session, &c)
-		if err != nil {
-			d.log.Error("EnsureConfigConnectable for `%s` failed: %s", name, err)
-			return nil, fmt.Errorf("no cluster `%s`", name)
-		}
-		return &c, err
-	}
+type ProjectChange struct {
+	OldVal *types.Project `gorethink:"old_val"`
+	NewVal *types.Project `gorethink:"new_val"`
 }
 
-type ConfigChange struct {
-	OldVal *types.Config `gorethink:"old_val"`
-	NewVal *types.Config `gorethink:"new_val"`
-}
-
-func (d *DB) configChangesLoop(out chan<- ConfigChange) {
-	query := configs.Changes(r.ChangesOpts{IncludeInitial: true})
+func (d *DB) projectChangesLoop(out chan<- ProjectChange) {
+	query := projects.Changes(r.ChangesOpts{IncludeInitial: true})
 	for {
-		ch := make(chan ConfigChange)
+		ch := make(chan ProjectChange)
 		cur, err := query.Run(d.session)
 		if err != nil {
 			d.log.Error("Couldn't query for config changes: %s", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		cur.Listen(out)
+		cur.Listen(ch)
 		for el := range ch {
 			// RSI: sanity checks?
 			out <- el
@@ -280,53 +350,8 @@ func (d *DB) configChangesLoop(out chan<- ConfigChange) {
 	}
 }
 
-func (d *DB) ConfigChanges(out chan<- ConfigChange) {
-	go d.configChangesLoop(out)
-}
-
-func (d *DB) WaitConfigApplied(
-	name string, version string, cancel <-chan struct{}) (*types.Config, error) {
-
-	query := configs.Get(util.TrueName(name)).Changes(r.ChangesOpts{IncludeInitial: true})
-	cur, err := query.Run(d.session)
-	if err != nil {
-		d.log.Error("Couldn't start waitconfigapplied query: %v", err)
-		return nil, getBasicError("config", name)
-	}
-	defer cur.Close()
-
-	rows := make(chan ConfigChange)
-	cur.Listen(rows)
-
-	canceled := false
-	for {
-		select {
-		case row, ok := <-rows:
-			if !ok {
-				if !canceled {
-					d.log.Error("Early changefeed close in waitconfigapplied: %v", err)
-					return nil, errors.New("internal error: changefeed closed unexpectedly")
-				}
-				return nil, ErrCanceled
-			}
-
-			if row.NewVal == nil {
-				return nil, fmt.Errorf("configuration deleted")
-			} else {
-				if version != "" && row.NewVal.Version != version {
-					return nil, fmt.Errorf("configuration superseded by %s", row.NewVal.Version)
-				}
-				if row.NewVal.AppliedVersion == row.NewVal.Version {
-					return row.NewVal, nil
-				}
-			}
-
-		case <-cancel:
-			cur.Close()
-			canceled = true
-			cancel = nil
-		}
-	}
+func (d *DB) ProjectChanges(out chan<- ProjectChange) {
+	go d.projectChangesLoop(out)
 }
 
 func runOne(query r.Term, session *r.Session, out interface{}) error {

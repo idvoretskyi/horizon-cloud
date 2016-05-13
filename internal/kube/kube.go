@@ -11,11 +11,13 @@ import (
 
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
+	"github.com/rethinkdb/horizon-cloud/internal/util"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrors "k8s.io/kubernetes/pkg/api/errors"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
+	kutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/runtime"
@@ -27,6 +29,7 @@ const userNamespace = "user"
 type Kube struct {
 	TemplatePath string
 	C            *client.Client
+	Conf         *client.Config
 	M            *resource.Mapper
 	G            *gcloud.GCloud
 }
@@ -50,9 +53,9 @@ type Project struct {
 var newMu sync.Mutex
 
 func New(templatePath string, gc *gcloud.GCloud) *Kube {
-	newMu.Lock() // util.NewFactory is racy.
+	newMu.Lock() // kutil.NewFactory is racy.
 	// RSI: should we be passing in a client config here?
-	factory := util.NewFactory(nil)
+	factory := kutil.NewFactory(nil)
 	newMu.Unlock()
 	mapper, typer := factory.Object()
 	client, err := factory.Client()
@@ -60,9 +63,14 @@ func New(templatePath string, gc *gcloud.GCloud) *Kube {
 		// RSI: stop doing this when we support user clusters.
 		log.Fatalf("unable to connect to Kube: %s", err)
 	}
+	conf, err := factory.ClientConfig()
+	if err != nil {
+		log.Fatalf("unable to get client config: %s", err)
+	}
 	return &Kube{
 		TemplatePath: templatePath,
 		C:            client,
+		Conf:         conf,
 		M: &resource.Mapper{
 			ObjectTyper:  typer,
 			RESTMapper:   mapper,
@@ -70,6 +78,74 @@ func New(templatePath string, gc *gcloud.GCloud) *Kube {
 			Decoder:      factory.Decoder(true)},
 		G: gc,
 	}
+}
+
+func (k *Kube) GetHorizonPodsForProject(projectName string) ([]string, error) {
+	trueName := util.TrueName(projectName)
+	pods, err := k.C.Pods("user").List(kapi.ListOptions{
+		LabelSelector: labels.Set(map[string]string{
+			"app":     "horizon",
+			"project": trueName,
+		}).AsSelector(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]string, len(pods.Items))
+	for index, pod := range pods.Items {
+		ret[index] = pod.Name
+	}
+	return ret, nil
+}
+
+// Usually all you want to set are `PodName`, `Command`, and maybe `In`.
+type ExecOptions kcmd.ExecOptions
+
+func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
+	// RSI: Make these limited in size.
+	var resBuf bytes.Buffer
+	var errBuf bytes.Buffer
+
+	if eo.Namespace == "" {
+		eo.Namespace = "user"
+	}
+	if eo.PodName == "" {
+		return "", "", fmt.Errorf("Kube.Exec requires a podname")
+	}
+
+	if eo.In != nil {
+		eo.Stdin = true
+	}
+
+	// If the user sets these we just write to their writers and return
+	// empty string.
+	if eo.Out == nil {
+		eo.Out = &resBuf
+	}
+	if eo.Err == nil {
+		eo.Err = &errBuf
+	}
+
+	if eo.Executor == nil {
+		eo.Executor = &kcmd.DefaultRemoteExecutor{}
+	}
+	if eo.Client == nil {
+		eo.Client = k.C
+	}
+	if eo.Config == nil {
+		eo.Config = k.Conf
+	}
+
+	real_eo := kcmd.ExecOptions(eo)
+	err := real_eo.Validate()
+	if err != nil {
+		return "", "", err
+	}
+	err = real_eo.Run()
+	// We return the buffers even if there was an error because there
+	// might still be useful stuff in them.
+	return resBuf.String(), errBuf.String(), err
 }
 
 func (k *Kube) Ready(p *Project) (bool, error) {
@@ -317,7 +393,8 @@ func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
 	return rc, nil
 }
 
-func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
+func (k *Kube) EnsureProject(
+	trueName string, conf types.KubeConfig) (*Project, error) {
 	// RSI: Use `NumRDB` and `NumHorizon`
 
 	type MaybeRDB struct {
@@ -335,21 +412,21 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 
 	go func() {
 		rdbCh <- func() MaybeRDB {
-			rc, err := k.getRC("r0-" + conf.ID)
+			rc, err := k.getRC("r0-" + trueName)
 			if err != nil {
 				return MaybeRDB{nil, err}
 			}
 
 			// RSI: check that the replicationcontroller is what we want.
 			if rc != nil {
-				svc, err := k.C.Services(userNamespace).Get("r-" + conf.ID)
+				svc, err := k.C.Services(userNamespace).Get("r-" + trueName)
 				if err != nil {
 					// RSI: we should be creating replicationcontrollers and
 					// services separately so we don't have to abort here.
 					return MaybeRDB{nil, err}
 				}
 				volName := rc.Spec.Template.Spec.Volumes[0].GCEPersistentDisk.PDName
-				log.Printf("%s already exists with volume %s", "r0-"+conf.ID, volName)
+				log.Printf("%s already exists with volume %s", "r0-"+trueName, volName)
 				return MaybeRDB{&RDB{volName, rc, svc}, nil}
 			}
 
@@ -360,7 +437,7 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 						ret = MaybeRDB{nil, err}
 						return nil
 					}
-					rdb, err := k.CreateRDB(conf.ID, vol.Name)
+					rdb, err := k.CreateRDB(trueName, vol.Name)
 					ret = MaybeRDB{rdb, err}
 					return err
 				})
@@ -370,20 +447,20 @@ func (k *Kube) EnsureProject(conf types.Config) (*Project, error) {
 
 	go func() {
 		horizonCh <- func() MaybeHorizon {
-			rc, err := k.getRC("h0-" + conf.ID)
+			rc, err := k.getRC("h0-" + trueName)
 			if err != nil {
 				return MaybeHorizon{nil, err}
 			}
 			if rc != nil {
-				svc, err := k.C.Services(userNamespace).Get("h-" + conf.ID)
+				svc, err := k.C.Services(userNamespace).Get("h-" + trueName)
 				if err != nil {
 					return MaybeHorizon{nil, err}
 				}
-				log.Printf("%s already exists", "h0-"+conf.ID)
+				log.Printf("%s already exists", "h0-"+trueName)
 				return MaybeHorizon{&Horizon{rc, svc}, nil}
 			}
 
-			horizon, err := k.CreateHorizon(conf.ID)
+			horizon, err := k.CreateHorizon(trueName)
 			return MaybeHorizon{horizon, err}
 		}()
 	}()
