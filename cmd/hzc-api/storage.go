@@ -62,7 +62,7 @@ func requestsForFilelist(
 			URL:        signedURL,
 			Headers: map[string]string{
 				"Content-Type":  file.ContentType,
-				"Cache-Control": "public,no-cache",
+				"Cache-Control": "private,no-cache",
 				"Content-MD5":   md5base64,
 				"x-goog-acl":    "public-read",
 			},

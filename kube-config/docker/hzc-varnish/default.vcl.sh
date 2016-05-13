@@ -30,6 +30,12 @@ sub vcl_recv {
     return (hash);
 }
 
+sub vcl_backend_response {
+    // TODO: Does this need to be filtered on status, method, or Vary header?
+    // Caching everything for a short time gives us some weak protection for our backend.
+    set beresp.ttl = 1s;
+}
+
 sub vcl_synth {
     if (resp.status == 850) {
         set resp.http.Location = req.http.x-redir;
@@ -41,6 +47,11 @@ sub vcl_synth {
 sub vcl_deliver {
     set resp.http.Strict-Transport-Security =
         "max-age=10886400; includeSubDomains; preload";
+    if (resp.status >= 200 && resp.status < 500) {
+        // TODO: Add a longer s-maxage header to this on the order of minutes
+        // when CDN invalidation is implemented
+        set resp.http.Cache-Control = "public,max-age=5";
+    }
 }
 
 EOF
