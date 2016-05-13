@@ -18,14 +18,18 @@ var projects = make(map[string]*types.Project)
 var projectsLock sync.Mutex
 
 // Errors returned from this are shown to users.
-func applyHorizonConfig(k *kube.Kube, trueName string, hzc types.HorizonConfig) error {
+func applyHorizonConfig(
+	ctx *hzhttp.Context, k *kube.Kube, trueName string, hzc types.HorizonConfig) error {
+
 	pods, err := k.GetHorizonPodsForProject(trueName)
 	if err != nil {
-		log.Print(err) // RSI: log serious error
+		ctx.Error("%v", err)
 		return fmt.Errorf("unable to get horizon pods for `%v`", trueName)
 	}
 	if len(pods) == 0 {
-		return fmt.Errorf("no pods found for `%v`", trueName) // RSI: log serious error
+		err = fmt.Errorf("no pods found for `%v`", trueName)
+		ctx.Error("%v", err)
+		return err
 	}
 	pod := pods[rand.Intn(len(pods))]
 	stdout, stderr, err := k.Exec(kube.ExecOptions{
@@ -90,7 +94,7 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 		ctx.Info("HorizonConfig: %v (applied: %v)",
 			conf.HorizonConfigVersion, conf.HorizonConfigAppliedVersion)
 		if conf.HorizonConfigVersion != conf.HorizonConfigAppliedVersion {
-			err = applyHorizonConfig(k, trueName, conf.HorizonConfig)
+			err = applyHorizonConfig(ctx, k, trueName, conf.HorizonConfig)
 			if err != nil {
 				ctx.Error("error applying Horizon config %v:%v (%v)",
 					trueName, conf.HorizonConfigVersion, err)
@@ -112,8 +116,7 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 			HorizonConfigAppliedVersion: conf.HorizonConfigVersion,
 		})
 		if err != nil {
-			// RSI: log serious error.
-			log.Printf("%v\n", err)
+			ctx.Error("%v", err)
 		}
 	}
 }
