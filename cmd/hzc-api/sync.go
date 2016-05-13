@@ -7,8 +7,6 @@ import (
 	"math/rand"
 	"sync"
 
-	"golang.org/x/oauth2/jwt"
-
 	"github.com/rethinkdb/horizon-cloud/internal/db"
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
@@ -24,10 +22,10 @@ func applyHorizonConfig(k *kube.Kube, trueName string, hzc types.HorizonConfig) 
 	pods, err := k.GetHorizonPodsForProject(trueName)
 	if err != nil {
 		log.Print(err) // RSI: log serious error
-		return fmt.Errorf("unable to get horizon pods for `%s`", trueName)
+		return fmt.Errorf("unable to get horizon pods for `%v`", trueName)
 	}
 	if len(pods) == 0 {
-		return fmt.Errorf("no pods found for `%s`", trueName) // RSI: log serious error
+		return fmt.Errorf("no pods found for `%v`", trueName) // RSI: log serious error
 	}
 	pod := pods[rand.Intn(len(pods))]
 	stdout, stderr, err := k.Exec(kube.ExecOptions{
@@ -38,15 +36,16 @@ func applyHorizonConfig(k *kube.Kube, trueName string, hzc types.HorizonConfig) 
 	})
 	if err != nil {
 		err = fmt.Errorf("Error setting Horizon config:\n"+
-			"\nStdout:\n%s\n"+
-			"\nStderr:\n%s\n"+
+			"\nStdout:\n%v\n"+
+			"\nStderr:\n%v\n"+
 			"\nError:\n%v\n", stdout, stderr, err)
 		return err
 	}
 	return nil
 }
 
-func applyProjects(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
+func applyProjects(ctx *hzhttp.Context, trueName string) {
+	ctx = ctx.WithLog(map[string]interface{}{"action": "applyProjects"})
 	for {
 		conf := func() *types.Project {
 			projectsLock.Lock()
@@ -62,64 +61,69 @@ func applyProjects(serviceAccount *jwt.Config, rdb *db.DB, trueName string) {
 		if conf == nil {
 			break
 		}
+		ctx := ctx.WithLog(map[string]interface{}{"project": conf.ID})
+		ctx.Info("applying project")
 
-		gc, err := gcloud.New(serviceAccount, clusterName, "us-central1-f")
+		gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f")
 		if err != nil {
-			log.Print(err) // RSI: log serious error
+			ctx.Error("%v", err)
 			continue
 		}
 		k := kube.New(templatePath, gc)
 
+		ctx.Info("KubeConfig: %v (applied: %v)",
+			conf.KubeConfigVersion, conf.KubeConfigAppliedVersion)
 		if conf.KubeConfigVersion != conf.KubeConfigAppliedVersion {
 			project, err := k.EnsureProject(conf.ID, conf.KubeConfig)
 			if err != nil {
-				log.Printf("%s\n", err) // RSI: log serious error.
+				ctx.Error("%v", err)
 				continue
 			}
-			log.Printf("waiting for Kube config %s:%s", trueName, conf.KubeConfigVersion)
+			log.Printf("waiting for Kube config %v:%v", trueName, conf.KubeConfigVersion)
 			err = k.Wait(project)
 			if err != nil {
-				log.Print(err) // RSI: log serious error
+				ctx.Error("%v", err)
 				continue
 			}
 		}
 
+		ctx.Info("HorizonConfig: %v (applied: %v)",
+			conf.HorizonConfigVersion, conf.HorizonConfigAppliedVersion)
 		if conf.HorizonConfigVersion != conf.HorizonConfigAppliedVersion {
 			err = applyHorizonConfig(k, trueName, conf.HorizonConfig)
 			if err != nil {
-				log.Printf("error applying Horizon config %s:%s (%v)",
+				ctx.Error("error applying Horizon config %v:%v (%v)",
 					trueName, conf.HorizonConfigVersion, err)
-				_, err = rdb.UpdateProject(conf.ID, types.Project{
+				_, err = ctx.DB().UpdateProject(conf.ID, types.Project{
 					HorizonConfigLastError:    err.Error(),
 					HorizonConfigErrorVersion: conf.HorizonConfigVersion,
 				})
 				if err != nil {
-					log.Print(err) // RSI: log serious error
+					ctx.Error("%v", err)
 				}
 				continue
 			}
 		}
 
-		log.Printf("successfully applied project %s:%s/%s",
+		ctx.Info("successfully applied project %v:%v/%v",
 			trueName, conf.KubeConfigVersion, conf.HorizonConfigVersion)
-		_, err = rdb.UpdateProject(conf.ID, types.Project{
+		_, err = ctx.DB().UpdateProject(conf.ID, types.Project{
 			KubeConfigAppliedVersion:    conf.KubeConfigVersion,
 			HorizonConfigAppliedVersion: conf.HorizonConfigVersion,
 		})
 		if err != nil {
 			// RSI: log serious error.
-			log.Printf("%s\n", err)
+			log.Printf("%v\n", err)
 		}
 	}
 }
 
 func projectSync(ctx *hzhttp.Context) {
-	rdb := ctx.DB()
-	serviceAccount := ctx.ServiceAccount()
+	ctx = ctx.WithLog(map[string]interface{}{"action": "projectSync"})
 
 	// RSI: shut down mid-spinup and see if it recovers.
 	changeChan := make(chan db.ProjectChange)
-	rdb.ProjectChanges(changeChan)
+	ctx.DB().ProjectChanges(changeChan)
 	for c := range changeChan {
 		if c.NewVal != nil {
 			if c.NewVal.KubeConfigVersion == c.NewVal.KubeConfigAppliedVersion &&
@@ -132,7 +136,7 @@ func projectSync(ctx *hzhttp.Context) {
 				_, workerRunning := projects[c.NewVal.ID]
 				projects[c.NewVal.ID] = c.NewVal
 				if !workerRunning {
-					go applyProjects(serviceAccount, rdb, c.NewVal.ID)
+					go applyProjects(ctx, c.NewVal.ID)
 				}
 			}()
 		} else {

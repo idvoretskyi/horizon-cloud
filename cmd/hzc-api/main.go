@@ -238,7 +238,13 @@ func getProjectAddrByDomain(
 func maybeUpdateHorizonConfig(
 	ctx *hzhttp.Context, project string, hzConf types.HorizonConfig) error {
 	// Note: errors from this function are passed to the user.
+
+	ctx = ctx.WithLog(map[string]interface{}{
+		"action": "maybeUpdateHorizonConfig",
+	})
+
 	newVersion, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
+	ctx.Info("version %v (%v)", newVersion, err)
 	if err != nil {
 		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
 			project, hzConf, err)
@@ -250,6 +256,7 @@ func maybeUpdateHorizonConfig(
 	}
 
 	hzState, err := ctx.DB().WaitForHorizonConfigVersion(project, newVersion)
+	ctx.Info("hzState %v (%v)", hzState, err)
 	if err != nil {
 		ctx.Error("Error calling WaitForHorizonConfigVersion(%v, %v): %v",
 			project, newVersion, err)
@@ -276,6 +283,10 @@ func updateProjectManifest(
 	if !decode(rw, req.Body, &r) {
 		return
 	}
+
+	ctx = ctx.WithLog(map[string]interface{}{
+		"project": util.TrueName(r.Project),
+	})
 
 	tokData, err := api.VerifyToken(r.Token, tokenSecret)
 	if err != nil {

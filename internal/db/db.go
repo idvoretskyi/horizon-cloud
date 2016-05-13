@@ -26,7 +26,8 @@ var (
 func New() (*DBConnection, error) {
 	session, err := r.Connect(r.ConnectOpts{
 		Address:           "localhost:28015",
-		AuthKey:           "hzc",
+		Username:          "admin",
+		Password:          "hzc",
 		MaxIdle:           10,
 		MaxOpen:           10,
 		HostDecayDuration: time.Second * 10,
@@ -56,17 +57,18 @@ func getBasicError(typeName string, name string) error {
 
 type projectWriteResp struct {
 	Errors     int    `gorethink:"errors"`
-	Unchanged  int    `gorethink:"errors"`
+	Unchanged  int    `gorethink:"unchanged"`
 	FirstError string `gorethink:"first_error"`
 	Changes    []struct {
 		NewVal *types.Project `gorethink:"new_val"`
-	}
+	} `gorethink:"changes"`
 }
 
 func (d *DB) runProjectWriteDetailed(
 	q r.Term) (*types.Project, *projectWriteResp, error) {
 	var resp projectWriteResp
 	err := runOne(q, d.session, &resp)
+
 	if err != nil {
 		return nil, nil, err
 	}
@@ -87,21 +89,25 @@ func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
 func (d *DB) SetProjectKubeConfig(
 	project string, kc types.KubeConfig) (*types.Project, error) {
 	q := projects.Insert(types.Project{
-		ID:                util.TrueName(project),
-		Name:              project,
+		ID:    util.TrueName(project),
+		Name:  project,
+		Users: []string{},
+
 		KubeConfig:        kc,
 		KubeConfigVersion: 1,
+
+		HorizonConfig: []byte{},
 	}, r.InsertOpts{Conflict: func(id r.Term, oldVal r.Term, newVal r.Term) r.Term {
 		return oldVal.Merge(map[string]r.Term{
-			"KubeConfig":        newVal.Get("KubeConfig"),
-			"KubeConfigVersion": oldVal.Get("KubeConfigVersion").Add(1),
+			"KubeConfig":        newVal.Field("KubeConfig"),
+			"KubeConfigVersion": oldVal.Field("KubeConfigVersion").Add(1),
 		})
 	}, ReturnChanges: "always"})
 	return d.runProjectWrite(q)
 }
 
 func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, error) {
-	q := projects.Get(projectPatch.ID).Update(projectPatch)
+	q := projects.Get(projectID).Update(projectPatch)
 	res, err := q.RunWrite(d.session)
 	if err != nil {
 		return false, nil
@@ -112,7 +118,7 @@ func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, 
 func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, error) {
 	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
 		return r.Expr(map[string]r.Term{
-			"Users": oldVal.Get("Users").Default([]string{}).SetUnion(users),
+			"Users": oldVal.Field("Users").Default([]string{}).SetUnion(users),
 		})
 	}, r.UpdateOpts{ReturnChanges: "always"})
 	return d.runProjectWrite(q)
@@ -334,7 +340,7 @@ func (d *DB) projectChangesLoop(out chan<- ProjectChange) {
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		cur.Listen(out)
+		cur.Listen(ch)
 		for el := range ch {
 			// RSI: sanity checks?
 			out <- el
