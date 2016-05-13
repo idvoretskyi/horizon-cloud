@@ -33,7 +33,7 @@ func getToken() (string, error) {
 	sshServer := viper.GetString("ssh_server")
 	identityFile := viper.GetString("identity_file")
 
-	kh, err := ssh.NewKnownHosts([]string{viper.GetString("fingerprint")})
+	kh, err := ssh.NewKnownHosts([]string{viper.GetString("ssh_fingerprint")})
 	if err != nil {
 		return "", err
 	}

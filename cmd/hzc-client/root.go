@@ -31,7 +31,8 @@ func init() {
 	pf.StringP("identity_file", "i", "", "private key")
 	pf.StringP("api_server", "s", apiServer, "horizon cloud API server base URL")
 	pf.StringP("ssh_server", "S", sshServer, "address of horizon cloud ssh server")
-	pf.StringP("fingerprint", "f", fingerprint, "fingerprint of horizon cloud ssh server")
+	pf.StringP("ssh_fingerprint", "f", fingerprint,
+		"fingerprint of horizon cloud ssh server")
 
 	viper.BindPFlags(pf)
 }
@@ -49,7 +50,7 @@ func initConfig() {
 
 	// RSI: do this?
 	// viper.AddConfigPath("~/.hz") // adding home directory as first search path
-	viper.SetEnvPrefix("hz")
+	viper.SetEnvPrefix("hzc")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.

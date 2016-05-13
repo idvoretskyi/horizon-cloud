@@ -34,6 +34,8 @@ spec:
         secret: { secretName: "ssh-proxy-keys" }
       - name: api-shared-secret
         secret: { secretName: "api-shared-secret" }
+      - name: token-secret
+        secret: { secretName: "token-secret" }
 
       containers:
       - name: proxy
@@ -41,8 +43,6 @@ spec:
         resources:
           limits: { cpu: "50m", memory: "128Mi" }
         env:
-        - name: CLIENT_KEY
-          value: /secrets/ssh-proxy-keys/client-rsa
         - name: HOST_KEY
           value: /secrets/ssh-proxy-keys/host-rsa
         - name: LISTEN
@@ -56,6 +56,8 @@ spec:
           mountPath: /secrets/ssh-proxy-keys
         - name: api-shared-secret
           mountPath: /secrets/api-shared-secret
+        - name: token-secret
+          mountPath: /secrets/token-secret
         ports:
         - containerPort: 2222
           name: ssh
