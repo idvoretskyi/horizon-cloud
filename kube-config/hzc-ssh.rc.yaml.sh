@@ -30,6 +30,8 @@ spec:
         version: "$version"
     spec:
       volumes:
+      - name: disable-api-access
+        emptyDir: {}
       - name: ssh-proxy-keys
         secret: { secretName: "ssh-proxy-keys" }
       - name: api-shared-secret
@@ -52,6 +54,8 @@ spec:
         - name: API_SERVER_SECRET
           value: /secrets/api-shared-secret/api-shared-secret
         volumeMounts:
+        - name: disable-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
         - name: ssh-proxy-keys
           mountPath: /secrets/ssh-proxy-keys
         - name: api-shared-secret

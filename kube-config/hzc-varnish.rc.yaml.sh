@@ -30,6 +30,8 @@ spec:
         version: "$version"
     spec:
       volumes:
+      - name: disable-api-access
+        emptyDir: {}
       - name: names
         secret: { secretName: "names" }
 
@@ -43,6 +45,8 @@ spec:
         - name: VARNISH_MEMORY
           value: "128M"
         volumeMounts:
+        - name: disable-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
         - name: names
           mountPath: /secrets/names
         ports:

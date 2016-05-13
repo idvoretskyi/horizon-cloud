@@ -39,6 +39,8 @@ spec:
             cpu: 250m
             memory: 512Mi
         volumeMounts:
+        - name: disable-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
         - name: data
           mountPath: /data
         env:
@@ -55,6 +57,8 @@ spec:
           name: webui
           protocol: TCP
       volumes:
+      - name: disable-api-access
+        emptyDir: {}
       - name: data
         gcePersistentDisk:
           pdName: $volume

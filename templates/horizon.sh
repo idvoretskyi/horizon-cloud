@@ -37,6 +37,9 @@ spec:
           limits:
             cpu: 50m
             memory: 128Mi
+        volumeMounts:
+        - name: disable-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
         env:
         - name: HZ_SERVE_STATIC
           value: dist
@@ -58,6 +61,9 @@ spec:
         - containerPort: 8181
           name: horizon
           protocol: TCP
+      volumes:
+      - name: disable-api-access
+        emptyDir: {}
 
 ---
 

@@ -30,6 +30,8 @@ spec:
         version: "$version"
     spec:
       volumes:
+      - name: disable-api-access
+        emptyDir: {}
       - name: api-shared-secret
         secret: { secretName: "api-shared-secret" }
       - name: wildcard-ssl
@@ -46,6 +48,8 @@ spec:
         - name: SECRET_PATH
           value: /secrets/api-shared-secret/api-shared-secret
         volumeMounts:
+        - name: disable-api-access
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
         - name: api-shared-secret
           mountPath: /secrets/api-shared-secret
         - name: wildcard-ssl
