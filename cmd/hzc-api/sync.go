@@ -124,7 +124,6 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 func projectSync(ctx *hzhttp.Context) {
 	ctx = ctx.WithLog(map[string]interface{}{"action": "projectSync"})
 
-	// RSI: shut down mid-spinup and see if it recovers.
 	changeChan := make(chan db.ProjectChange)
 	ctx.DB().ProjectChanges(changeChan)
 	for c := range changeChan {
@@ -144,7 +143,7 @@ func projectSync(ctx *hzhttp.Context) {
 			}()
 		} else {
 			if c.OldVal != nil {
-				// RSI: tear down cluster.
+				// TODO: tear down cluster.
 			}
 		}
 	}

@@ -27,15 +27,17 @@ func (e *NoHostMappingError) Error() string {
 type Handler struct {
 	conf        *config
 	targetCache *meetup.Cache
+	ctx         *hzhttp.Context
 
 	mu      sync.Mutex
 	proxies map[string]*httputil.ReverseProxy
 }
 
-func NewHandler(conf *config) *Handler {
+func NewHandler(conf *config, ctx *hzhttp.Context) *Handler {
 	h := &Handler{
 		conf: conf,
-		// RSI: remove ReverseProxies from this map if no requests are
+		ctx:  ctx,
+		// TODO: remove ReverseProxies from this map if no requests are
 		// coming in for them.
 		proxies: make(map[string]*httputil.ReverseProxy, 128),
 	}
@@ -66,8 +68,8 @@ func (h *Handler) lookupTargetForHost(host string) (string, error) {
 	resp, err := h.conf.APIClient.GetProjectAddrByDomain(api.GetProjectAddrByDomainReq{
 		Domain: host,
 	})
-	// RSI: log error.
 	if err != nil {
+		h.ctx.Error("API server gave no response for `%v` (%v)", host, err)
 		return "", err
 	}
 	if resp.ProjectAddr == nil {
@@ -159,18 +161,6 @@ func isWebsocket(req *http.Request) bool {
 	return false
 }
 
-func isTLSOnlyHost(host string) bool {
-	return isHSTSHost(host)
-}
-
-func isHSTSHost(host string) bool {
-	// RSI: make this more dynamic
-	if strings.HasSuffix(host, ".hzc.io") {
-		return true
-	}
-	return false
-}
-
 func (h *Handler) ServeHTTPContext(
 	ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
@@ -191,19 +181,6 @@ func (h *Handler) ServeHTTPContext(
 		http.Error(w, "Couldn't get proxy information for "+host,
 			http.StatusInternalServerError)
 		return
-	}
-
-	if isTLSOnlyHost(host) && r.TLS == nil {
-		httpsURL := *r.URL
-		httpsURL.Scheme = "https"
-		httpsURL.Host = host
-		w.Header().Set("Location", httpsURL.String())
-		w.WriteHeader(http.StatusMovedPermanently)
-		return
-	}
-
-	if isHSTSHost(host) {
-		w.Header().Set("Strict-Transport-Security", "max-age=10886400; includeSubDomains")
 	}
 
 	if isWebsocket(r) {

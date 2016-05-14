@@ -48,7 +48,7 @@ var RootCmd = &cobra.Command{
 			log.Fatalf("Couldn't create API client: %v", err)
 		}
 
-		var handler hzhttp.Handler = NewHandler(conf)
+		var handler hzhttp.Handler = NewHandler(conf, baseCtx)
 		handler = hzhttp.LogHTTPRequests(handler)
 
 		plainHandler := hzhttp.BaseContext(baseCtx, handler)

@@ -93,8 +93,6 @@ var deployCmd = &cobra.Command{
 
 		log.Printf("Deploying %s...", name)
 
-		// RSI: check whether dist exists.
-
 		token, err := getToken()
 		if err != nil {
 			log.Fatalf("Couldn't get token: %v", err)

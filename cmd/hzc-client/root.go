@@ -46,9 +46,7 @@ func initConfig() {
 
 	viper.SetConfigName("cloudconf") // name of config file (without extension)
 	viper.AddConfigPath(".hz")       // adding home directory as first search path
-	// RSI: search parent directories?
-
-	// RSI: do this?
+	// TODO: maybe do this, maybe search parent directories, whatever Horizon does.
 	// viper.AddConfigPath("~/.hz") // adding home directory as first search path
 	viper.SetEnvPrefix("hzc")
 	viper.AutomaticEnv() // read in environment variables that match
