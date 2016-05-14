@@ -342,7 +342,6 @@ func (d *DB) projectChangesLoop(out chan<- ProjectChange) {
 		}
 		cur.Listen(ch)
 		for el := range ch {
-			// RSI: sanity checks?
 			out <- el
 		}
 		err = cur.Err()

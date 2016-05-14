@@ -2,7 +2,6 @@ package kube
 
 import "errors"
 
-// RSI: test this since it isn't really exercised right now.
 func compositeErr(errs ...error) error {
 	s := ""
 	n := 0

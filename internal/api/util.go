@@ -13,7 +13,6 @@ type Resp struct {
 }
 
 func writeJSON(rw http.ResponseWriter, code int, i interface{}) {
-	// RSI: log errors from writeJSON.
 	rw.Header().Set("Content-Type", "application/json;charset=utf-8")
 	rw.WriteHeader(code)
 	json.NewEncoder(rw).Encode(i)
