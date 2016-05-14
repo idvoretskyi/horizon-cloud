@@ -54,13 +54,11 @@ var newMu sync.Mutex
 
 func New(templatePath string, gc *gcloud.GCloud) *Kube {
 	newMu.Lock() // kutil.NewFactory is racy.
-	// RSI: should we be passing in a client config here?
 	factory := kutil.NewFactory(nil)
 	newMu.Unlock()
 	mapper, typer := factory.Object()
 	client, err := factory.Client()
 	if err != nil {
-		// RSI: stop doing this when we support user clusters.
 		log.Fatalf("unable to connect to Kube: %s", err)
 	}
 	conf, err := factory.ClientConfig()
@@ -102,8 +100,25 @@ func (k *Kube) GetHorizonPodsForProject(projectName string) ([]string, error) {
 // Usually all you want to set are `PodName`, `Command`, and maybe `In`.
 type ExecOptions kcmd.ExecOptions
 
+type limitedWriter struct {
+	io.Writer
+	len int
+}
+
+func (w *limitedWriter) Write(p []byte) (int, error) {
+	if w.len == 0 {
+		return 0, fmt.Errorf("limitedWriter exhausted")
+	}
+	if len(p) > w.len {
+		p = p[:w.len]
+	}
+	n, err := w.Writer.Write(p)
+	w.len -= n
+	return n, err
+}
+
 func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
-	// RSI: Make these limited in size.
+	const execOutputLimit = 1024 * 1024
 	var resBuf bytes.Buffer
 	var errBuf bytes.Buffer
 
@@ -121,10 +136,10 @@ func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
 	// If the user sets these we just write to their writers and return
 	// empty string.
 	if eo.Out == nil {
-		eo.Out = &resBuf
+		eo.Out = &limitedWriter{&resBuf, execOutputLimit}
 	}
 	if eo.Err == nil {
-		eo.Err = &errBuf
+		eo.Out = &limitedWriter{&errBuf, execOutputLimit}
 	}
 
 	if eo.Executor == nil {
@@ -156,7 +171,9 @@ func (k *Kube) Ready(p *Project) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		// RSI: should we be asserting `len(podlist.Items)` is what we expect?
+		if len(podlist.Items) == 0 {
+			return false, fmt.Errorf("no pods")
+		}
 		for _, pod := range podlist.Items {
 			log.Printf("checking status for PO %s", pod.Name)
 			switch pod.Status.Phase {
@@ -183,8 +200,6 @@ func (k *Kube) Ready(p *Project) (bool, error) {
 					default:
 						return false, fmt.Errorf("unrecognized status '%s'", condition.Status)
 					}
-				} else {
-					// RSI: log unexpected condition
 				}
 			}
 		}
@@ -244,9 +259,12 @@ func (k *Kube) CreateFromTemplate(
 		return nil, err
 	}
 	defer func() {
-		// RSI: log cleanup failure
-		cmd.Process.Kill()
-		cmd.Wait()
+		if err := cmd.Process.Kill(); err != nil {
+			log.Printf("error killing process %v: %v", cmd.Process, err)
+		}
+		if err := cmd.Wait(); err != nil {
+			log.Printf("error waiting on cmd %v: %v", cmd, err)
+		}
 	}()
 
 	var objs []runtime.Object
@@ -254,9 +272,8 @@ func (k *Kube) CreateFromTemplate(
 		for _, o := range objs {
 			o := o
 			go func() {
-				err := k.DeleteObject(o)
-				if err != nil {
-					// RSI: log cleanup failure
+				if err := k.DeleteObject(o); err != nil {
+					log.Printf("error deleting object %v: %v", o, err)
 				}
 			}()
 		}
@@ -272,7 +289,6 @@ func (k *Kube) CreateFromTemplate(
 			return nil, err
 		}
 		ext.RawJSON = bytes.TrimSpace(ext.RawJSON)
-		// RSI: do validation?
 		info, err := k.M.InfoForData(ext.RawJSON, path)
 		if err != nil {
 			return nil, err
@@ -298,7 +314,7 @@ func (k *Kube) CreateRDB(project string, volume string) (*RDB, error) {
 		return nil, err
 	}
 	if len(objs) != 2 {
-		// RSI: logging?
+		log.Printf("oh shit my RDB template is wrong (%v)", objs)
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
 	log.Printf("created rdb\n")
@@ -320,7 +336,7 @@ func (k *Kube) CreateHorizon(project string) (*Horizon, error) {
 		return nil, err
 	}
 	if len(objs) != 2 {
-		// RSI: logging?
+		log.Printf("oh shit my HZ template is wrong (%v)", objs)
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
 	log.Printf("created horizon\n")
@@ -367,17 +383,17 @@ func (k *Kube) createWithVol(
 
 	vol, err := k.G.CreateDisk(int64(size), volType)
 	if err != nil {
-		err = callback(nil, err)
-		if err != nil {
-			// RSI: log cleanup failure
+		log.Printf("failed to create disk (%v, %v): %v", size, volType, err)
+		if err = callback(nil, err); err != nil {
+			log.Printf("createWithVol callback(nil) error: %v", err)
 		}
 		return
 	}
 	err = callback(vol, nil)
 	if err != nil {
-		err2 := k.G.DeleteDisk(vol.Name)
-		if err2 != nil {
-			// RSI: log cleanup failure.
+		log.Printf("createWithVol callback(%v) error: %v", vol, err)
+		if err := k.G.DeleteDisk(vol.Name); err != nil {
+			log.Printf("cleanup failure for %v: %v", vol, err)
 		}
 	}
 }
@@ -395,7 +411,7 @@ func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
 
 func (k *Kube) EnsureProject(
 	trueName string, conf types.KubeConfig) (*Project, error) {
-	// RSI: Use `NumRDB` and `NumHorizon`
+	// TODO: Use `NumRDB` and `NumHorizon`
 
 	type MaybeRDB struct {
 		RDB *RDB
@@ -417,12 +433,9 @@ func (k *Kube) EnsureProject(
 				return MaybeRDB{nil, err}
 			}
 
-			// RSI: check that the replicationcontroller is what we want.
 			if rc != nil {
 				svc, err := k.C.Services(userNamespace).Get("r-" + trueName)
 				if err != nil {
-					// RSI: we should be creating replicationcontrollers and
-					// services separately so we don't have to abort here.
 					return MaybeRDB{nil, err}
 				}
 				volName := rc.Spec.Template.Spec.Volumes[0].GCEPersistentDisk.PDName
@@ -473,13 +486,13 @@ func (k *Kube) EnsureProject(
 		if rdb.RDB != nil {
 			err := k.DeleteRDB(rdb.RDB)
 			if err != nil {
-				// RSI: log cleanup failure
+				log.Printf("RDB cleanup failure for %v: %v", rdb.RDB, err)
 			}
 		}
 		if horizon.Horizon != nil {
 			err := k.DeleteHorizon(horizon.Horizon)
 			if err != nil {
-				// RSI: log cleanup failure
+				log.Printf("HZ cleanup failure for %v: %v", horizon.Horizon, err)
 			}
 		}
 		return nil, err

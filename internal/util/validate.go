@@ -3,28 +3,41 @@ package util
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 func ValidateDomainName(domain string, fieldName string) error {
-	// RSI: do more validation.
+	// TODO: do more validation.
 	if domain == "" {
 		return fmt.Errorf("field `%s` empty", fieldName)
+	}
+	if len(domain) > 1024 {
+		return fmt.Errorf("field `%s` too long (%v > %v)", fieldName, len(domain), 1024)
 	}
 	return nil
 }
 
 func ValidateProjectName(name string, fieldName string) error {
-	// RSI: more validation.
 	if name == "" {
 		return fmt.Errorf("field `%s` empty", fieldName)
+	}
+	if len(name) > 1024 {
+		return fmt.Errorf("field `%s` too long (%v > %v)", fieldName, len(name), 1024)
 	}
 	return nil
 }
 
 func ValidateUserName(name string) error {
-	// RSI: more validation.
 	if name == "" {
 		return fmt.Errorf("empty user provided")
+	}
+	if len(name) > 100 {
+		return fmt.Errorf("user `%v` too long (%v > %v)", name, len(name), 100)
+	}
+	for _, r := range name {
+		if r == utf8.RuneError {
+			return fmt.Errorf("user `%v` is not legal Unicode", name)
+		}
 	}
 	return nil
 }
