@@ -12,15 +12,25 @@ backend storage {
 }
 
 sub vcl_recv {
+    // Health check for Google load balancer
     if (req.url == "/ebaefa90-3c6e-4eb4-b8d3-9e2d53aec696") {
-        # Health check for Google load balancer
         return (synth(200, "OK"));
     }
 
+    // Always use https
     if (req.http.X-Forwarded-Proto == "http") {
         set req.http.x-redir = "https://" + req.http.host + req.url;
         return (synth(850, "Moved permanently"));
     }
+
+    // Update server points at a bucket by that domain name directly
+    if (req.http.host == "update.hzc-dev.io" || req.http.host == "update.hzc.io") {
+        set req.url = "/" + req.http.host + req.url;
+        set req.http.host = "storage.googleapis.com";
+        return (hash);
+    }
+
+    // All other requests are subdirectories in the storage-bucket/domains dir
 
     if (req.url ~ "/\$") {
         set req.url = req.url + "index.html";
