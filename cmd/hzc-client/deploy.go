@@ -110,7 +110,10 @@ var deployCmd = &cobra.Command{
 			log.Fatalf("unable to read config: %v", err)
 		}
 
-		for {
+		triesLeft := 5
+		for triesLeft > 0 {
+			triesLeft--
+
 			log.Printf("Checking local manifest against server...")
 
 			resp, err := apiClient.UpdateProjectManifest(api.UpdateProjectManifestReq{
@@ -133,6 +136,10 @@ var deployCmd = &cobra.Command{
 			if err != nil {
 				log.Fatal(err)
 			}
+		}
+
+		if triesLeft == 0 {
+			log.Fatal("Couldn't deploy; too many retries. Maybe another deploy is running?")
 		}
 
 		log.Printf("Deploy complete!\n")
