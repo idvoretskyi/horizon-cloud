@@ -139,7 +139,7 @@ func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
 		eo.Out = &limitedWriter{&resBuf, execOutputLimit}
 	}
 	if eo.Err == nil {
-		eo.Out = &limitedWriter{&errBuf, execOutputLimit}
+		eo.Err = &limitedWriter{&errBuf, execOutputLimit}
 	}
 
 	if eo.Executor == nil {
@@ -438,7 +438,16 @@ func (k *Kube) EnsureProject(
 				if err != nil {
 					return MaybeRDB{nil, err}
 				}
-				volName := rc.Spec.Template.Spec.Volumes[0].GCEPersistentDisk.PDName
+				var volName string
+				for _, vol := range rc.Spec.Template.Spec.Volumes {
+					if vol.GCEPersistentDisk != nil {
+						volName = vol.GCEPersistentDisk.PDName
+						break
+					}
+				}
+				if volName == "" {
+					return MaybeRDB{nil, fmt.Errorf("no GCE volumes in RC %v", rc)}
+				}
 				log.Printf("%s already exists with volume %s", "r0-"+trueName, volName)
 				return MaybeRDB{&RDB{volName, rc, svc}, nil}
 			}
