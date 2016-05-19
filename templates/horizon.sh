@@ -44,15 +44,19 @@ spec:
         - name: HZ_SERVE_STATIC
           value: dist
         - name: HZ_DEBUG
-          value: 'true'
+          value: 'yes'
+        - name: HZ_PERMISSIONS
+          value: 'no'
         - name: HZ_ALLOW_UNAUTHENTICATED
-          value: 'true'
-        - name: HZ_INSECURE
-          value: 'true'
-        - name: HZ_AUTO_CREATE_TABLE
-          value: 'true'
+          value: 'yes'
+        - name: HZ_ALLOW_ANONYMOUS
+          value: 'yes'
+        - name: HZ_SECURE
+          value: 'no'
+        - name: HZ_AUTO_CREATE_COLLECTION
+          value: 'yes'
         - name: HZ_AUTO_CREATE_INDEX
-          value: 'true'
+          value: 'yes'
         - name: HZ_CONNECT
           value: r-$project:28015
         - name: HZ_BIND

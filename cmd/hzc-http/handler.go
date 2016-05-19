@@ -170,6 +170,11 @@ func (h *Handler) ServeHTTPContext(
 		return
 	}
 	host := path[1:]
+	slashIndex := strings.IndexRune(host, '/')
+	if slashIndex != -1 {
+		host = host[:slashIndex]
+		r.URL.Path = r.URL.Path + "/" + host[slashIndex:]
+	}
 	target, err := h.getCachedTarget(host)
 	if err != nil {
 		if _, ok := err.(*NoHostMappingError); ok {
