@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
@@ -92,6 +93,9 @@ func (d *FileDescription) Validate() error {
 	}
 	if !util.IsSafeRelPath(d.Path) {
 		return fmt.Errorf("Path %#v is not safe", d.Path)
+	}
+	if strings.HasPrefix(d.Path, ".well-known") {
+		return fmt.Errorf("Path %#v is in .well-known, which is not supported")
 	}
 	if len(d.MD5) != 16 {
 		return fmt.Errorf("MD5 must be exactly 16 bytes long (after base64 decoding)")
