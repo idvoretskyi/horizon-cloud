@@ -34,6 +34,21 @@ type SetProjectKubeConfigResp struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// DeleteProject
+
+var DeleteProjectPath = "/v1/projects/delete"
+
+type DeleteProjectReq struct {
+	Project string
+}
+
+func (r *DeleteProjectReq) Validate() error {
+	return util.ValidateProjectName(r.Project, "Project")
+}
+
+type DeleteProjectResp struct{}
+
+////////////////////////////////////////////////////////////////////////////////
 // AddProjectUsers
 
 var AddProjectUsersPath = "/v1/projects/addUsers"

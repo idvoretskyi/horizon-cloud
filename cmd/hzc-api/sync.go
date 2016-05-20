@@ -75,6 +75,15 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 		}
 		k := kube.New(templatePath, gc)
 
+		if conf.Deleting {
+			ctx.Info("deleting project")
+			err := k.DeleteProject(conf.ID)
+			ctx.MaybeError(err)
+			err = ctx.DB().DeleteProject(conf.ID)
+			ctx.MaybeError(err)
+			continue
+		}
+
 		ctx.Info("KubeConfig: %v (applied: %v)",
 			conf.KubeConfigVersion, conf.KubeConfigAppliedVersion)
 		if conf.KubeConfigVersion != conf.KubeConfigAppliedVersion {
@@ -129,7 +138,8 @@ func projectSync(ctx *hzhttp.Context) {
 	for c := range changeChan {
 		if c.NewVal != nil {
 			if c.NewVal.KubeConfigVersion == c.NewVal.KubeConfigAppliedVersion &&
-				c.NewVal.HorizonConfigVersion == c.NewVal.HorizonConfigAppliedVersion {
+				c.NewVal.HorizonConfigVersion == c.NewVal.HorizonConfigAppliedVersion &&
+				!c.NewVal.Deleting {
 				continue
 			}
 			func() {

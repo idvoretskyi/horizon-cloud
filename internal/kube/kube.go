@@ -351,10 +351,24 @@ func (k *Kube) CreateHorizon(project string) (*Horizon, error) {
 	return &Horizon{rc, svc}, nil
 }
 
+func (k *Kube) DeleteRC(rc *kapi.ReplicationController) error {
+	var errs []error
+	selector := rc.Spec.Selector
+	errs = append(errs, k.DeleteObject(rc))
+	podlist, err := k.C.Pods(userNamespace).List(kapi.ListOptions{
+		LabelSelector: labels.SelectorFromSet(selector),
+	})
+	errs = append(errs, err)
+	for _, pod := range podlist.Items {
+		errs = append(errs, k.DeleteObject(&pod))
+	}
+	return compositeErr(errs...)
+}
+
 func (k *Kube) DeleteRDB(rdb *RDB) error {
 	var errs []error
 	errs = append(errs, k.G.DeleteDisk(rdb.VolumeID))
-	errs = append(errs, k.DeleteObject(rdb.RC))
+	errs = append(errs, k.DeleteRC(rdb.RC))
 	errs = append(errs, k.DeleteObject(rdb.SVC))
 	err := compositeErr(errs...)
 	if err != nil {
@@ -407,6 +421,34 @@ func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
 		return nil, err
 	}
 	return rc, nil
+}
+
+func (k *Kube) DeleteProject(trueName string) error {
+	var errs []error
+	rc, err := k.getRC("r0-" + trueName)
+	errs = append(errs, err)
+	if err == nil {
+		k.DeleteRC(rc)
+	}
+	// We DO NOT remove the GCE disk.  That happens at a later date, to
+	// protect against accident or malice.
+	svc, err := k.C.Services(userNamespace).Get("r-" + trueName)
+	errs = append(errs, err)
+	if err == nil {
+		k.DeleteObject(svc)
+	}
+
+	rc, err = k.getRC("h0-" + trueName)
+	errs = append(errs, err)
+	if err == nil {
+		k.DeleteRC(rc)
+	}
+	svc, err = k.C.Services(userNamespace).Get("h-" + trueName)
+	errs = append(errs, err)
+	if err == nil {
+		k.DeleteObject(svc)
+	}
+	return compositeErr(errs...)
 }
 
 func (k *Kube) EnsureProject(

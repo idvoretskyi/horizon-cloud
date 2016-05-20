@@ -110,9 +110,15 @@ func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, 
 	q := projects.Get(projectID).Update(projectPatch)
 	res, err := q.RunWrite(d.session)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	return res.Replaced == 1, nil
+}
+
+func (d *DB) DeleteProject(projectID string) error {
+	q := projects.Get(projectID).Delete()
+	_, err := q.RunWrite(d.session)
+	return err
 }
 
 func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, error) {

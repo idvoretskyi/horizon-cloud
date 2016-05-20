@@ -114,6 +114,23 @@ func getProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) 
 	})
 }
 
+func deleteProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.DeleteProjectReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	success, err := ctx.DB().UpdateProject(util.TrueName(r.Project), types.Project{
+		Deleting: true,
+	})
+	ctx.MaybeError(err)
+	if !success {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to delete project."))
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.DeleteProjectResp{})
+}
+
 func userCreate(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.UserCreateReq
 	if !decode(rw, req.Body, &r) {
@@ -497,6 +514,7 @@ func main() {
 
 		// Web interface uses these.
 		{api.GetProjectPath, getProject, true},
+		{api.DeleteProjectPath, deleteProject, true},
 		{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
 		{api.AddProjectUsersPath, addProjectUsers, true},
 		{api.UserCreatePath, userCreate, true},

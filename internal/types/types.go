@@ -46,6 +46,8 @@ type Project struct {
 	Name  string   `gorethink:",omitempty"`
 	Users []string `gorethink:",omitempty"`
 
+	Deleting bool `gorethink:",omitempty"`
+
 	KubeConfig               KubeConfig `gorethink:",omitempty"`
 	KubeConfigVersion        int64      `gorethink:",omitempty"`
 	KubeConfigAppliedVersion int64      `gorethink:",omitempty"`
