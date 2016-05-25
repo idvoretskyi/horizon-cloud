@@ -1,0 +1,7 @@
+#!/bin/bash
+set -eu
+
+if [[ ! -d horizon ]]; then
+   echo "No directory `pwd`/horizon found, aborting."
+   exit 1
+fi
