@@ -8,26 +8,20 @@ name=${basename%%.*}
 cd "$(dirname "$(readlink -f "$0")")"
 
 gcr_id_path=docker/$name/gcr_image_id_`cat /secrets/names/cluster`
-version=`cat $basename $gcr_id_path | md5sum | head -c16`
 
 cat <<EOF
-apiVersion: v1
-kind: ReplicationController
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
-  name: $name--$version
+  name: $name
   labels:
     app: $name
-    version: "$version"
 spec:
   replicas: 2
-  selector:
-    app: $name
-    version: "$version"
   template:
     metadata:
       labels:
         app: $name
-        version: "$version"
     spec:
       volumes:
       - name: disable-api-access
@@ -41,6 +35,10 @@ spec:
         resources:
           requests: { cpu: "250m" }
           limits: { memory: "256Mi" }
+        readinessProbe:
+          httpGet:
+            port: 80
+            path: /ebaefa90-3c6e-4eb4-b8d3-9e2d53aec696
         env:
         - name: VARNISH_MEMORY
           value: "128M"

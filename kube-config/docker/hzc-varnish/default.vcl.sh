@@ -13,7 +13,7 @@ backend storage {
 }
 
 sub vcl_recv {
-    // Health check for Google load balancer
+    // Health check for Google load balancer and Kubernetes
     if (req.url == "/ebaefa90-3c6e-4eb4-b8d3-9e2d53aec696") {
         return (synth(200, "OK"));
     }
