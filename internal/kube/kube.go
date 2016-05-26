@@ -233,6 +233,9 @@ func (k *Kube) Wait(p *Project) error {
 }
 
 func (k *Kube) DeleteObject(o runtime.Object) error {
+	if o == nil {
+		return fmt.Errorf("cannot delete non-existent object")
+	}
 	info, err := k.M.InfoForObject(o)
 	if err != nil {
 		return err
@@ -352,6 +355,9 @@ func (k *Kube) CreateHorizon(project string) (*Horizon, error) {
 }
 
 func (k *Kube) DeleteRC(rc *kapi.ReplicationController) error {
+	if rc == nil {
+		return fmt.Errorf("cannot delete non-existent RC")
+	}
 	var errs []error
 	selector := rc.Spec.Selector
 	errs = append(errs, k.DeleteObject(rc))
