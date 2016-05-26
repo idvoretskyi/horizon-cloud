@@ -163,21 +163,14 @@ func isWebsocket(req *http.Request) bool {
 
 func (h *Handler) ServeHTTPContext(
 	ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-
-	// horizon.hzc-dev.io/pname -> pname.hzc-dev.io/horizon (kinda)
-	r.URL.Path = "/horizon"
-	if path == "" { // We have to check this so the slice is legal.
-		http.Error(w, "no host specified", http.StatusNotFound)
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	slashIndex := strings.IndexByte(path, '/')
+	if slashIndex == -1 {
+		http.Error(w, "malformed", http.StatusNotFound)
 		return
 	}
-	host := path[1:]
-	// horizon.hzc-dev.io/pname/foo -> pname.hzc-dev.io/horizon/foo (kinda)
-	slashIndex := strings.IndexRune(host, '/')
-	if slashIndex != -1 {
-		host = host[:slashIndex]
-		r.URL.Path = r.URL.Path + "/" + host[slashIndex:]
-	}
+	host := path[:slashIndex]
+	r.URL.Path = path[slashIndex:]
 	target, err := h.getCachedTarget(host)
 	if err != nil {
 		if _, ok := err.(*NoHostMappingError); ok {

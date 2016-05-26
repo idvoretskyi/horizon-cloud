@@ -2,6 +2,7 @@
 set -eu
 
 BUCKET="$(cat /secrets/names/storage-bucket)"
+DOMAIN="$(cat /secrets/names/domain)"
 
 cat <<EOF
 vcl 4.0;
@@ -20,7 +21,7 @@ sub vcl_recv {
     // Always use https
     if (req.http.X-Forwarded-Proto == "http") {
         set req.http.x-redir = "https://" + req.http.host + req.url;
-        return (synth(850, "Moved permanently"));
+        return (synth(850, "Moved"));
     }
 
     // Update server points at a bucket by that domain name directly
@@ -28,6 +29,12 @@ sub vcl_recv {
         set req.url = "/" + req.http.host + req.url;
         set req.http.host = "storage.googleapis.com";
         return (hash);
+    }
+
+    // Redirect Horizon requests to a subdomain.
+    if (req.url ~ "^/horizon(/|\$)") {
+        set req.http.x-redir = "https://horizon.$DOMAIN/" + req.http.host + req.url;
+        return (synth(850, "Moved"));
     }
 
     // All other requests are subdirectories in the storage-bucket/domains dir
@@ -49,7 +56,7 @@ sub vcl_backend_response {
 sub vcl_synth {
     if (resp.status == 850) {
         set resp.http.Location = req.http.x-redir;
-        set resp.status = 302;
+        set resp.status = 307;
         return (deliver);
     }
 }
