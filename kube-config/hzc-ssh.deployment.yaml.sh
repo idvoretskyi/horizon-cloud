@@ -8,57 +8,59 @@ name=${basename%%.*}
 cd "$(dirname "$(readlink -f "$0")")"
 
 gcr_id_path=docker/$name/gcr_image_id_`cat /secrets/names/cluster`
-version=`cat $basename $gcr_id_path | md5sum | head -c16`
 
 cat <<EOF
-apiVersion: v1
-kind: ReplicationController
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
-  name: $name--$version
+  name: $name
   labels:
     app: $name
-    version: "$version"
 spec:
   replicas: 2
-  selector:
-    app: $name
-    version: "$version"
   template:
     metadata:
       labels:
         app: $name
-        version: "$version"
     spec:
       volumes:
       - name: disable-api-access
         emptyDir: {}
+      - name: ssh-proxy-keys
+        secret: { secretName: "ssh-proxy-keys" }
       - name: api-shared-secret
         secret: { secretName: "api-shared-secret" }
-      - name: wildcard-ssl
-        secret: { secretName: "wildcard-ssl" }
+      - name: token-secret
+        secret: { secretName: "token-secret" }
 
       containers:
       - name: proxy
         image: `cat $gcr_id_path`
         resources:
-          limits: { cpu: "250m", memory: "128Mi" }
+          limits: { cpu: "50m", memory: "128Mi" }
+        readinessProbe:
+          tcpSocket:
+            port: 2222
         env:
+        - name: HOST_KEY
+          value: /secrets/ssh-proxy-keys/host-rsa
+        - name: LISTEN
+          value: ":2222"
         - name: API_SERVER
           value: "http://api.`cat /secrets/names/domain`:8000"
-        - name: SECRET_PATH
+        - name: API_SERVER_SECRET
           value: /secrets/api-shared-secret/api-shared-secret
         volumeMounts:
         - name: disable-api-access
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        - name: ssh-proxy-keys
+          mountPath: /secrets/ssh-proxy-keys
         - name: api-shared-secret
           mountPath: /secrets/api-shared-secret
-        - name: wildcard-ssl
-          mountPath: /secrets/wildcard-ssl
+        - name: token-secret
+          mountPath: /secrets/token-secret
         ports:
-        - containerPort: 8080
-          name: http
-          protocol: TCP
-        - containerPort: 4433
-          name: https
+        - containerPort: 2222
+          name: ssh
           protocol: TCP
 EOF
