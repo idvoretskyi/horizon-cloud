@@ -19,7 +19,7 @@ for target in "$@"; do
         if [[ -f prepare ]]; then
             ./prepare
         fi
-        image_id=`docker build . | tail -1 | awk '{print $3}'`
+        image_id=`docker build . | tee build.log | tail -1 | awk '{print $3}'`
         cluster_name=`cat /secrets/names/cluster`
         gcr_image_id="us.gcr.io/$cluster_name/$tname:$image_id"
         docker tag -f "$image_id" "$gcr_image_id"
