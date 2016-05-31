@@ -508,7 +508,7 @@ var RootCmd = &cobra.Command{
 			// Other server stuff uses these.
 			{api.GetUsersByKeyPath, getUsersByKey, true},
 			{api.GetProjectAddrsByKeyPath, getProjectAddrsByKey, true},
-			{api.GetProjectAddrByDomainPath, getProjectAddrByDomain, true},
+			{api.GetProjectAddrByDomainPath, getProjectAddrByDomain, false},
 		}
 
 		mux := hzhttp.NewMuxer()
