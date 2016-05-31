@@ -458,7 +458,7 @@ var RootCmd = &cobra.Command{
 			log.Fatal("Token secret was not long enough")
 		}
 
-		rdbConn, err := db.New()
+		rdbConn, err := db.New(viper.GetString("rethinkdb_addr"))
 		if err != nil {
 			log.Fatal("Unable to connect to RethinkDB: ", err)
 		}
@@ -558,6 +558,9 @@ func init() {
 	pf.String("service_account",
 		"/secrets/gcloud-service-account/gcloud-service-account.json",
 		"Path to the JSON service account.")
+
+	pf.String("rethinkdb_addr", "localhost:28015",
+		"Host and port of rethinkdb instance")
 
 	viper.BindPFlags(pf)
 }

@@ -23,11 +23,9 @@ var (
 	domains  = r.DB("hzc_api").Table("domains")
 )
 
-func New() (*DBConnection, error) {
+func New(addr string) (*DBConnection, error) {
 	session, err := r.Connect(r.ConnectOpts{
-		Address:           "localhost:28015",
-		Username:          "admin",
-		Password:          "hzc",
+		Address:           addr,
 		MaxIdle:           10,
 		MaxOpen:           10,
 		HostDecayDuration: time.Second * 10,
