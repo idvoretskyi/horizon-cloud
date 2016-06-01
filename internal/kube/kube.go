@@ -24,7 +24,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/yaml"
 )
 
-const userNamespace = "user"
+const userNamespace = "default"
 
 type Kube struct {
 	TemplatePath string
@@ -123,7 +123,7 @@ func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
 	var errBuf bytes.Buffer
 
 	if eo.Namespace == "" {
-		eo.Namespace = "user"
+		eo.Namespace = userNamespace
 	}
 	if eo.PodName == "" {
 		return "", "", fmt.Errorf("Kube.Exec requires a podname")

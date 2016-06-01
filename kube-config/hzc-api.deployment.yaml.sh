@@ -19,6 +19,8 @@ metadata:
   namespace: $DEPLOY
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
@@ -27,40 +29,52 @@ spec:
       volumes:
       - name: disable-api-access
         emptyDir: {}
-      - name: ssh-proxy-keys
-        secret: { secretName: "ssh-proxy-keys" }
       - name: api-shared-secret
         secret: { secretName: "api-shared-secret" }
       - name: token-secret
         secret: { secretName: "token-secret" }
+      - name: names
+        secret: { secretName: "names" }
+      - name: gcloud-service-account
+        secret: { secretName: "gcloud-service-account" }
+      - name: ku-config
+        secret: { secretName: "ku-config" }
 
       containers:
       - name: proxy
         image: `cat $gcr_id_path`
         resources:
-          limits: { cpu: "50m", memory: "128Mi" }
+          limits: { memory: "256Mi" }
         readinessProbe:
           tcpSocket:
-            port: 2222
+            port: 8000
         env:
-        - name: HOST_KEY
-          value: /secrets/ssh-proxy-keys/host-rsa
-        - name: LISTEN
-          value: ":2222"
-        - name: API_SERVER
-          value: "http://hzc-api"
-        - name: API_SERVER_SECRET
+        - name: HZC_LISTEN
+          value: ":8000"
+        - name: HZC_SHARED_SECRET
           value: /secrets/api-shared-secret/api-shared-secret
+        - name: HZC_TOKEN_SECRET
+          value: /secrets/token-secret/token-secret
+        - name: HZC_TEMPLATE_PATH
+          value: /templates
+        - name: HZC_STORAGE_BUCKET_FILE
+          value: /secrets/names/storage-bucket
+        - name: HZC_RETHINKDB_ADDR
+          value: rethinkdb-sys:28015
         volumeMounts:
         - name: disable-api-access
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        - name: ssh-proxy-keys
-          mountPath: /secrets/ssh-proxy-keys
         - name: api-shared-secret
           mountPath: /secrets/api-shared-secret
         - name: token-secret
           mountPath: /secrets/token-secret
+        - name: names
+          mountPath: /secrets/names
+        - name: gcloud-service-account
+          mountPath: /secrets/gcloud-service-account
+        - name: ku-config
+          mountPath: /home/hzc/.kube
         ports:
-        - containerPort: 2222
-          name: ssh
+        - containerPort: 8000
+          name: http
 EOF

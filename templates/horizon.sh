@@ -5,14 +5,12 @@ set -o pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 project="$1"
-cluster_name=`cat /secrets/names/cluster`
 
 cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
   name: h0-$project
-  namespace: user
   labels:
     app: horizon
     project: $project
@@ -32,7 +30,7 @@ spec:
     spec:
       containers:
       - name: horizon
-        image: `cat ../kube-config/docker/horizon/gcr_image_id_$cluster_name`
+        image: `cat ../kube-config/docker/horizon/gcr_image_id`
         resources:
           limits:
             cpu: 50m
@@ -75,17 +73,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: h-$project
-  namespace: user
   labels:
     app: horizon
     project: $project
 spec:
+  type: ClusterIP
   selector:
     app: horizon
     project: $project
   ports:
   - port: 8181
     name: http
-    protocol: TCP
-  type: ClusterIP
 EOF

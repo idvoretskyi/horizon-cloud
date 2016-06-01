@@ -1,0 +1,9 @@
+#!/bin/bash
+set -eu
+cd "$(dirname "$0")"
+
+../../../build/build_binaries.bash . hzc-api linux
+mv hzc-api-linux-amd64 hzc-api
+
+rm -rf templates
+cp -r ../../../templates templates

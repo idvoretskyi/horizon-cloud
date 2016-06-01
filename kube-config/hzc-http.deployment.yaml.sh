@@ -2,20 +2,21 @@
 set -eu
 set -o pipefail
 
+DEPLOY=${DEPLOY-dev}
+
 basename=`basename $0`
 name=${basename%%.*}
 
 cd "$(dirname "$(readlink -f "$0")")"
 
-gcr_id_path=docker/$name/gcr_image_id_`cat /secrets/names/cluster`
+gcr_id_path=docker/$name/gcr_image_id
 
 cat <<EOF
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: $name
-  labels:
-    app: $name
+  namespace: $DEPLOY
 spec:
   replicas: 2
   template:
@@ -26,10 +27,6 @@ spec:
       volumes:
       - name: disable-api-access
         emptyDir: {}
-      - name: api-shared-secret
-        secret: { secretName: "api-shared-secret" }
-      - name: wildcard-ssl
-        secret: { secretName: "wildcard-ssl" }
 
       containers:
       - name: proxy
@@ -38,24 +35,15 @@ spec:
           limits: { cpu: "250m", memory: "128Mi" }
         readinessProbe:
           tcpSocket:
-            port: 8080
+            port: 8000
         env:
         - name: API_SERVER
-          value: "http://api.`cat /secrets/names/domain`:8000"
-        - name: SECRET_PATH
-          value: /secrets/api-shared-secret/api-shared-secret
+          value: "http://hzc-api"
         volumeMounts:
         - name: disable-api-access
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-        - name: api-shared-secret
-          mountPath: /secrets/api-shared-secret
-        - name: wildcard-ssl
-          mountPath: /secrets/wildcard-ssl
         ports:
-        - containerPort: 8080
+        - containerPort: 8000
           name: http
-          protocol: TCP
-        - containerPort: 4433
-          name: https
           protocol: TCP
 EOF

@@ -474,6 +474,12 @@ var RootCmd = &cobra.Command{
 		}
 		baseCtx = baseCtx.WithServiceAccount(serviceAccount)
 
+		storageBucketBytes, err := ioutil.ReadFile(viper.GetString("storage_bucket_file"))
+		if err != nil {
+			log.Fatal("Unable to read storage bucket file: ", err)
+		}
+		storageBucket = string(storageBucketBytes)
+
 		region := "us-central1-f"
 		gc, err := gcloud.New(serviceAccount, clusterName, region)
 		if err != nil {
@@ -551,9 +557,9 @@ func init() {
 		os.Getenv("HOME")+"/go/src/github.com/rethinkdb/horizon-cloud/templates/",
 		"Path to the templates to use when creating Kube objects.")
 
-	pf.StringVar(&storageBucket, "storage_bucket",
-		"hzc-dev-io-userdata",
-		"Storage bucket to write user objects to")
+	pf.String("storage_bucket_file",
+		"",
+		"File containing name of storage bucket to write user objects to")
 
 	pf.String("service_account",
 		"/secrets/gcloud-service-account/gcloud-service-account.json",

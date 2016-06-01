@@ -6,14 +6,12 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 project="$1"
 volume="$2"
-cluster_name=`cat /secrets/names/cluster`
 
 cat <<EOF
 apiVersion: v1
 kind: ReplicationController
 metadata:
   name: r0-$project
-  namespace: user
   labels:
     app: rethinkdb
     project: $project
@@ -33,7 +31,7 @@ spec:
     spec:
       containers:
       - name: rethinkdb
-        image: `cat ../kube-config/docker/rethinkdb/gcr_image_id_$cluster_name`
+        image: `cat ../kube-config/docker/rethinkdb/gcr_image_id`
         resources:
           limits:
             cpu: 250m
@@ -70,7 +68,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: r-$project
-  namespace: user
   labels:
     app: rethinkdb
     project: $project
@@ -81,8 +78,6 @@ spec:
   ports:
   - port: 28015
     name: driver
-    protocol: TCP
   - port: 8080
     name: webui
-    protocol: TCP
 EOF

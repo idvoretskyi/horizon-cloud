@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 
@@ -143,7 +144,9 @@ func handleClientConn(baseLogger *hzlog.Logger, sock net.Conn, config *config) {
 
 	serverConn, chans, reqs, err := ssh.NewServerConn(sock, serverConfig)
 	if err != nil {
-		c.log.UserError("Failed to set up ssh connection: %v", err)
+		if err != io.EOF {
+			c.log.UserError("Failed to set up ssh connection: %v", err)
+		}
 		return
 	}
 
