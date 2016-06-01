@@ -11,7 +11,7 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 gcr_id_path=docker/$name/gcr_image_id
 
-api_host=api.$(cat /secrets/"$DEPLOY"/names/domain)
+hzc_http_host=hzc-http.$(cat /secrets/"$DEPLOY"/names/domain)
 
 cat <<EOF
 apiVersion: extensions/v1beta1
@@ -29,23 +29,27 @@ spec:
       volumes:
       - name: disable-api-access
         emptyDir: {}
+      - name: wildcard-ssl
+        secret: { secretName: "wildcard-ssl" }
 
       containers:
-      - name: proxy
+      - name: stunnel
         image: `cat $gcr_id_path`
         resources:
-          limits: { cpu: "250m", memory: "128Mi" }
+          requests: { cpu: "250m" }
+          limits: { memory: "256Mi" }
         readinessProbe:
           tcpSocket:
-            port: 8000
+            port: 443
         env:
-        - name: API_SERVER
-          value: "http://$api_host"
+        - name: TARGET
+          value: "$hzc_http_host:80"
         volumeMounts:
         - name: disable-api-access
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        - name: wildcard-ssl
+          mountPath: /secrets/wildcard-ssl
         ports:
-        - containerPort: 8000
-          name: http
-          protocol: TCP
+        - containerPort: 443
+          name: https
 EOF

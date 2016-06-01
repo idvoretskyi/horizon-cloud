@@ -74,7 +74,7 @@ func ProjectAddrFromName(name string) ProjectAddr {
 	trueName := util.TrueName(name)
 	return ProjectAddr{
 		Name:     name,
-		HTTPAddr: "h-" + trueName + ".user:8181",
+		HTTPAddr: "h-" + trueName + ":8181",
 	}
 }
 
