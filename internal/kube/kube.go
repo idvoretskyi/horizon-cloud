@@ -81,7 +81,7 @@ func New(templatePath string, userNamespace string, gc *gcloud.GCloud) *Kube {
 
 func (k *Kube) GetHorizonPodsForProject(projectName string) ([]string, error) {
 	trueName := util.TrueName(projectName)
-	pods, err := k.C.Pods("user").List(kapi.ListOptions{
+	pods, err := k.C.Pods(k.userNamespace).List(kapi.ListOptions{
 		LabelSelector: labels.Set(map[string]string{
 			"app":     "horizon",
 			"project": trueName,

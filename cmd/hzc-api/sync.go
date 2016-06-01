@@ -37,7 +37,7 @@ func applyHorizonConfig(
 		PodName: pod,
 		In:      bytes.NewReader(hzc),
 		Command: []string{"su", "-s", "/bin/sh", "horizon", "-c",
-			"sleep 0.3; cat > /tmp/conf; echo stdout; echo stderr >&2"},
+			"hz set-schema -n app -"},
 	})
 	if err != nil {
 		err = fmt.Errorf("Error setting Horizon config:\n"+

@@ -83,7 +83,7 @@ var deployCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		name := viper.GetString("name")
 		if name == "" {
-			log.Fatalf("no project name specified (use `-n` or `%s`)", cfgFile)
+			log.Fatalf("no project name specified (use `-n` or `%s`)", configFile)
 		}
 
 		apiClient, err := api.NewClient(viper.GetString("api_server"), "")
@@ -105,9 +105,9 @@ var deployCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		hzc, err := ioutil.ReadFile(".hz/config.toml")
+		schema, err := ioutil.ReadFile(schemaFile)
 		if err != nil {
-			log.Fatalf("unable to read config: %v", err)
+			log.Fatalf("unable to read schema at %v: %v", schemaFile, err)
 		}
 
 		triesLeft := 5
@@ -120,7 +120,7 @@ var deployCmd = &cobra.Command{
 				Project:       name,
 				Files:         files,
 				Token:         token,
-				HorizonConfig: hzc,
+				HorizonConfig: schema,
 			})
 			if err != nil {
 				log.Fatal(err)
