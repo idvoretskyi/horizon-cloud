@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
       - name: horizon
-        image: `cat ../kube-config/docker/horizon/gcr_image_id`
+        image: $HORIZON_GCR_ID
         resources:
           limits:
             cpu: 50m

@@ -12,6 +12,7 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
+	"github.com/spf13/viper"
 )
 
 var projects = make(map[string]*types.Project)
@@ -68,12 +69,13 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 		ctx := ctx.WithLog(map[string]interface{}{"project": conf.ID})
 		ctx.Info("applying project")
 
-		gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f")
+		gc, err := gcloud.New(
+			ctx.ServiceAccount(), viper.GetString("cluster_name"), "us-central1-f")
 		if err != nil {
 			ctx.Error("%v", err)
 			continue
 		}
-		k := kube.New(templatePath, gc)
+		k := kube.New(viper.GetString("template_path"), viper.GetString("kube_namespace"), gc)
 
 		if conf.Deleting {
 			ctx.Info("deleting project")

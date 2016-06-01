@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: rethinkdb
-        image: `cat ../kube-config/docker/rethinkdb/gcr_image_id`
+        image: $RETHINKDB_GCR_ID
         resources:
           limits:
             cpu: 250m

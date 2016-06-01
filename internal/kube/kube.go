@@ -24,14 +24,13 @@ import (
 	"k8s.io/kubernetes/pkg/util/yaml"
 )
 
-const userNamespace = "default"
-
 type Kube struct {
-	TemplatePath string
-	C            *client.Client
-	Conf         *client.Config
-	M            *resource.Mapper
-	G            *gcloud.GCloud
+	TemplatePath  string
+	C             *client.Client
+	Conf          *client.Config
+	M             *resource.Mapper
+	G             *gcloud.GCloud
+	userNamespace string
 }
 
 type RDB struct {
@@ -52,7 +51,7 @@ type Project struct {
 
 var newMu sync.Mutex
 
-func New(templatePath string, gc *gcloud.GCloud) *Kube {
+func New(templatePath string, userNamespace string, gc *gcloud.GCloud) *Kube {
 	newMu.Lock() // kutil.NewFactory is racy.
 	factory := kutil.NewFactory(nil)
 	newMu.Unlock()
@@ -73,8 +72,10 @@ func New(templatePath string, gc *gcloud.GCloud) *Kube {
 			ObjectTyper:  typer,
 			RESTMapper:   mapper,
 			ClientMapper: resource.ClientMapperFunc(factory.ClientForMapping),
-			Decoder:      factory.Decoder(true)},
-		G: gc,
+			Decoder:      factory.Decoder(true),
+		},
+		G:             gc,
+		userNamespace: userNamespace,
 	}
 }
 
@@ -123,7 +124,7 @@ func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
 	var errBuf bytes.Buffer
 
 	if eo.Namespace == "" {
-		eo.Namespace = userNamespace
+		eo.Namespace = k.userNamespace
 	}
 	if eo.PodName == "" {
 		return "", "", fmt.Errorf("Kube.Exec requires a podname")
@@ -166,7 +167,7 @@ func (k *Kube) Exec(eo ExecOptions) (string, string, error) {
 func (k *Kube) Ready(p *Project) (bool, error) {
 	for _, rc := range []*kapi.ReplicationController{p.RDB.RC, p.Horizon.RC} {
 		log.Printf("checking readiness of RC %s", rc.Name)
-		podlist, err := k.C.Pods(userNamespace).List(kapi.ListOptions{
+		podlist, err := k.C.Pods(k.userNamespace).List(kapi.ListOptions{
 			LabelSelector: labels.SelectorFromSet(rc.Spec.Selector)})
 		if err != nil {
 			return false, err
@@ -296,7 +297,7 @@ func (k *Kube) CreateFromTemplate(
 		if err != nil {
 			return nil, err
 		}
-		info.Namespace = userNamespace
+		info.Namespace = k.userNamespace
 		obj, err := resource.NewHelper(info.Client, info.Mapping).
 			Create(info.Namespace, true, info.Object)
 		if err != nil {
@@ -361,7 +362,7 @@ func (k *Kube) DeleteRC(rc *kapi.ReplicationController) error {
 	var errs []error
 	selector := rc.Spec.Selector
 	errs = append(errs, k.DeleteObject(rc))
-	podlist, err := k.C.Pods(userNamespace).List(kapi.ListOptions{
+	podlist, err := k.C.Pods(k.userNamespace).List(kapi.ListOptions{
 		LabelSelector: labels.SelectorFromSet(selector),
 	})
 	errs = append(errs, err)
@@ -419,7 +420,7 @@ func (k *Kube) createWithVol(
 }
 
 func (k *Kube) getRC(name string) (*kapi.ReplicationController, error) {
-	rc, err := k.C.ReplicationControllers(userNamespace).Get(name)
+	rc, err := k.C.ReplicationControllers(k.userNamespace).Get(name)
 	if err != nil {
 		if serr, ok := err.(*kerrors.StatusError); ok && serr.Status().Code == 404 {
 			return nil, nil
@@ -438,7 +439,7 @@ func (k *Kube) DeleteProject(trueName string) error {
 	}
 	// We DO NOT remove the GCE disk.  That happens at a later date, to
 	// protect against accident or malice.
-	svc, err := k.C.Services(userNamespace).Get("r-" + trueName)
+	svc, err := k.C.Services(k.userNamespace).Get("r-" + trueName)
 	errs = append(errs, err)
 	if err == nil {
 		k.DeleteObject(svc)
@@ -449,7 +450,7 @@ func (k *Kube) DeleteProject(trueName string) error {
 	if err == nil {
 		k.DeleteRC(rc)
 	}
-	svc, err = k.C.Services(userNamespace).Get("h-" + trueName)
+	svc, err = k.C.Services(k.userNamespace).Get("h-" + trueName)
 	errs = append(errs, err)
 	if err == nil {
 		k.DeleteObject(svc)
@@ -482,7 +483,7 @@ func (k *Kube) EnsureProject(
 			}
 
 			if rc != nil {
-				svc, err := k.C.Services(userNamespace).Get("r-" + trueName)
+				svc, err := k.C.Services(k.userNamespace).Get("r-" + trueName)
 				if err != nil {
 					return MaybeRDB{nil, err}
 				}
@@ -522,7 +523,7 @@ func (k *Kube) EnsureProject(
 				return MaybeHorizon{nil, err}
 			}
 			if rc != nil {
-				svc, err := k.C.Services(userNamespace).Get("h-" + trueName)
+				svc, err := k.C.Services(k.userNamespace).Get("h-" + trueName)
 				if err != nil {
 					return MaybeHorizon{nil, err}
 				}

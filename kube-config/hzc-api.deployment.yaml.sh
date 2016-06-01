@@ -10,6 +10,8 @@ name=${basename%%.*}
 cd "$(dirname "$(readlink -f "$0")")"
 
 gcr_id_path=docker/$name/gcr_image_id
+rethinkdb_gcr_id_path=docker/rethinkdb/gcr_image_id
+horizon_gcr_id_path=docker/horizon/gcr_image_id
 
 cat <<EOF
 apiVersion: extensions/v1beta1
@@ -56,11 +58,17 @@ spec:
         - name: HZC_TOKEN_SECRET
           value: /secrets/token-secret/token-secret
         - name: HZC_TEMPLATE_PATH
-          value: /templates
+          value: /templates/
         - name: HZC_STORAGE_BUCKET_FILE
           value: /secrets/names/storage-bucket
         - name: HZC_RETHINKDB_ADDR
           value: rethinkdb-sys:28015
+        - name: HZC_KUBE_NAMESPACE
+          value: $DEPLOY
+        - name: RETHINKDB_GCR_ID
+          value: `cat $rethinkdb_gcr_id_path`
+        - name: HORIZON_GCR_ID
+          value: `cat $horizon_gcr_id_path`
         volumeMounts:
         - name: disable-api-access
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount

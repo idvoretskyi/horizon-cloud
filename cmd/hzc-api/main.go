@@ -31,8 +31,6 @@ import (
 // messages.
 
 var (
-	clusterName   string
-	templatePath  string
 	storageBucket string
 	tokenSecret   []byte
 )
@@ -339,7 +337,7 @@ func updateProjectManifest(
 	}
 
 	// TODO: generalize
-	gc, err := gcloud.New(ctx.ServiceAccount(), clusterName, "us-central1-f")
+	gc, err := gcloud.New(ctx.ServiceAccount(), viper.GetString("cluster_name"), "us-central1-f")
 	if err != nil {
 		ctx.Error("Couldn't create gcloud instance: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -481,12 +479,13 @@ var RootCmd = &cobra.Command{
 		storageBucket = string(storageBucketBytes)
 
 		region := "us-central1-f"
-		gc, err := gcloud.New(serviceAccount, clusterName, region)
+		gc, err := gcloud.New(serviceAccount, viper.GetString("cluster_name"), region)
 		if err != nil {
 			log.Fatal("Unable to create gcloud client: ", err)
 		}
 
-		k := kube.New(templatePath, gc)
+		k := kube.New(viper.GetString("template_path"),
+			viper.GetString("kube_namespace"), gc)
 		baseCtx = baseCtx.WithKube(k)
 
 		go projectSync(baseCtx)
@@ -550,10 +549,10 @@ func init() {
 		"/secrets/token-secret/token-secret",
 		"Location of token secret file")
 
-	pf.StringVar(&clusterName, "cluster_name", "horizon-cloud-1239",
+	pf.String("cluster_name", "horizon-cloud-1239",
 		"Name of the GCE cluster to use.")
 
-	pf.StringVar(&templatePath, "template_path",
+	pf.String("template_path",
 		os.Getenv("HOME")+"/go/src/github.com/rethinkdb/horizon-cloud/templates/",
 		"Path to the templates to use when creating Kube objects.")
 
@@ -567,6 +566,9 @@ func init() {
 
 	pf.String("rethinkdb_addr", "localhost:28015",
 		"Host and port of rethinkdb instance")
+
+	pf.String("kube_namespace", "dev",
+		"Kubernetes namespace to put pods in.")
 
 	viper.BindPFlags(pf)
 }
