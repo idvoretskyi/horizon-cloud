@@ -553,7 +553,7 @@ func init() {
 		"Name of the GCE cluster to use.")
 
 	pf.String("template_path",
-		os.Getenv("HOME")+"/go/src/github.com/rethinkdb/horizon-cloud/templates/",
+		os.Getenv("GOPATH")+"/src/github.com/rethinkdb/horizon-cloud/templates/",
 		"Path to the templates to use when creating Kube objects.")
 
 	pf.String("storage_bucket_file",
