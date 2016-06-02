@@ -15,6 +15,7 @@ import (
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrors "k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/client/restclient"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 	kutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
@@ -27,7 +28,7 @@ import (
 type Kube struct {
 	TemplatePath  string
 	C             *client.Client
-	Conf          *client.Config
+	Conf          *restclient.Config
 	M             *resource.Mapper
 	G             *gcloud.GCloud
 	userNamespace string
@@ -55,7 +56,7 @@ func New(templatePath string, userNamespace string, gc *gcloud.GCloud) *Kube {
 	newMu.Lock() // kutil.NewFactory is racy.
 	factory := kutil.NewFactory(nil)
 	newMu.Unlock()
-	mapper, typer := factory.Object()
+	mapper, typer := factory.Object(false)
 	client, err := factory.Client()
 	if err != nil {
 		log.Fatalf("unable to connect to Kube: %s", err)
@@ -237,7 +238,7 @@ func (k *Kube) DeleteObject(o runtime.Object) error {
 	if o == nil {
 		return fmt.Errorf("cannot delete non-existent object")
 	}
-	info, err := k.M.InfoForObject(o)
+	info, err := k.M.InfoForObject(o, nil)
 	if err != nil {
 		return err
 	}
@@ -292,8 +293,8 @@ func (k *Kube) CreateFromTemplate(
 			}
 			return nil, err
 		}
-		ext.RawJSON = bytes.TrimSpace(ext.RawJSON)
-		info, err := k.M.InfoForData(ext.RawJSON, path)
+		ext.Raw = bytes.TrimSpace(ext.Raw)
+		info, err := k.M.InfoForData(ext.Raw, path)
 		if err != nil {
 			return nil, err
 		}

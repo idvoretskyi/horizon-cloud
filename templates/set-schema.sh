@@ -13,9 +13,11 @@ kind: Job
 metadata:
   name: ss-$project
 spec:
+  activeDeadlineSeconds: 300
   template:
     metadata:
       name: ss-$project
     spec:
+      restartPolicy: OnFailure
 `COMMAND="$command" ./horizon-spec.sh "$project"`
 EOF
