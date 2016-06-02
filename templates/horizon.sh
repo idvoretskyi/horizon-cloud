@@ -44,7 +44,7 @@ spec:
         - name: HZ_DEBUG
           value: 'yes'
         - name: HZ_PERMISSIONS
-          value: 'no'
+          value: 'yes'
         - name: HZ_ALLOW_UNAUTHENTICATED
           value: 'yes'
         - name: HZ_ALLOW_ANONYMOUS
@@ -52,9 +52,9 @@ spec:
         - name: HZ_SECURE
           value: 'no'
         - name: HZ_AUTO_CREATE_COLLECTION
-          value: 'yes'
+          value: 'no'
         - name: HZ_AUTO_CREATE_INDEX
-          value: 'yes'
+          value: 'no'
         - name: HZ_CONNECT
           value: r-$project:28015
         - name: HZ_BIND
