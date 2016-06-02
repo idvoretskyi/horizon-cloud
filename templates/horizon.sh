@@ -54,7 +54,7 @@ spec:
         - name: HZ_AUTO_CREATE_COLLECTION
           value: 'no'
         - name: HZ_AUTO_CREATE_INDEX
-          value: 'no'
+          value: 'yes'
         - name: HZ_CONNECT
           value: r-$project:28015
         - name: HZ_BIND
