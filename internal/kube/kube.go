@@ -452,6 +452,11 @@ func (k *Kube) DeleteProject(trueName string) error {
 	if err == nil {
 		k.DeleteObject(svc)
 	}
+	job, err := k.C.BatchClient.Jobs(k.userNamespace).Get("ss-" + trueName)
+	errs = append(errs, err)
+	if err == nil {
+		k.DeleteObject(job)
+	}
 
 	rc, err = k.getRC("h0-" + trueName)
 	errs = append(errs, err)
