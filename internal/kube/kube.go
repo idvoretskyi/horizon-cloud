@@ -15,6 +15,7 @@ import (
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrors "k8s.io/kubernetes/pkg/api/errors"
+	kbatch "k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
@@ -38,6 +39,7 @@ type RDB struct {
 	VolumeID string
 	RC       *kapi.ReplicationController
 	SVC      *kapi.Service
+	Job      *kbatch.Job
 }
 
 type Horizon struct {
@@ -56,7 +58,7 @@ func New(templatePath string, userNamespace string, gc *gcloud.GCloud) *Kube {
 	newMu.Lock() // kutil.NewFactory is racy.
 	factory := kutil.NewFactory(nil)
 	newMu.Unlock()
-	mapper, typer := factory.Object(false)
+	mapper, typer := factory.Object()
 	client, err := factory.Client()
 	if err != nil {
 		log.Fatalf("unable to connect to Kube: %s", err)
@@ -293,8 +295,8 @@ func (k *Kube) CreateFromTemplate(
 			}
 			return nil, err
 		}
-		ext.Raw = bytes.TrimSpace(ext.Raw)
-		info, err := k.M.InfoForData(ext.Raw, path)
+		ext.RawJSON = bytes.TrimSpace(ext.RawJSON)
+		info, err := k.M.InfoForData(ext.RawJSON, path)
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +320,7 @@ func (k *Kube) CreateRDB(project string, volume string) (*RDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(objs) != 2 {
+	if len(objs) != 3 {
 		log.Printf("oh shit my RDB template is wrong (%v)", objs)
 		return nil, fmt.Errorf("Internal error: template returned %d objects.", len(objs))
 	}
@@ -326,13 +328,17 @@ func (k *Kube) CreateRDB(project string, volume string) (*RDB, error) {
 
 	rc, ok := objs[0].(*kapi.ReplicationController)
 	if !ok {
-		return nil, fmt.Errorf("unable to create RDB replication controller")
+		return nil, fmt.Errorf("unable to parse RDB replication controller")
 	}
 	svc, ok := objs[1].(*kapi.Service)
 	if !ok {
-		return nil, fmt.Errorf("unable to create RDB service")
+		return nil, fmt.Errorf("unable to parse RDB service")
 	}
-	return &RDB{volume, rc, svc}, nil
+	job, ok := objs[2].(*kbatch.Job)
+	if !ok {
+		return nil, fmt.Errorf("unable to parse RDB job")
+	}
+	return &RDB{volume, rc, svc, job}, nil
 }
 
 func (k *Kube) CreateHorizon(project string) (*Horizon, error) {
@@ -378,6 +384,7 @@ func (k *Kube) DeleteRDB(rdb *RDB) error {
 	errs = append(errs, k.G.DeleteDisk(rdb.VolumeID))
 	errs = append(errs, k.DeleteRC(rdb.RC))
 	errs = append(errs, k.DeleteObject(rdb.SVC))
+	errs = append(errs, k.DeleteObject(rdb.Job))
 	err := compositeErr(errs...)
 	if err != nil {
 		return err
@@ -388,7 +395,7 @@ func (k *Kube) DeleteRDB(rdb *RDB) error {
 
 func (k *Kube) DeleteHorizon(horizon *Horizon) error {
 	var errs []error
-	errs = append(errs, k.DeleteObject(horizon.RC))
+	errs = append(errs, k.DeleteRC(horizon.RC))
 	errs = append(errs, k.DeleteObject(horizon.SVC))
 	err := compositeErr(errs...)
 	if err != nil {
@@ -488,6 +495,10 @@ func (k *Kube) EnsureProject(
 				if err != nil {
 					return MaybeRDB{nil, err}
 				}
+				job, err := k.C.BatchClient.Jobs(k.userNamespace).Get("ss-" + trueName)
+				if err != nil {
+					return MaybeRDB{nil, err}
+				}
 				var volName string
 				for _, vol := range rc.Spec.Template.Spec.Volumes {
 					if vol.GCEPersistentDisk != nil {
@@ -499,7 +510,7 @@ func (k *Kube) EnsureProject(
 					return MaybeRDB{nil, fmt.Errorf("no GCE volumes in RC %v", rc)}
 				}
 				log.Printf("%s already exists with volume %s", "r0-"+trueName, volName)
-				return MaybeRDB{&RDB{volName, rc, svc}, nil}
+				return MaybeRDB{&RDB{volName, rc, svc, job}, nil}
 			}
 
 			var ret MaybeRDB

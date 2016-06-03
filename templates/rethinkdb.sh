@@ -7,6 +7,8 @@ cd "$(dirname "$(readlink -f "$0")")"
 project="$1"
 volume="$2"
 
+command='command: ["/bin/bash", "-c", "echo | hz set-schema -n app -"]'
+
 cat <<EOF
 apiVersion: v1
 kind: ReplicationController
@@ -80,4 +82,19 @@ spec:
     name: driver
   - port: 8080
     name: webui
+
+---
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ss-$project
+spec:
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      name: ss-$project
+    spec:
+      restartPolicy: OnFailure
+`COMMAND="$command" ./horizon-spec.sh "$project"`
 EOF
