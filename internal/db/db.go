@@ -129,7 +129,7 @@ func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, er
 }
 
 func (d *DB) MaybeUpdateHorizonConfig(
-	projectName string, hzConf types.HorizonConfig) (int64, error) {
+	projectName string, hzConf types.HorizonConfig) (int64, string, error) {
 	q := r.Expr(hzConf).Do(func(hzc r.Term) r.Term {
 		return projects.Get(util.TrueName(projectName)).Update(func(config r.Term) r.Term {
 			return r.Branch(
@@ -143,13 +143,18 @@ func (d *DB) MaybeUpdateHorizonConfig(
 	})
 	project, resp, err := d.runProjectWriteDetailed(q)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	if resp.Unchanged != 0 {
-		// We return a special value if nothing changed so that we can skip waiting.
-		return 0, nil
+		if project.HorizonConfigVersion == project.HorizonConfigAppliedVersion {
+			// We return a special value if nothing changed so that we can skip waiting.
+			return 0, "", nil
+		}
+		if project.HorizonConfigVersion == project.HorizonConfigErrorVersion {
+			return 0, project.HorizonConfigLastError, nil
+		}
 	}
-	return project.HorizonConfigVersion, nil
+	return project.HorizonConfigVersion, "", nil
 }
 
 type HZStateType int

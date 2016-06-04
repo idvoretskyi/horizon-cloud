@@ -18,8 +18,8 @@ import (
 var projects = make(map[string]*types.Project)
 var projectsLock sync.Mutex
 
-// Errors returned from this are shown to users.
 func applyHorizonConfig(
+	// Errors returned from this are shown to users.
 	ctx *hzhttp.Context, k *kube.Kube, trueName string, hzc types.HorizonConfig) error {
 
 	pods, err := k.GetHorizonPodsForProject(trueName)
@@ -75,7 +75,8 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 			ctx.Error("%v", err)
 			continue
 		}
-		k := kube.New(viper.GetString("template_path"), viper.GetString("kube_namespace"), gc)
+		k := kube.New(
+			viper.GetString("template_path"), viper.GetString("kube_namespace"), gc)
 
 		if conf.Deleting {
 			ctx.Info("deleting project")

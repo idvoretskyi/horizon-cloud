@@ -259,12 +259,17 @@ func maybeUpdateHorizonConfig(
 		"action": "maybeUpdateHorizonConfig",
 	})
 
-	newVersion, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
+	newVersion, versionErr, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
 	ctx.Info("version %v (%v)", newVersion, err)
 	if err != nil {
 		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
 			project, hzConf, err)
 		return fmt.Errorf("error talking to database")
+	}
+	if versionErr != "" {
+		ctx.Error("Version error calling MaybeUpdateHorizonConifg(%v, %v): %v",
+			project, hzConf, err)
+		return errors.New(versionErr)
 	}
 	// No need to do anything.
 	if newVersion == 0 {
