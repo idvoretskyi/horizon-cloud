@@ -13,6 +13,11 @@ gcr_id_path=docker/$name/gcr_image_id
 
 api_host=api.$(cat /secrets/"$DEPLOY"/names/domain)
 
+replicas=1
+if [ "$DEPLOY" == "prod" ]; then
+    replicas=3
+fi
+
 cat <<EOF
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -20,7 +25,7 @@ metadata:
   name: $name
   namespace: $DEPLOY
 spec:
-  replicas: 1
+  replicas: $replicas
   strategy:
     type: RollingUpdate
     rollingUpdate:
