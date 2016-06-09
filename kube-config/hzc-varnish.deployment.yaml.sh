@@ -19,6 +19,11 @@ metadata:
   namespace: $DEPLOY
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 50%
   template:
     metadata:
       labels:
