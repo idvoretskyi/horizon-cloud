@@ -7,6 +7,14 @@ DOMAIN="$(cat /secrets/names/domain)"
 cat <<EOF
 vcl 4.0;
 
+// The first backend is the default one. By having the default be a dummy address
+// that is instantly rejected, we make sure we are explicitly using a backend in
+// every code path that needs one.
+backend dummy {
+    .host = "127.0.0.1";
+    .port = "65535";
+}
+
 backend storage {
     .host = "storage.googleapis.com";
     .port = "80";
@@ -28,6 +36,7 @@ sub vcl_recv {
     if (req.http.host == "update.hzc-dev.io" || req.http.host == "update.hzc.io") {
         set req.url = "/" + req.http.host + req.url;
         set req.http.host = "storage.googleapis.com";
+        set req.backend_hint = storage;
         return (hash);
     }
 
@@ -44,6 +53,7 @@ sub vcl_recv {
     }
     set req.url = "/$BUCKET/domains/" + req.http.host + req.url;
     set req.http.host = "storage.googleapis.com";
+    set req.backend_hint = storage;
     return (hash);
 }
 
