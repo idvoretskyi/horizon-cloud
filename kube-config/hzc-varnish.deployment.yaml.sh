@@ -18,7 +18,7 @@ metadata:
   name: $name
   namespace: $DEPLOY
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
