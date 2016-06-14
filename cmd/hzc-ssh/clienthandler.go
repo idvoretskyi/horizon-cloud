@@ -53,6 +53,28 @@ func (c *clientConn) makeServerConfig() *ssh.ServerConfig {
 	return serverConfig
 }
 
+func (c *clientConn) getToken(logger *hzlog.Logger) (string, error) {
+	resp, err :=
+		c.config.APIClient.GetUsersByKey(api.GetUsersByKeyReq{PublicKey: c.clientKey})
+	if err != nil {
+		logger.Error("Couldn't get users for %v: %v", c.clientKey, err)
+		return "", errors.New("internal error")
+	}
+
+	if len(resp.Users) == 0 {
+		return "", fmt.Errorf("No user has your key (%v) attached.", c.clientKey)
+	}
+
+	token, err := api.SignToken(&api.TokenData{
+		Users: resp.Users,
+	}, c.config.TokenSecret)
+	if err != nil {
+		logger.Error("Couldn't sign token: %v", err)
+		return "", errors.New("internal error")
+	}
+	return token, nil
+}
+
 func (c *clientConn) handleSSHChannel(
 	channel ssh.Channel,
 	requests <-chan *ssh.Request,
@@ -70,48 +92,24 @@ func (c *clientConn) handleSSHChannel(
 
 	enc := json.NewEncoder(channel)
 
-	resp, err := c.config.APIClient.GetUsersByKey(api.GetUsersByKeyReq{PublicKey: c.clientKey})
-	if err != nil {
-		logger.Error("Couldn't get users for %v: %v", c.clientKey, err)
-		enc.Encode(api.Resp{
-			Success: false,
-			Error:   "Internal error",
-		})
-		return
-	}
-
-	if len(resp.Users) == 0 {
-		enc.Encode(api.Resp{
-			Success: false,
-			Error:   fmt.Sprintf("No user has your key (%v) attached.", c.clientKey),
-		})
-		return
-	}
-
 	var response struct {
 		Token string
 	}
 
-	response.Token, err = api.SignToken(&api.TokenData{
-		Users: resp.Users,
-	}, c.config.TokenSecret)
+	var err error
+	response.Token, err = c.getToken(logger)
 	if err != nil {
-		logger.Error("Couldn't sign token: %v", err)
 		enc.Encode(api.Resp{
 			Success: false,
-			Error:   "Internal error",
+			Error:   err.Error(),
 		})
+		channel.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
 		return
 	}
 
 	msg, err := json.Marshal(response)
 	if err != nil {
-		logger.Error("Couldn't marshal response: %v", err)
-		enc.Encode(api.Resp{
-			Success: false,
-			Error:   "Internal error",
-		})
-		return
+		panic("unable to marshal string")
 	}
 
 	rawMsg := json.RawMessage(msg)

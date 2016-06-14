@@ -52,13 +52,13 @@ func getToken() (string, error) {
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error %s: %s", err, buf.String())
 	}
 
 	var resp api.Resp
 	err = json.Unmarshal(buf.Bytes(), &resp)
 	if err != nil {
-		return "", fmt.Errorf("Couldn't unmarshal %#v: %v", buf.String(), err)
+		return "", fmt.Errorf("couldn't unmarshal %#v: %v", buf.String(), err)
 	}
 
 	if !resp.Success {
@@ -70,7 +70,7 @@ func getToken() (string, error) {
 	}
 	err = json.Unmarshal([]byte(*resp.Content), &realResponse)
 	if err != nil {
-		return "", fmt.Errorf("Couldn't unmarshal %#v: %v", buf.String(), err)
+		return "", fmt.Errorf("couldn't unmarshal %#v: %v", buf.String(), err)
 	}
 
 	return realResponse.Token, nil
