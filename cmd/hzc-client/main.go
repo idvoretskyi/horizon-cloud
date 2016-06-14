@@ -28,7 +28,7 @@ func init() {
 	const (
 		apiServer         = "http://api.hzc.io"
 		sshServer         = "ssh.hzc.io"
-		fingerprint       = "ssh.hzc.io ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCgSnlMGdhrthP2Dgjsp4lIg2Lzsy3ZdOYg0IucHHHJuiLDhKO9rIbg5GIHwJkTbV79ILMGNs+GmvRX2CLo7BbPeDqsdFETEpl0B8lMYz6/uvxZdTUDEBWQHXj3uYPsohxXAMgEQZqvNiE4UTBGsRc1aHYxxlcr3tPwJS76hs6wh9JEnPvU+p6AQ4CaJJzT/50EadgExrD7+I7UecJeB8IMD8+r1ChszzEcZlAcOIxLSVHpgWaR65XMPnSCl7WWRWyb17LDJQfwgq2SriAu83QiicdQE44CW10o2im4I4J/Vqs9nnWR4nlol9sRYBLkIxhJJ4ObI88Qt1yll32kwd/d"
+		fingerprint       = "ssh.hzc.io ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDVA/PSlzkXtduo7GROpkqDK1HP2csW8LtA2yokVvScgVsNAJRec7H/LK+d3hv2ephNAVZuWnXFUJnLvHnDeXoWRLAfxE7+3h9jzjhn4X3vJImNtj4jKeTUEgMQ6TOPovWqer6IxPY5snQPsYPoegExY7LMRGnI2URQRXTHqru5jrox3mzEO4qJUNkC1YU5oNSAp+A/+sYNFofkL9t+eKL0P7qm+XOwGy3LbO5wbxnDo3e630ii/jYoKbLlSAcsP85ynHrQlydlQ1Onu4yPtqZaU5APeJMAWdkZ9kAkwTpyjgD67im6yeqCEa0Og2Nrjd0zMScbIUf359/cHwDmPUZ"
 		defaultConfigFile = ".hz/cloudconf.toml"
 		defaultSchemaFile = ".hz/schema.toml"
 	)
