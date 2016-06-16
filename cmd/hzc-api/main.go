@@ -383,16 +383,6 @@ func updateProjectManifest(
 		return
 	}
 
-	err = copyAllObjects(ctx, gc.StorageClient(),
-		storageBucket, "horizon/",
-		storageBucket, stagingPrefix+"horizon/")
-	if err != nil {
-		ctx.Error("Couldn't copy horizon objects: %v", err)
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			errors.New("Internal error"))
-		return
-	}
-
 	domains, err := ctx.DB().GetDomainsByProject(r.Project)
 	if err != nil {
 		ctx.Error("Couldn't get domains for %v: %v", r.Project, err)
