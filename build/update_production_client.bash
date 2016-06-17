@@ -12,11 +12,11 @@ gsutil cp gs://update.hzc.io/metadata.json "$TMPDIR/metadata.json"
 cat <<EOF > "$TMPDIR/update.json"
 {
     "linux-amd64": {
-        "url": "http://update.hzc.io/hzc-client-linux-amd64",
+        "url": "https://update.hzc.io/hzc-client-linux-amd64",
         "sha256": "$(sha256sum "$TMPDIR/hzc-client-linux-amd64" | cut -d ' ' -f 1 | tr -d '\n')"
     },
     "darwin-amd64": {
-        "url": "http://update.hzc.io/hzc-client-darwin-amd64",
+        "url": "https://update.hzc.io/hzc-client-darwin-amd64",
         "sha256": "$(sha256sum "$TMPDIR/hzc-client-darwin-amd64" | cut -d ' ' -f 1 | tr -d '\n')"
     }
 }

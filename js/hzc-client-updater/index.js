@@ -65,7 +65,7 @@ function getVersionAge() {
 }
 
 function getUpdateMetadata() {
-    return rp({uri: "http://update.hzc.io/metadata.json"}).then(JSON.parse);
+    return rp({uri: "https://update.hzc.io/metadata.json"}).then(JSON.parse);
 }
 
 // ensureUpdatedBinary makes sure there is a binary at binPath of the latest
