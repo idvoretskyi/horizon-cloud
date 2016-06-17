@@ -29,5 +29,5 @@ mv "$TMPDIR/newmetadata.json" "$TMPDIR/metadata.json"
 rm "$TMPDIR/update.json"
 
 for file in "$TMPDIR/"*; do
-    gsutil -h "Cache-Control:public,max-age=15" cp "$file" gs://update.hzc.io/"$(basename "$file")"
+    gsutil -h "Cache-Control:no-cache" cp "$file" gs://update.hzc.io/"$(basename "$file")"
 done
