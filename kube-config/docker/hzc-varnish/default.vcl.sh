@@ -20,6 +20,11 @@ backend storage {
     .port = "80";
 }
 
+backend api {
+    .host = "hzc-api";
+    .port = "80";
+}
+
 sub vcl_recv {
     // Health check for Google load balancer and Kubernetes
     if (req.url == "/ebaefa90-3c6e-4eb4-b8d3-9e2d53aec696") {
@@ -33,11 +38,17 @@ sub vcl_recv {
     }
 
     // Update server points at a bucket by that domain name directly
-    if (req.http.host == "update.hzc-dev.io" || req.http.host == "update.hzc.io") {
+    if (req.http.host == "update.$DOMAIN") {
         set req.url = "/" + req.http.host + req.url;
         set req.http.host = "storage.googleapis.com";
         set req.backend_hint = storage;
         return (hash);
+    }
+
+    // API server is direct and uncached
+    if (req.http.host == "api.$DOMAIN") {
+        set req.backend_hint = api;
+        return (pass);
     }
 
     // Redirect Horizon requests to a subdomain.
@@ -58,9 +69,11 @@ sub vcl_recv {
 }
 
 sub vcl_backend_response {
-    // TODO: Does this need to be filtered on status, method, or Vary header?
-    // Caching everything for a short time gives us some weak protection for our backend.
-    set beresp.ttl = 1s;
+    if (bereq.method == "GET") {
+        // Caching everything for a short time gives us some weak protection for our backend.
+        // TODO: Does this need to be filtered on response code or Vary header?
+        set beresp.ttl = 1s;
+    }
 }
 
 sub vcl_synth {
