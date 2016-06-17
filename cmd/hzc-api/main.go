@@ -391,6 +391,13 @@ func updateProjectManifest(
 		return
 	}
 
+	if len(domains) == 0 {
+		ctx.Error("No domains for %v", r.Project)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("No domains configured for %v", r.Project))
+		return
+	}
+
 	for _, domain := range domains {
 		err := copyAllObjects(
 			ctx,
