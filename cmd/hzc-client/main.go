@@ -26,7 +26,7 @@ var RootCmd = &cobra.Command{
 
 func init() {
 	const (
-		apiServer         = "http://api.hzc.io"
+		apiServer         = "https://api.hzc.io"
 		sshServer         = "ssh.hzc.io"
 		fingerprint       = "ssh.hzc.io ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDVA/PSlzkXtduo7GROpkqDK1HP2csW8LtA2yokVvScgVsNAJRec7H/LK+d3hv2ephNAVZuWnXFUJnLvHnDeXoWRLAfxE7+3h9jzjhn4X3vJImNtj4jKeTUEgMQ6TOPovWqer6IxPY5snQPsYPoegExY7LMRGnI2URQRXTHqru5jrox3mzEO4qJUNkC1YU5oNSAp+A/+sYNFofkL9t+eKL0P7qm+XOwGy3LbO5wbxnDo3e630ii/jYoKbLlSAcsP85ynHrQlydlQ1Onu4yPtqZaU5APeJMAWdkZ9kAkwTpyjgD67im6yeqCEa0Og2Nrjd0zMScbIUf359/cHwDmPUZ"
 		defaultConfigFile = ".hz/cloudconf.toml"
