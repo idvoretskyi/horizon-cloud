@@ -50,7 +50,7 @@ spec:
             port: 8000
         env:
         - name: API_SERVER
-          value: "http://$api_host"
+          value: "https://$api_host"
         volumeMounts:
         - name: disable-api-access
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
