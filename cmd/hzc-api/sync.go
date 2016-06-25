@@ -3,16 +3,13 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"math/rand"
 	"sync"
 
 	"github.com/rethinkdb/horizon-cloud/internal/db"
-	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
 	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
-	"github.com/spf13/viper"
 )
 
 var projects = make(map[string]*types.Project)
@@ -20,15 +17,17 @@ var projectsLock sync.Mutex
 
 func applyHorizonConfig(
 	// Errors returned from this are shown to users.
-	ctx *hzhttp.Context, k *kube.Kube, trueName string, hzc types.HorizonConfig) error {
+	k *kube.Kube, ctx *hzhttp.Context, conf *types.Project) error {
+	ctx.Info("Applying Horizon config: %#v", conf.HorizonConfig)
 
-	pods, err := k.GetHorizonPodsForProject(trueName)
+	hzc := conf.HorizonConfig
+	pods, err := k.GetHorizonPodsForProject(conf.ID)
 	if err != nil {
 		ctx.Error("%v", err)
-		return fmt.Errorf("unable to get horizon pods for `%v`", trueName)
+		return fmt.Errorf("unable to get horizon pods")
 	}
 	if len(pods) == 0 {
-		err = fmt.Errorf("no pods found for `%v`", trueName)
+		err = fmt.Errorf("no pods found")
 		ctx.Error("%v", err)
 		return err
 	}
@@ -45,6 +44,24 @@ func applyHorizonConfig(
 			"\nStderr:\n%v\n"+
 			"\nError:\n%v\n", stdout, stderr, err)
 		return err
+	}
+	return nil
+}
+
+func applyKubeConfig(
+	// Errors returned from this are shown to users.
+	k *kube.Kube, ctx *hzhttp.Context, conf *types.Project) error {
+	ctx.Info("Applying Kube config: %#v", conf.KubeConfig)
+	project, err := k.EnsureProject(conf.ID, conf.KubeConfig)
+	if err != nil {
+		ctx.Error(err.Error())
+		return fmt.Errorf("error applying Kube config")
+	}
+	ctx.Info("waiting for Kube config")
+	err = k.Wait(project)
+	if err != nil {
+		ctx.Error(err.Error())
+		return fmt.Errorf("error waiting for Kube config")
 	}
 	return nil
 }
@@ -67,17 +84,9 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 			break
 		}
 		ctx := ctx.WithLog(map[string]interface{}{"project": conf.ID})
+
 		ctx.Info("applying project")
-
-		gc, err := gcloud.New(
-			ctx.ServiceAccount(), viper.GetString("cluster_name"), "us-central1-f")
-		if err != nil {
-			ctx.Error("%v", err)
-			continue
-		}
-		k := kube.New(
-			viper.GetString("template_path"), viper.GetString("kube_namespace"), gc)
-
+		k := ctx.Kube()
 		if conf.Deleting {
 			ctx.Info("deleting project")
 			err := k.DeleteProject(conf.ID)
@@ -86,50 +95,22 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 			ctx.MaybeError(err)
 			continue
 		}
-
-		ctx.Info("KubeConfig: %v (applied: %v)",
-			conf.KubeConfigVersion, conf.KubeConfigAppliedVersion)
-		if conf.KubeConfigVersion != conf.KubeConfigAppliedVersion {
-			project, err := k.EnsureProject(conf.ID, conf.KubeConfig)
-			if err != nil {
-				ctx.Error("%v", err)
-				continue
-			}
-			log.Printf("waiting for Kube config %v:%v", trueName, conf.KubeConfigVersion)
-			err = k.Wait(project)
-			if err != nil {
-				ctx.Error("%v", err)
-				continue
-			}
-		}
-
-		ctx.Info("HorizonConfig: %v (applied: %v)",
-			conf.HorizonConfigVersion, conf.HorizonConfigAppliedVersion)
-		if conf.HorizonConfigVersion != conf.HorizonConfigAppliedVersion {
-			err = applyHorizonConfig(ctx, k, trueName, conf.HorizonConfig)
-			if err != nil {
-				ctx.Error("error applying Horizon config %v:%v (%v)",
-					trueName, conf.HorizonConfigVersion, err)
-				_, err = ctx.DB().UpdateProject(conf.ID, types.Project{
-					HorizonConfigLastError:    err.Error(),
-					HorizonConfigErrorVersion: conf.HorizonConfigVersion,
-				})
-				if err != nil {
-					ctx.Error("%v", err)
-				}
-				continue
-			}
-		}
-
-		ctx.Info("successfully applied project %v:%v/%v",
-			trueName, conf.KubeConfigVersion, conf.HorizonConfigVersion)
-		_, err = ctx.DB().UpdateProject(conf.ID, types.Project{
-			KubeConfigAppliedVersion:    conf.KubeConfigVersion,
-			HorizonConfigAppliedVersion: conf.HorizonConfigVersion,
+		ctx.Info("KubeConfigVersion: %#v", conf.KubeConfigVersion)
+		kConfVer := conf.KubeConfigVersion.MaybeConfigure(func() error {
+			return applyKubeConfig(k, ctx, conf)
 		})
-		if err != nil {
-			ctx.Error("%v", err)
-		}
+		ctx.Info("new KubeConfigVersion: %#v", kConfVer)
+		ctx.Info("HorizonConfigVersion: %#v", conf.HorizonConfigVersion)
+		hzConfVer := conf.KubeConfigVersion.MaybeConfigure(func() error {
+			return applyHorizonConfig(k, ctx, conf)
+		})
+		ctx.Info("new HorizonConfigVersion: %#v", hzConfVer)
+		_, err := ctx.DB().UpdateProject(conf.ID, types.Project{
+			KubeConfigVersion:    kConfVer,
+			HorizonConfigVersion: hzConfVer,
+		})
+		ctx.MaybeError(err)
+		ctx.Info("done applying project")
 	}
 }
 
@@ -140,8 +121,8 @@ func projectSync(ctx *hzhttp.Context) {
 	ctx.DB().ProjectChanges(changeChan)
 	for c := range changeChan {
 		if c.NewVal != nil {
-			if c.NewVal.KubeConfigVersion == c.NewVal.KubeConfigAppliedVersion &&
-				c.NewVal.HorizonConfigVersion == c.NewVal.HorizonConfigAppliedVersion &&
+			if c.NewVal.KubeConfigVersion.Desired == c.NewVal.KubeConfigVersion.Applied &&
+				c.NewVal.HorizonConfigVersion.Desired == c.NewVal.HorizonConfigVersion.Applied &&
 				!c.NewVal.Deleting {
 				continue
 			}

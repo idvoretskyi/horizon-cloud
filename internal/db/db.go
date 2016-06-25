@@ -92,7 +92,7 @@ func (d *DB) SetProjectKubeConfig(
 		Users: []string{},
 
 		KubeConfig:        kc,
-		KubeConfigVersion: 1,
+		KubeConfigVersion: types.ConfigVersion{Desired: 1},
 
 		HorizonConfig: []byte{},
 	}, r.InsertOpts{Conflict: func(id r.Term, oldVal r.Term, newVal r.Term) r.Term {
@@ -146,15 +146,15 @@ func (d *DB) MaybeUpdateHorizonConfig(
 		return 0, "", err
 	}
 	if resp.Unchanged != 0 {
-		if project.HorizonConfigVersion == project.HorizonConfigAppliedVersion {
+		if project.HorizonConfigVersion.Desired == project.HorizonConfigVersion.Applied {
 			// We return a special value if nothing changed so that we can skip waiting.
 			return 0, "", nil
 		}
-		if project.HorizonConfigVersion == project.HorizonConfigErrorVersion {
-			return 0, project.HorizonConfigLastError, nil
+		if project.HorizonConfigVersion.Desired == project.HorizonConfigVersion.Error {
+			return 0, project.HorizonConfigVersion.LastError, nil
 		}
 	}
-	return project.HorizonConfigVersion, "", nil
+	return project.HorizonConfigVersion.Desired, "", nil
 }
 
 type HZStateType int
@@ -185,14 +185,17 @@ func (d *DB) WaitForHorizonConfigVersion(
 		if c.NewVal == nil {
 			return HZState{Typ: HZDeleted}, nil
 		}
-		if c.NewVal.HorizonConfigAppliedVersion == version {
+		if c.NewVal.HorizonConfigVersion.Applied == version {
 			return HZState{Typ: HZApplied}, nil
 		}
-		if c.NewVal.HorizonConfigErrorVersion == version {
-			return HZState{Typ: HZError, LastError: c.NewVal.HorizonConfigLastError}, nil
+		if c.NewVal.HorizonConfigVersion.Error == version {
+			return HZState{
+				Typ:       HZError,
+				LastError: c.NewVal.HorizonConfigVersion.LastError,
+			}, nil
 		}
-		if c.NewVal.HorizonConfigAppliedVersion > version ||
-			c.NewVal.HorizonConfigErrorVersion > version {
+		if c.NewVal.HorizonConfigVersion.Applied > version ||
+			c.NewVal.HorizonConfigVersion.Error > version {
 			return HZState{Typ: HZSuperseded}, nil
 		}
 	}

@@ -42,6 +42,35 @@ func (dc *KubeConfig) Validate() error {
 
 type HorizonConfig []byte
 
+type ConfigVersion struct {
+	Desired   int64  `gorethink:",omitempty"`
+	Applied   int64  `gorethink:",omitempty"`
+	Error     int64  `gorethink:",omitempty"`
+	LastError string `gorethink:",omitempty"`
+}
+
+func (cv *ConfigVersion) Success() ConfigVersion {
+	cv2 := *cv
+	cv2.Applied = cv.Desired
+	return cv2
+}
+func (cv *ConfigVersion) Failure(err error) ConfigVersion {
+	cv2 := *cv
+	cv2.Error = cv.Desired
+	cv2.LastError = err.Error()
+	return cv2
+}
+func (cv *ConfigVersion) MaybeConfigure(f func() error) ConfigVersion {
+	if cv.Desired == cv.Applied || cv.Desired == cv.Error {
+		return *cv
+	}
+	err := f()
+	if err != nil {
+		return cv.Failure(err)
+	}
+	return cv.Success()
+}
+
 type Project struct {
 	ID    string   `gorethink:"id,omitempty"`
 	Name  string   `gorethink:",omitempty"`
@@ -49,15 +78,11 @@ type Project struct {
 
 	Deleting bool `gorethink:",omitempty"`
 
-	KubeConfig               KubeConfig `gorethink:",omitempty"`
-	KubeConfigVersion        int64      `gorethink:",omitempty"`
-	KubeConfigAppliedVersion int64      `gorethink:",omitempty"`
+	KubeConfig        KubeConfig    `gorethink:",omitempty"`
+	KubeConfigVersion ConfigVersion `gorethink:",omitempty"`
 
-	HorizonConfig               HorizonConfig `gorethink:",omitempty"`
-	HorizonConfigVersion        int64         `gorethink:",omitempty"`
-	HorizonConfigAppliedVersion int64         `gorethink:",omitempty"`
-	HorizonConfigLastError      string        `gorethink:",omitempty"`
-	HorizonConfigErrorVersion   int64         `gorethink:",omitempty"`
+	HorizonConfig        HorizonConfig `gorethink:",omitempty"`
+	HorizonConfigVersion ConfigVersion `gorethink:",omitempty"`
 }
 
 type Domain struct {
