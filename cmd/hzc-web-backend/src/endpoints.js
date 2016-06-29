@@ -1,5 +1,5 @@
 export function attachApi(app) {
-  app.get('/', (req, res) => {
+  app.get('/foo', (req, res) => {
     res.send('foo')
   })
 }

@@ -40,4 +40,4 @@ hz.add_auth_provider(horizon.auth.github, {
 
 endpoints.attachApi(app)
 
-
+app.use(express.static('test_client'))
