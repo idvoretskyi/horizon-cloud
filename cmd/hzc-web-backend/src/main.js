@@ -1,10 +1,12 @@
 import * as endpoints from './endpoints';
+import * as sync from './sync';
 import * as horizonShim from './horizonShim';
 import * as fs from 'fs';
 import * as https from 'https';
 
 import horizon from '@horizon/server';
 import express from 'express';
+
 
 require('source-map-support').install();
 
@@ -41,3 +43,6 @@ hz.add_auth_provider(horizon.auth.github, {
 endpoints.attachApi(app)
 
 app.use(express.static('test_client'))
+
+//
+sync.userSync(hz)
