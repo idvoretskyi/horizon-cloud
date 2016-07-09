@@ -1,12 +1,12 @@
 import * as endpoints from './endpoints';
-import * as sync from './sync';
 import * as horizonShim from './horizonShim';
+import * as sync from './sync';
+
 import * as fs from 'fs';
 import * as https from 'https';
 
 import horizon from '@horizon/server';
 import express from 'express';
-
 
 require('source-map-support').install();
 

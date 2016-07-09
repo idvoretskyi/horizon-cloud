@@ -1,8 +1,21 @@
 import assert from 'assert';
+import * as github from './github';
 
 function userNeedsUpdate(user) {
   return (user['groups'].indexOf('authenticated') != -1
           && !(user['data'] && user['data']['status'] == 'ready'));
+}
+
+function updateUser(conn, db, userId, authId) {
+  return github.loginFromId(authId).then((login) => {
+    return github.keysFromLogin(login).then((keys) => {
+      return db.table('users').get(userId).update({
+        data: {githubLogin: login, githubId: authId, keys: keys, status: 'ready'}
+      }).run(conn).then((summary) => {
+        assert.equal(summary['errors'], 0);
+      });
+    });
+  });
 }
 
 export function userSync(hz) {
@@ -18,12 +31,7 @@ export function userSync(hz) {
           const q = db.table('users_auth').getAll(user.id, {index: 'user_id'})
           return q.run(conn).then((x) => x.toArray()).then((arr) => {
             assert.equal(arr.length, 1);
-            const auth = arr[0];
-            return db.table('users').get(user.id).update({
-              data: {username: auth.id, status: 'ready'}
-            }).run(conn).then((summary) => {
-              assert.equal(summary['errors'], 0);
-            });
+            return updateUser(conn, db, user.id, arr[0].id[1]);
           });
         }
       });
