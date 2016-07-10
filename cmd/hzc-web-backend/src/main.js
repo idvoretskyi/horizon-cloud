@@ -19,6 +19,7 @@ const httpsServer = https.createServer({
 httpsServer.on('listening', () => {
   console.log(`Listening on ${JSON.stringify(httpsServer.address())}`)
 });
+// RSI: Make these options work inside od Kube
 const options = {
   project_name: 'web_backend',
   auth: {
@@ -32,6 +33,9 @@ const options = {
   auto_create_index: true,
   permissions: false,
 };
+const apiRdbConnOpts = {
+  port: 48015,
+}
 const hz = horizon(httpsServer, options)
 
 hz.add_auth_provider(horizon.auth.github, {
@@ -45,4 +49,8 @@ endpoints.attachApi(app)
 app.use(express.static('test_client'))
 
 //
-sync.userSync(hz)
+function logErr(err) {
+  console.log('Error: ' + err.stack);
+}
+sync.userSync(hz).catch(logErr);
+sync.projectSync(hz, apiRdbConnOpts).catch(logErr);

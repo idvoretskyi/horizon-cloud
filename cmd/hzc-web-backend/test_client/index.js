@@ -3,13 +3,6 @@
 
 const hz = Horizon({authType: 'token'});
 
-// const hzObProto = hz.currentUser().watch().constructor.prototype
-// for (var func in Rx.Observable.prototype) {
-//   if (!hzObProto.hasOwnProperty(func)) {
-//     hzObProto[func] = Rx.Observable.prototype[func];
-//   }
-//}
-
 const printObserver = Rx.Observer.create(
   (x) => console.debug("Next: " + x),
   (x) => console.debug("Error: " + x),
@@ -26,19 +19,19 @@ const userReady = Observable.create((observer) => {
 userReady.connect();
 console.assert(userReadyObserver);
 
-console.assert(hz.currentUser().watch().takeUntil)
-
 ///
 
-hz.connect();
-hz.onReady().subscribe(() => {
-  try {
-    if (!hz.hasAuthToken()) {
-      hz.authEndpoint('github').subscribe((endpoint) => {
-        console.log("Redirecting to " + endpoint);
-        window.location.pathname = endpoint;
-      });
-    } else {
+if (!hz.hasAuthToken()) {
+  console.log('foo');
+  hz.authEndpoint('github').subscribe((endpoint) => {
+    console.log("Redirecting to " + endpoint);
+    window.location.pathname = endpoint;
+  });
+} else {
+  hz.connect();
+  hz.onReady().subscribe(() => {
+    try {
+      console.log('bar');
       console.debug("Authenticated.");
       window.jwt = hz.utensils.tokenStorage._storage['horizon-jwt'];
       console.debug("jwt: " + jwt);
@@ -53,12 +46,12 @@ hz.onReady().subscribe(() => {
         } catch (e) {
           console.log("*** " + e.stack);
         }
-      })
+      });
+    } catch (e) {
+      console.log("*** " + e.stack);
     }
-  } catch (e) {
-    console.log("*** " + e.stack);
-  }
-});
+  });
+}
 
 userReady.subscribe((user) => {
   console.debug('in userReady: ' + JSON.stringify(user));
