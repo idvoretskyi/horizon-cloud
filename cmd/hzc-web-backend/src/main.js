@@ -54,3 +54,4 @@ function logErr(err) {
 }
 sync.userSync(hz).catch(logErr);
 sync.projectSync(hz, apiRdbConnOpts).catch(logErr);
+sync.domainSync(hz, apiRdbConnOpts).catch(logErr);

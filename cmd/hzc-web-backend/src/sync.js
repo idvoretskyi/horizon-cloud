@@ -61,7 +61,7 @@ function syncTo(r, src, srcConn, dest, destConn) {
         // generation (which must have been deleted in the source
         // table).
         if (c.state == 'ready') {
-          console.log('Clearing old generation...');
+          console.log(`Clearing old generation for ${src}...`);
           const q = dest.filter((row) => row('gen').ne(generation)).delete()
           return q.run(destConn).then(checkErr);
         }
@@ -80,18 +80,26 @@ function syncTo(r, src, srcConn, dest, destConn) {
   });
 }
 
-export function projectSync(hz, apiRdbConnOpts) {
+function tableSync(hz, apiRdbConnOpts, tableName) {
   const r = hz._r;
   return Promise.all([r.connect(apiRdbConnOpts), hz._reql_conn.ready()]).then((x) => {
     const apiRdbConn = x[0];
     // We ignore `x[1]` because the Horizon promise interface is
     // really more of a signal for some reason.
-    console.log(`Syncing projects (generation ${generation})...`);
+    console.log(`Syncing ${tableName} (generation ${generation})...`);
     return syncTo(
       r,
-      r.db('hzc_api').table('projects'),
+      r.db('hzc_api').table(tableName),
       apiRdbConn,
-      r.db(hz._reql_conn.metadata()._db).table('projects'),
+      r.db(hz._reql_conn.metadata()._db).table(tableName),
       hz._reql_conn.connection());
   });
+}
+
+export function projectSync(...args) {
+  return tableSync.apply(this, args.concat(['projects']));
+}
+
+export function domainSync(...args) {
+  return tableSync.apply(this, args.concat(['domains']));
 }
