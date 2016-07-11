@@ -7,10 +7,13 @@ import * as https from 'https';
 
 import horizon from '@horizon/server';
 import express from 'express';
+import bodyParser from 'body-parser';
 
 require('source-map-support').install();
 
 const app = express();
+app.use(bodyParser.json());
+
 const httpsServer = https.createServer({
   key: fs.readFileSync('/secrets/dev/wildcard-ssl/key'),
   cert: fs.readFileSync('/secrets/dev/wildcard-ssl/crt') +
@@ -44,7 +47,7 @@ hz.add_auth_provider(horizon.auth.github, {
   path: 'github',
 })
 
-endpoints.attachApi(app)
+endpoints.attach(app)
 
 app.use(express.static('test_client'))
 

@@ -59,3 +59,13 @@ userReady.subscribe((user) => {
 userReady.subscribe((user) => {
   console.debug('in userReady2: ' + JSON.stringify(user));
 })
+
+const xhr = new XMLHttpRequest
+xhr.onreadystatechange = () => {
+  if (xhr.readyState == XMLHttpRequest.DONE) {
+    console.log([xhr.status, xhr.responseText]);
+  }
+}
+xhr.open('POST', '/api/projects/create');
+xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+xhr.send('{}');
