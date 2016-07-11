@@ -43,7 +43,7 @@ export function apiReq(path, obj) {
               if (parsed.Success) {
                 resolve(parsed.Content);
               } else {
-                reject(new Error(parsed.Error));
+                reject(new Error('API error: ' + parsed.Error));
               }
             } catch (e) {
               reject(e);
