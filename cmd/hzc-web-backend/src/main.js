@@ -50,8 +50,13 @@ app.use(express.static('test_client'))
 
 //
 function logErr(err) {
-  console.log('Error: ' + err.stack);
+  if (err instanceof Error) {
+    console.log('*** Error: ' + err.stack);
+  } else {
+    console.log('*** Bad Error: ' + err);
+  }
 }
-sync.userSync(hz).catch(logErr);
 sync.projectSync(hz, apiRdbConnOpts).catch(logErr);
 sync.domainSync(hz, apiRdbConnOpts).catch(logErr);
+sync.userSync(hz, apiRdbConnOpts).catch(logErr);
+sync.userPush(hz).catch(logErr);

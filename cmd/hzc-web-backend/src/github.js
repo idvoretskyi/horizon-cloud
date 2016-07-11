@@ -22,20 +22,24 @@ function apiReq(basePath, baseReqOpts = {}) {
       headers: {'user-agent': 'node.js'},
     };
     return new Promise((resolve, reject) => {
-      https.get(opts, (res) => {
-        if (res.statusCode < 200 || res.statusCode > 299) {
-          reject(new Error(JSON.stringify({
-            path: path,
-            reqOpts: reqOpts,
-            url: url,
-            code: res.statusCode,
-            message: res.statusMessage
-          })));
-        }
-        let data = '';
-        res.on('data', (x) => data += x);
-        res.on('end', () => resolve(data));
-      }).on('error', (err) => reject(err));
+      try {
+        https.get(opts, (res) => {
+          if (res.statusCode < 200 || res.statusCode > 299) {
+            reject(new Error(JSON.stringify({
+              path: path,
+              reqOpts: reqOpts,
+              url: url,
+              code: res.statusCode,
+              message: res.statusMessage
+            })));
+          }
+          let data = '';
+          res.on('data', (x) => data += x);
+          res.on('end', () => resolve(data));
+        }).on('error', (err) => reject(err));
+      } catch (e) {
+        reject(e);
+      }
     }).then((data) => JSON.parse(data));
   });
 }
