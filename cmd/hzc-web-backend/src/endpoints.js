@@ -23,7 +23,7 @@ function keysValid() {
 }
 
 const endpoints = {
-  '/api/projects/create': {
+  '/api/projects/add': {
     valid: {project: projectValid},
     func: (user, params) => {
       return kube.apiReq('/projects/setKubeConfig', {
@@ -36,7 +36,7 @@ const endpoints = {
       });
     },
   },
-  '/api/projects/delete': {
+  '/api/projects/del': {
     valid: {project: projectValid},
     func: (user, params) => {
       return kube.apiReq('/projects/delete', {
@@ -55,7 +55,12 @@ const endpoints = {
   },
   '/api/projects/delUsers': {
     valid: {project: projectValid, users: usersValid},
-    func: stubbedOut,
+    func: (user, params) => {
+      return kube.apiReq('/projects/delUsers', {
+        Project: `${user}/${params.project}`,
+        Users: params.users,
+      });
+    },
   },
 
   '/api/domains/add': {
@@ -69,7 +74,12 @@ const endpoints = {
   },
   '/api/domains/del': {
     valid: {project: projectValid, domain: domainValid},
-    func: (user, params) => stubbedOut,
+    func: (user, params) => {
+      return kube.apiReq('/domains/del', {
+        Project: `${user}/${params.project}`,
+        Domain: params.domain,
+      });
+    },
   },
 
   '/api/user/addKeys': {

@@ -92,8 +92,13 @@ function userReadyOp(destTable, newVal) {
   });
 }
 
-function userRemoveOp(destSet, newVal) {
-  return destSet.update({data: {status: 'deleted'}});
+function userRemoveOp(generation, destSet, newVal) {
+  return destSet.update({
+    gen: generation,
+    data: {
+      status: 'deleted',
+    },
+  });
 }
 
 export function userSync(hz, apiRdbConnOpts) {

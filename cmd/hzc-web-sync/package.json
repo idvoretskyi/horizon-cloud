@@ -1,0 +1,22 @@
+{
+  "name": "hzc-web-sync",
+  "version": "1.0.0",
+  "description": "",
+  "bin": {
+    "hzc-web-sync": "src/main.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "babel src -d dist -s true"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "rethinkdb": "^2.3.2",
+    "uuid": "^2.0.2"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.10.1",
+    "babel-preset-es2015": "^6.9.0"
+  }
+}

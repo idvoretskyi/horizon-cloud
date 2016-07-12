@@ -97,8 +97,10 @@ func (d *DB) SetProjectKubeConfig(
 		HorizonConfig: []byte{},
 	}, r.InsertOpts{Conflict: func(id r.Term, oldVal r.Term, newVal r.Term) r.Term {
 		return oldVal.Merge(map[string]r.Term{
-			"KubeConfig":        newVal.Field("KubeConfig"),
-			"KubeConfigVersion": oldVal.Field("KubeConfigVersion").Add(1),
+			"KubeConfig": newVal.Field("KubeConfig"),
+			"KubeConfigVersion": r.Expr(map[string]r.Term{
+				"Desired": oldVal.Field("KubeConfigVersion").Field("Desired").Add(1),
+			}),
 		})
 	}, ReturnChanges: "always"})
 	return d.runProjectWrite(q)
@@ -123,6 +125,15 @@ func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, er
 	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
 		return r.Expr(map[string]r.Term{
 			"Users": oldVal.Field("Users").Default([]string{}).SetUnion(users),
+		})
+	}, r.UpdateOpts{ReturnChanges: "always"})
+	return d.runProjectWrite(q)
+}
+
+func (d *DB) DelProjectUsers(project string, users []string) (*types.Project, error) {
+	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
+		return r.Expr(map[string]r.Term{
+			"Users": oldVal.Field("Users").Default([]string{}).SetDifference(users),
 		})
 	}, r.UpdateOpts{ReturnChanges: "always"})
 	return d.runProjectWrite(q)
@@ -320,7 +331,32 @@ func (d *DB) UserDelKeys(name string, keys []string) error {
 }
 
 func (d *DB) SetDomain(domain types.Domain) error {
-	return d.setBasicType(domains, "domain", domain.Domain, &domain)
+	res, err := domains.Insert(domain).RunWrite(d.session)
+	if err != nil {
+		d.log.Error("Couldn't set %v %#v: %v", "domain", domain.Domain, err)
+		return setBasicError("domain", domain.Domain)
+	}
+	if res.Inserted+res.Unchanged+res.Replaced != 1 {
+		d.log.Error("Couldn't set %v %#v: unexpected result counts", "domain", domain.Domain)
+		return setBasicError("domain", domain.Domain)
+	}
+	return nil
+}
+
+func (d *DB) DelDomain(domain types.Domain) error {
+	res, err := domains.Get(domain.Domain).Replace(func(row r.Term) r.Term {
+		return r.Branch(
+			row.Field("Project").Eq(domain.Project),
+			nil,
+			r.Error("Project name didn't match domain."))
+	}).RunWrite(d.session)
+	if err != nil {
+		return err
+	}
+	if res.Deleted != 1 {
+		return fmt.Errorf("unable to delete domain `%s`", domain.Domain)
+	}
+	return nil
 }
 
 func (d *DB) GetDomainsByProject(project string) ([]string, error) {
@@ -381,21 +417,6 @@ func (d *DB) getBasicType(
 		return fmt.Errorf("%s `%s` does not exist", typeName, id)
 	} else if err != nil {
 		return getBasicError(typeName, id)
-	}
-	return nil
-}
-
-func (d *DB) setBasicType(
-	table r.Term, typeName string, id string, i interface{}) error {
-
-	res, err := table.Insert(i, r.InsertOpts{Conflict: "update"}).RunWrite(d.session)
-	if err != nil {
-		d.log.Error("Couldn't set %v %#v: %v", typeName, id, err)
-		return setBasicError(typeName, id)
-	}
-	if res.Inserted+res.Unchanged+res.Replaced != 1 {
-		d.log.Error("Couldn't set %v %#v: unexpected result counts", typeName, id)
-		return setBasicError(typeName, id)
 	}
 	return nil
 }

@@ -93,6 +93,27 @@ func addProjectUsers(
 	})
 }
 
+func delProjectUsers(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.DelProjectUsersReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	project, err := ctx.DB().DelProjectUsers(r.Project, r.Users)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	if project == nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			fmt.Errorf("Unable to retrieve project."))
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.DelProjectUsersResp{
+		Project: *project,
+	})
+}
+
 func getProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.GetProjectReq
 	if !decode(rw, req.Body, &r) {
@@ -195,7 +216,21 @@ func setDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	api.WriteJSONResp(rw, http.StatusOK, api.SetDomainResp{})
 }
 
-func getDomainsByProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+func delDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.DelDomainReq
+	if !decode(rw, req.Body, &r) {
+		return
+	}
+	err := ctx.DB().DelDomain(r.Domain)
+	if err != nil {
+		api.WriteJSONError(rw, http.StatusInternalServerError, err)
+		return
+	}
+	api.WriteJSONResp(rw, http.StatusOK, api.DelDomainResp{})
+}
+
+func getDomainsByProject(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.GetDomainsByProjectReq
 	if !decode(rw, req.Body, &r) {
 		return
@@ -505,11 +540,13 @@ var RootCmd = &cobra.Command{
 			{api.DeleteProjectPath, deleteProject, true},
 			{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
 			{api.AddProjectUsersPath, addProjectUsers, true},
+			{api.DelProjectUsersPath, delProjectUsers, true},
 			{api.UserCreatePath, userCreate, true},
 			{api.UserGetPath, userGet, true},
 			{api.UserAddKeysPath, userAddKeys, true},
 			{api.UserDelKeysPath, userDelKeys, true},
 			{api.SetDomainPath, setDomain, true},
+			{api.DelDomainPath, delDomain, true},
 			{api.GetDomainsByProjectPath, getDomainsByProject, true},
 
 			// Other server stuff uses these.

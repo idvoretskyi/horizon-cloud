@@ -80,6 +80,37 @@ type AddProjectUsersResp struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// DelProjectUsers
+
+var DelProjectUsersPath = "/v1/projects/delUsers"
+
+type DelProjectUsersReq struct {
+	Project string
+	Users   []string
+}
+
+func (r *DelProjectUsersReq) Validate() error {
+	err := util.ValidateProjectName(r.Project, "Project")
+	if err != nil {
+		return err
+	}
+	if len(r.Users) == 0 {
+		return fmt.Errorf("no users specified")
+	}
+	for _, user := range r.Users {
+		err := util.ValidateUserName(user)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type DelProjectUsersResp struct {
+	types.Project
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // GetProject
 
 var GetProjectPath = "/v1/projects/get"
@@ -188,6 +219,25 @@ func (r *SetDomainReq) Validate() error {
 }
 
 type SetDomainResp struct{}
+
+////////////////////////////////////////////////////////////////////////////////
+// DelDomain
+
+var DelDomainPath = "/v1/domains/del"
+
+type DelDomainReq struct {
+	types.Domain
+}
+
+func (r *DelDomainReq) Validate() error {
+	err := util.ValidateProjectName(r.Project, "Project")
+	if err != nil {
+		return err
+	}
+	return util.ValidateDomainName(r.Domain.Domain, "Domain")
+}
+
+type DelDomainResp struct{}
 
 ////////////////////////////////////////////////////////////////////////////////
 // GetDomainsByProject

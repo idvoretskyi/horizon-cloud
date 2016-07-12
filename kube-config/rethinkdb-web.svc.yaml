@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rethinkdb-web
+spec:
+  type: ClusterIP
+  clusterIP: "None" # Headless service
+  selector:
+    app: rethinkdb-web
+  ports:
+  - port: 28015
+    targetPort: 28015
+    name: driver
+    protocol: TCP
+  - port: 8080
+    targetPort: 8080
+    name: webui
+    protocol: TCP
