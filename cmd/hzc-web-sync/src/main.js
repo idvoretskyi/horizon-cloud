@@ -115,6 +115,7 @@ function main(startTime) {
     r.connect({host: webHost, port: webPort}),
   ]).then(([sys, web]) => {
     const generation = uuid.v4();
+    console.log(`GENERATION: ${generation}`);
     return Promise.all([
       userSync(sys, web, generation),
       projectSync(sys, web, generation),

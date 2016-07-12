@@ -1,0 +1,7 @@
+#!/bin/bash
+set -eu
+
+mkdir -p hzc-web-sync
+cp ../../../cmd/hzc-web-sync/package.json hzc-web-sync/
+cp ../../../cmd/hzc-web-sync/.babelrc hzc-web-sync/
+rsync -a ../../../cmd/hzc-web-sync/src/ hzc-web-sync/src/
