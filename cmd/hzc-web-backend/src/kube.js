@@ -4,7 +4,7 @@ import * as https from 'https';
 import assert from 'assert';
 
 const domainPromise = new Promise((resolve, reject) => {
-  fs.readFile('/secrets/dev/names/domain', (err, data) => {
+  fs.readFile('/secrets/names/domain', (err, data) => {
     if (err) {
       reject(err);
     } else {
@@ -14,7 +14,7 @@ const domainPromise = new Promise((resolve, reject) => {
 })
 
 const secretPromise = new Promise((resolve, reject) => {
-  fs.readFile('/secrets/dev/api-shared-secret/api-shared-secret', (err, data) => {
+  fs.readFile('/secrets/api-shared-secret/api-shared-secret', (err, data) => {
     if (err) {
       reject(err);
     } else {

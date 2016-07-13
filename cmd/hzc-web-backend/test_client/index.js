@@ -66,7 +66,7 @@ xhr.onreadystatechange = () => {
     console.log([xhr.status, xhr.responseText]);
   }
 }
-xhr.open('POST', '/api/projects/delete');
+xhr.open('POST', '/api/projects/del');
 xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
 xhr.send(JSON.stringify({
   jwt: JSON.parse(localStorage['horizon-jwt']).horizon,

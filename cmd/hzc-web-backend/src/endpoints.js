@@ -103,7 +103,7 @@ const endpoints = {
 }
 
 function sendErr(res) {
-  return (err) => {
+  return err => {
     console.log(err.stack);
     if (process.env.NODE_ENV != 'production') {
       res.status(500).send(JSON.stringify(res.body) + "\n" + err.stack);
@@ -119,7 +119,7 @@ function validateJwt(hz, jwt) {
   if (!(typeof jwt == "string" || jwt instanceof String)) {
     return Promise.reject(new Error('Bad JWT provided.'));
   }
-  return hz._auth._jwt.verify(jwt).then((info) => info.payload.id);
+  return hz._auth._jwt.verify(jwt).then(info => info.payload.id);
 }
 
 function validate(hz, valid, obj) {
