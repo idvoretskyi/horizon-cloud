@@ -1,0 +1,7 @@
+#!/bin/bash
+set -eu
+
+mkdir -p hzc-web-backend
+cp ../../../cmd/hzc-web-backend/package.json hzc-web-backend/
+cp ../../../cmd/hzc-web-backend/.babelrc hzc-web-backend/
+rsync -a ../../../cmd/hzc-web-backend/src/ hzc-web-backend/src/
