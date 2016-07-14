@@ -5,14 +5,16 @@ import * as sync from './sync';
 import * as fs from 'fs';
 import * as https from 'https';
 
-import horizon from '@horizon/server';
-import express from 'express';
 import bodyParser from 'body-parser';
+import cors from 'cors';
+import express from 'express';
+import horizon from '@horizon/server';
 
 require('source-map-support').install();
 
 const app = express();
 app.use(bodyParser.json());
+app.use(cors());
 
 const port = process.env.HZC_PORT || 4433
 const httpsServer = https.createServer({
