@@ -7,7 +7,7 @@ github.com/cenkalti/backoff c29158af31815ccc31ca29c86c121bc39e00d3d8
 github.com/dancannon/gorethink 3ba11fcac3f069e1c0508f5404d075a1d0c4dc76
 github.com/davecgh/go-spew 3e6e67c4dcea3ac2f25fd4731abc0e1deaf36216
 github.com/daviddengcn/go-colortext b5c0891944c2f150ccc9d02aecf51b76c14c2948
-github.com/dgrijalva/jwt-go 5ca80149b9d3f8b863af0e2bb6742e608603bd99
+github.com/dgrijalva/jwt-go 40bd0f3b4891a9d7f121bfb7b8e8b0525625e262
 github.com/docker/docker 0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d
 github.com/docker/go-units 0bbddae09c5a5419a8c6dcdd7ff90da3d450393b
 github.com/docker/spdystream 106e140db2cb50923efe088bf2906b2ee5a45fec
