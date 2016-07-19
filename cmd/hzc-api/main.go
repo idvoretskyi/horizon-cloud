@@ -377,7 +377,7 @@ func updateProjectManifest(
 	}
 
 	// TODO: generalize
-	gc, err := gcloud.New(ctx.ServiceAccount(), viper.GetString("cluster_name"), "us-central1-f")
+	gc, err := gcloud.New(ctx.ServiceAccount, viper.GetString("cluster_name"), "us-central1-f")
 	if err != nil {
 		ctx.Error("Couldn't create gcloud instance: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -497,7 +497,7 @@ var RootCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal("Unable to connect to RethinkDB: ", err)
 		}
-		baseCtx = baseCtx.WithDBConnection(rdbConn)
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{DBConn: rdbConn})
 
 		serviceAccountData, err := ioutil.ReadFile(viper.GetString("service_account"))
 		if err != nil {
@@ -507,7 +507,7 @@ var RootCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal("Unable to parse service account: ", err)
 		}
-		baseCtx = baseCtx.WithServiceAccount(serviceAccount)
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{ServiceAccount: serviceAccount})
 
 		storageBucketBytes, err := ioutil.ReadFile(viper.GetString("storage_bucket_file"))
 		if err != nil {
@@ -523,7 +523,7 @@ var RootCmd = &cobra.Command{
 
 		k := kube.New(viper.GetString("template_path"),
 			viper.GetString("kube_namespace"), gc)
-		baseCtx = baseCtx.WithKube(k)
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{Kube: k})
 
 		go projectSync(baseCtx)
 

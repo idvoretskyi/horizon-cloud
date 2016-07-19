@@ -19,7 +19,7 @@ func requestsForFilelist(
 	bucket, prefix string,
 	files []types.FileDescription) ([]types.FileUploadRequest, error) {
 
-	conf := ctx.ServiceAccount()
+	conf := ctx.ServiceAccount
 	bucketH := client.Bucket(bucket)
 
 	requests := make([]types.FileUploadRequest, 0, 8)
