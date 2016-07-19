@@ -376,20 +376,10 @@ func updateProjectManifest(
 		return
 	}
 
-	// TODO: generalize
-	gc, err := gcloud.New(ctx.ServiceAccount, viper.GetString("cluster_name"), "us-central1-f")
-	if err != nil {
-		ctx.Error("Couldn't create gcloud instance: %v", err)
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			errors.New("Internal error"))
-		return
-	}
-
 	stagingPrefix := "deploy/" + util.TrueName(r.Project) + "/staging/"
 
 	requests, err := requestsForFilelist(
 		ctx,
-		gc.StorageClient(),
 		storageBucket,
 		stagingPrefix,
 		r.Files)
@@ -436,7 +426,6 @@ func updateProjectManifest(
 	for _, domain := range domains {
 		err := copyAllObjects(
 			ctx,
-			gc.StorageClient(),
 			storageBucket, stagingPrefix,
 			storageBucket, "domains/"+domain+"/")
 		if err != nil {
@@ -515,11 +504,12 @@ var RootCmd = &cobra.Command{
 		}
 		storageBucket = string(storageBucketBytes)
 
-		region := "us-central1-f"
+		region := "us-central1-f" // TODO: Generalize/parameterize
 		gc, err := gcloud.New(serviceAccount, viper.GetString("cluster_name"), region)
 		if err != nil {
 			log.Fatal("Unable to create gcloud client: ", err)
 		}
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{GCloud: gc})
 
 		k := kube.New(viper.GetString("template_path"),
 			viper.GetString("kube_namespace"), gc)

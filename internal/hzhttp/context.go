@@ -2,6 +2,7 @@ package hzhttp
 
 import (
 	"github.com/rethinkdb/horizon-cloud/internal/db"
+	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"golang.org/x/oauth2/jwt"
@@ -12,6 +13,7 @@ type Context struct {
 	LogContext     *hzlog.Logger
 	DBConn         *db.DBConnection
 	ServiceAccount *jwt.Config
+	GCloud         *gcloud.GCloud
 	Kube           *kube.Kube
 }
 
@@ -79,6 +81,9 @@ func (c *Context) WithParts(cpart *Context) *Context {
 	}
 	if cpart.Kube != nil {
 		out.Kube = cpart.Kube
+	}
+	if cpart.GCloud != nil {
+		out.GCloud = cpart.GCloud
 	}
 	return &out
 }

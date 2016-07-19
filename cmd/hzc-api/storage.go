@@ -15,10 +15,10 @@ import (
 
 func requestsForFilelist(
 	ctx *hzhttp.Context,
-	client *storage.Client,
 	bucket, prefix string,
 	files []types.FileDescription) ([]types.FileUploadRequest, error) {
 
+	client := ctx.GCloud.StorageClient()
 	conf := ctx.ServiceAccount
 	bucketH := client.Bucket(bucket)
 
@@ -112,12 +112,13 @@ func (o objectAttrsByName) Swap(i, j int)      { o[i], o[j] = o[j], o[i] }
 
 func copyAllObjects(
 	ctx *hzhttp.Context,
-	client *storage.Client,
 	srcBucket, srcPrefix string,
 	dstBucket, dstPrefix string) error {
 
 	ctx.Info("copying all objects in bucket %#v prefix %#v to bucket %#v prefix %#v",
 		srcBucket, srcPrefix, dstBucket, dstPrefix)
+
+	client := ctx.GCloud.StorageClient()
 
 	srcBucketH := client.Bucket(srcBucket)
 	dstBucketH := client.Bucket(dstBucket)
