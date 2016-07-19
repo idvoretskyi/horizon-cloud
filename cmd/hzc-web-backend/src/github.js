@@ -3,7 +3,7 @@ import * as https from 'https';
 import * as qs from 'querystring';
 
 const authObjPromise = new Promise((resolve, reject) => {
-  fs.readFile('/secrets/dev/api-keys/github', (err, data) => {
+  fs.readFile('/secrets/api-keys/github', (err, data) => {
     if (err) {
       reject(err);
     } else {

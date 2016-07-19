@@ -5,6 +5,7 @@ import * as sync from './sync';
 import * as fs from 'fs';
 import * as https from 'https';
 
+import assert from 'assert';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import express from 'express';
@@ -14,7 +15,12 @@ require('source-map-support').install();
 
 const app = express();
 app.use(bodyParser.json());
-app.use(cors());
+app.use(function(req, res, next) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers",
+                "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
 
 const port = process.env.HZC_PORT || 4433
 const httpsServer = https.createServer({
@@ -33,6 +39,8 @@ const options = {
   auth: {
     token_secret: 'XvKNYSyetDxrRGqIiHayP9IpMnP5J',
     allow_unauthenticated: true,
+    success_redirect: 'http://localhost:8000/',
+    failure_redirect: 'http://localhost:8000/',
   },
   rdb_host: rdbHost,
   rdb_port: rdbPort,
@@ -50,6 +58,18 @@ hz.add_auth_provider(horizon.auth.github, {
   secret: 'bbb71ccef1d1b8a8847139bd4f9f97e262b70528',
   path: 'github',
 })
+
+// 1337 h4x
+const listeners = httpsServer.listeners('request').slice(0);
+assert.equal(listeners.length, 1);
+const hzListener = listeners[0];
+httpsServer.removeAllListeners('request');
+httpsServer.on('request', (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers",
+                "Origin, X-Requested-With, Content-Type, Accept");
+  hzListener.call(httpsServer, req, res);
+});
 
 endpoints.attach(hz, app)
 

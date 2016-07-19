@@ -3,7 +3,7 @@ set -eu
 
 mkdir -p /hzc-web-backend
 cd /hzc-web-backend
-git clone -b hzc_v1.1.3_1 https://github.com/rethinkdb/horizon
+git clone -b hzc_v1.1.3_4 https://github.com/rethinkdb/horizon
 
 pushd horizon/client
 npm install

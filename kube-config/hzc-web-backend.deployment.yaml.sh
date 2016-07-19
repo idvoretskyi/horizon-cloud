@@ -46,6 +46,8 @@ spec:
         secret: { secretName: "names" }
       - name: api-keys
         secret: { secretName: "api-keys" }
+      - name: api-shared-secret
+        secret: { secretName: "api-shared-secret" }
       - name: wildcard-ssl
         secret: { secretName: "wildcard-ssl" }
 
@@ -64,6 +66,8 @@ spec:
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
         - name: names
           mountPath: /secrets/names
+        - name: api-shared-secret
+          mountPath: /secrets/api-shared-secret
         - name: api-keys
           mountPath: /secrets/api-keys
         - name: wildcard-ssl

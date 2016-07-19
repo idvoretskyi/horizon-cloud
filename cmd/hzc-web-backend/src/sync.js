@@ -6,6 +6,14 @@ import * as uuid from 'uuid';
 
 const generation = uuid.v4();
 
+function checkErr(summary) {
+  assert.equal(summary.errors, 0);
+}
+function expectEmpty(x) {
+  assert.equal(x.constructor, Object);
+  assert.equal(Object.keys(x).length, 0);
+}
+
 function userNeedsActivation(user) {
   return (user.groups.indexOf('authenticated') != -1
           && !(user.data && user.data.status == 'ready'));

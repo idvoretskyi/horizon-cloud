@@ -34,8 +34,12 @@ done
 wait
 
 shopt -s nullglob
+exit_code=0
 for remaining in $running/*; do
+    exit_code=1
     echo "Failed to build or push `basename $remaining`:"
     cat `cat $remaining`/deploy.log
     echo
 done
+
+exit $exit_code
