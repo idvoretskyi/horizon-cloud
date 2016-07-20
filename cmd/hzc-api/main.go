@@ -262,13 +262,17 @@ func getProjectAddrsByKey(
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	projectAddrs, err := ctx.DB().GetProjectAddrsByKey(gp.PublicKey)
+	names, err := ctx.DB().GetProjectNamesByKey(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
+	addrs := make([]types.ProjectAddr, len(names))
+	for i, name := range names {
+		addrs[i] = types.ProjectAddrFromName(name, storageBucket)
+	}
 	api.WriteJSONResp(rw, http.StatusOK,
-		api.GetProjectAddrsByKeyResp{ProjectAddrs: projectAddrs})
+		api.GetProjectAddrsByKeyResp{ProjectAddrs: addrs})
 }
 
 func getProjectAddrByDomain(
@@ -277,13 +281,16 @@ func getProjectAddrByDomain(
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	projectAddr, err := ctx.DB().GetProjectAddrByDomain(r.Domain)
+	name, err := ctx.DB().GetProjectNameByDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
+	addr := types.ProjectAddrFromName(name, storageBucket)
 	api.WriteJSONResp(rw, http.StatusOK,
-		api.GetProjectAddrByDomainResp{ProjectAddr: projectAddr})
+		api.GetProjectAddrByDomainResp{
+			ProjectAddr: &addr,
+		})
 }
 
 func maybeUpdateHorizonConfig(
@@ -352,7 +359,7 @@ func updateProjectManifest(
 		return
 	}
 
-	allowedProjectAddrs, err := ctx.DB().GetProjectAddrsByUsers(tokData.Users)
+	allowedProjectNames, err := ctx.DB().GetProjectNamesByUsers(tokData.Users)
 	if err != nil {
 		ctx.Error("Couldn't get project list for users: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -361,8 +368,8 @@ func updateProjectManifest(
 	}
 
 	found := false
-	for _, projectAddr := range allowedProjectAddrs {
-		if util.TrueName(projectAddr.Name) == util.TrueName(r.Project) {
+	for _, projectName := range allowedProjectNames {
+		if util.TrueName(projectName) == util.TrueName(r.Project) {
 			found = true
 			break
 		}

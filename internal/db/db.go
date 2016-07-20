@@ -232,7 +232,7 @@ func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
 	return users, nil
 }
 
-func (d *DB) GetProjectAddrsByKey(publicKey string) ([]types.ProjectAddr, error) {
+func (d *DB) GetProjectNamesByKey(publicKey string) ([]string, error) {
 	q := projects.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array")))
@@ -242,15 +242,15 @@ func (d *DB) GetProjectAddrsByKey(publicKey string) ([]types.ProjectAddr, error)
 		return nil, err
 	}
 	defer cursor.Close()
-	var projectAddrs []types.ProjectAddr
+	var names []string
 	var p types.Project
 	for cursor.Next(&p) {
-		projectAddrs = append(projectAddrs, types.ProjectAddrFromName(p.Name))
+		names = append(names, p.Name)
 	}
-	return projectAddrs, nil
+	return names, nil
 }
 
-func (d *DB) GetProjectAddrsByUsers(users []string) ([]types.ProjectAddr, error) {
+func (d *DB) GetProjectNamesByUsers(users []string) ([]string, error) {
 	q := projects.GetAllByIndex("Users", r.Args(users))
 	cursor, err := q.Run(d.session)
 	if err != nil {
@@ -258,25 +258,24 @@ func (d *DB) GetProjectAddrsByUsers(users []string) ([]types.ProjectAddr, error)
 		return nil, err
 	}
 	defer cursor.Close()
-	var projectAddrs []types.ProjectAddr
+	var names []string
 	var p types.Project
 	for cursor.Next(&p) {
-		projectAddrs = append(projectAddrs, types.ProjectAddrFromName(p.Name))
+		names = append(names, p.Name)
 	}
-	return projectAddrs, nil
+	return names, nil
 }
 
-func (d *DB) GetProjectAddrByDomain(domainName string) (*types.ProjectAddr, error) {
+func (d *DB) GetProjectNameByDomain(domainName string) (string, error) {
 	var domain types.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
 		if err != r.ErrEmptyResult {
-			return nil, err
+			return "", err
 		}
-		return nil, nil
+		return "", nil
 	}
-	projectAddr := types.ProjectAddrFromName(domain.Project)
-	return &projectAddr, nil
+	return domain.Project, nil
 }
 
 func (d *DB) GetProject(name string) (*types.Project, error) {
