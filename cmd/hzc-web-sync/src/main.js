@@ -1,7 +1,9 @@
 import * as uuid from 'uuid';
 
 import assert from 'assert';
-import r from 'rethinkdb'
+import r from 'rethinkdb';
+
+import * as github from './github';
 
 function checkErr(summary) {
   assert.equal(summary.errors, 0);
@@ -66,11 +68,11 @@ function copySync(sys, web, generation, tableName) {
     delOp);
 }
 
-export function projectSync(...args) {
+function projectSync(...args) {
   return copySync.apply(this, args.concat(['projects']));
 }
 
-export function domainSync(...args) {
+function domainSync(...args) {
   return copySync.apply(this, args.concat(['domains']));
 }
 
@@ -93,7 +95,7 @@ function userRemoveOp(generation, destSet, newVal) {
   });
 }
 
-export function userSync(sys, web, generation) {
+function userSync(sys, web, generation) {
   console.log(`Syncing users (generation ${generation})...`);
   return syncTo(
     generation,
@@ -103,6 +105,64 @@ export function userSync(sys, web, generation) {
     web,
     userReadyOp,
     userRemoveOp);
+}
+
+const usersTbl = r.db('web_backend_internal').table('users');
+const authTbl = r.db('web_backend_internal').table('users_auth');
+const pushTbl = r.db('hzc_api').table('users');
+
+function isManagedUser(user) {
+  return user.groups.indexOf('authenticated') != -1;
+}
+
+function userStatus(user) {
+  if (!user) return 'error';
+  if (!isManagedUser(user)) return 'unmanaged';
+  if (!user.data) return 'new';
+  return user.data.status;
+}
+
+function newToApiWait(web, user) {
+  return authTbl.getAll(user.id, {index: 'user_id'}).run(web).then(cursor => {
+    return cursor.toArray();
+  }).then(arr => {
+    assert.equal(arr.length, 1);
+    return arr[0].id[1];
+  }).then(authId => {
+    return github.loginFromId(authId).then(login => {
+      return usersTbl.get(user.id).update({
+        data: {githubLogin: login, githubId: authId, status: 'apiWait'},
+      }).run(web).then(checkErr);
+    });
+  });
+}
+
+function apiWaitToReady(sys, user) {
+  return github.keysFromLogin(user.data.githubLogin).then(keys => {
+    return pushTbl.insert({Name: user.id, PublicSSHKeys: keys}).run(sys).then(checkErr);
+  });
+}
+
+function userPush(sys, web) {
+  console.log(`Initializing users in background...`);
+  const opts = {includeInitial: true};
+  return usersTbl.changes(opts).run(web).then(cursor => {
+    return cursor.eachAsync(c => {
+      const user = c.new_val;
+      switch (userStatus(user)) {
+      case 'new': return newToApiWait(web, user);
+      case 'apiWait': return apiWaitToReady(sys, user);
+
+      case 'ready': return;
+      case 'unmanaged': return;
+      case 'deleted': return;
+
+      case 'error': // fallthru
+      default: throw new Error('unexpected change: ' + JSON.stringify(
+        [c, user, userStatus(user)]));
+      }
+    });
+  });
 }
 
 const sysHost = process.env.HZC_WEB_SYNC_SYS_HOST || 'rethinkdb-sys'
@@ -118,6 +178,7 @@ function main(startTime) {
     console.log(`GENERATION: ${generation}`);
     return Promise.all([
       userSync(sys, web, generation),
+      userPush(sys, web),
       projectSync(sys, web, generation),
       domainSync(sys, web, generation),
     ]);

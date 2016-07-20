@@ -1,7 +1,3 @@
-import * as endpoints from './endpoints';
-import * as horizonShim from './horizonShim';
-import * as sync from './sync';
-
 import * as fs from 'fs';
 import * as https from 'https';
 
@@ -10,6 +6,9 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import express from 'express';
 import horizon from '@horizon/server';
+
+import * as endpoints from './endpoints';
+import * as horizonShim from './horizonShim';
 
 require('source-map-support').install();
 
@@ -52,10 +51,11 @@ const options = {
 };
 const hz = horizon(httpsServer, options)
 
+const githubApiKeys = JSON.parse(fs.readFileSync('/secrets/api-keys/github'))
 // RSI: read these out of secrets.
 hz.add_auth_provider(horizon.auth.github, {
-  id: '88a6dbc480e460a19aa3',
-  secret: 'bbb71ccef1d1b8a8847139bd4f9f97e262b70528',
+  id: githubApiKeys.client_id,
+  secret: githubApiKeys.client_secret,
   path: 'github',
 })
 
@@ -74,14 +74,3 @@ httpsServer.on('request', (req, res) => {
 endpoints.attach(hz, app)
 
 app.use(express.static('test_client'))
-
-//
-function logErr(err) {
-  if (err instanceof Error) {
-    console.log('*** Error: ' + err.stack);
-  } else {
-    console.log('*** Bad Error: ' + err);
-  }
-}
-sync.userPush(hz).catch(logErr);
-

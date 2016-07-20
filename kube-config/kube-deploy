@@ -1,0 +1,6 @@
+#!/bin/bash
+set -eu
+
+cd "$(dirname "$(readlink -f "$0")")"
+./kube-push "docker/$1/" \
+    && { bash "$1.deployment.yaml.sh" | ks apply -f -; }

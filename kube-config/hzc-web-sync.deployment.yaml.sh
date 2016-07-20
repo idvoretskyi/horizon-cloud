@@ -40,6 +40,8 @@ spec:
       volumes:
       - name: disable-api-access
         emptyDir: {}
+      - name: api-keys
+        secret: { secretName: "api-keys" }
 
       containers:
       - name: proxy
@@ -52,4 +54,6 @@ spec:
         volumeMounts:
         - name: disable-api-access
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        - name: api-keys
+          mountPath: /secrets/api-keys
 EOF
