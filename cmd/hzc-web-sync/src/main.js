@@ -6,6 +6,9 @@ import r from 'rethinkdb';
 import * as github from './github';
 
 function checkErr(summary) {
+  if (summary.skipped != 0) {
+    console.log("WARNING: skipped write");
+  }
   assert.equal(summary.errors, 0);
 }
 function expectEmpty(x) {
@@ -139,7 +142,7 @@ function newToApiWait(web, user) {
 
 function apiWaitToReady(sys, user) {
   return github.keysFromLogin(user.data.githubLogin).then(keys => {
-    return pushTbl.insert({Name: user.id, PublicSSHKeys: keys}).run(sys).then(checkErr);
+    return pushTbl.insert({id: user.id, PublicSSHKeys: keys}).run(sys).then(checkErr);
   });
 }
 
