@@ -86,7 +86,7 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 		ctx := ctx.WithLog(map[string]interface{}{"project": conf.ID})
 
 		ctx.Info("applying project")
-		k := ctx.Kube()
+		k := ctx.Kube
 		if conf.Deleting {
 			ctx.Info("deleting project")
 			err := k.DeleteProject(conf.ID)

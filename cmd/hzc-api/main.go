@@ -262,13 +262,17 @@ func getProjectAddrsByKey(
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	projectAddrs, err := ctx.DB().GetProjectAddrsByKey(gp.PublicKey)
+	names, err := ctx.DB().GetProjectNamesByKey(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
+	addrs := make([]types.ProjectAddr, len(names))
+	for i, name := range names {
+		addrs[i] = types.ProjectAddrFromName(name, storageBucket)
+	}
 	api.WriteJSONResp(rw, http.StatusOK,
-		api.GetProjectAddrsByKeyResp{ProjectAddrs: projectAddrs})
+		api.GetProjectAddrsByKeyResp{ProjectAddrs: addrs})
 }
 
 func getProjectAddrByDomain(
@@ -277,13 +281,16 @@ func getProjectAddrByDomain(
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	projectAddr, err := ctx.DB().GetProjectAddrByDomain(r.Domain)
+	name, err := ctx.DB().GetProjectNameByDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
+	addr := types.ProjectAddrFromName(name, storageBucket)
 	api.WriteJSONResp(rw, http.StatusOK,
-		api.GetProjectAddrByDomainResp{ProjectAddr: projectAddr})
+		api.GetProjectAddrByDomainResp{
+			ProjectAddr: &addr,
+		})
 }
 
 func maybeUpdateHorizonConfig(
@@ -352,7 +359,7 @@ func updateProjectManifest(
 		return
 	}
 
-	allowedProjectAddrs, err := ctx.DB().GetProjectAddrsByUsers(tokData.Users)
+	allowedProjectNames, err := ctx.DB().GetProjectNamesByUsers(tokData.Users)
 	if err != nil {
 		ctx.Error("Couldn't get project list for users: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -361,8 +368,8 @@ func updateProjectManifest(
 	}
 
 	found := false
-	for _, projectAddr := range allowedProjectAddrs {
-		if util.TrueName(projectAddr.Name) == util.TrueName(r.Project) {
+	for _, projectName := range allowedProjectNames {
+		if util.TrueName(projectName) == util.TrueName(r.Project) {
 			found = true
 			break
 		}
@@ -376,20 +383,10 @@ func updateProjectManifest(
 		return
 	}
 
-	// TODO: generalize
-	gc, err := gcloud.New(ctx.ServiceAccount(), viper.GetString("cluster_name"), "us-central1-f")
-	if err != nil {
-		ctx.Error("Couldn't create gcloud instance: %v", err)
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			errors.New("Internal error"))
-		return
-	}
-
 	stagingPrefix := "deploy/" + util.TrueName(r.Project) + "/staging/"
 
 	requests, err := requestsForFilelist(
 		ctx,
-		gc.StorageClient(),
 		storageBucket,
 		stagingPrefix,
 		r.Files)
@@ -436,7 +433,6 @@ func updateProjectManifest(
 	for _, domain := range domains {
 		err := copyAllObjects(
 			ctx,
-			gc.StorageClient(),
 			storageBucket, stagingPrefix,
 			storageBucket, "domains/"+domain+"/")
 		if err != nil {
@@ -497,7 +493,7 @@ var RootCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal("Unable to connect to RethinkDB: ", err)
 		}
-		baseCtx = baseCtx.WithDBConnection(rdbConn)
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{DBConn: rdbConn})
 
 		serviceAccountData, err := ioutil.ReadFile(viper.GetString("service_account"))
 		if err != nil {
@@ -507,7 +503,7 @@ var RootCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal("Unable to parse service account: ", err)
 		}
-		baseCtx = baseCtx.WithServiceAccount(serviceAccount)
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{ServiceAccount: serviceAccount})
 
 		storageBucketBytes, err := ioutil.ReadFile(viper.GetString("storage_bucket_file"))
 		if err != nil {
@@ -515,15 +511,16 @@ var RootCmd = &cobra.Command{
 		}
 		storageBucket = string(storageBucketBytes)
 
-		region := "us-central1-f"
+		region := "us-central1-f" // TODO: Generalize/parameterize
 		gc, err := gcloud.New(serviceAccount, viper.GetString("cluster_name"), region)
 		if err != nil {
 			log.Fatal("Unable to create gcloud client: ", err)
 		}
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{GCloud: gc})
 
 		k := kube.New(viper.GetString("template_path"),
 			viper.GetString("kube_namespace"), gc)
-		baseCtx = baseCtx.WithKube(k)
+		baseCtx = baseCtx.WithParts(&hzhttp.Context{Kube: k})
 
 		go projectSync(baseCtx)
 

@@ -91,15 +91,17 @@ type Domain struct {
 }
 
 type ProjectAddr struct {
-	Name     string
-	HTTPAddr string
+	Name      string
+	HTTPAddr  string
+	GCSPrefix string
 }
 
-func ProjectAddrFromName(name string) ProjectAddr {
+func ProjectAddrFromName(name string, bucketName string) ProjectAddr {
 	trueName := util.TrueName(name)
 	return ProjectAddr{
-		Name:     name,
-		HTTPAddr: "h-" + trueName + ":8181",
+		Name:      name,
+		HTTPAddr:  "h-" + trueName + ":8181",
+		GCSPrefix: bucketName + "/deploy/" + trueName + "/active/",
 	}
 }
 
