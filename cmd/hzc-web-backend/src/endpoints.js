@@ -8,7 +8,7 @@ function stubbedOut() {
 
 function projectValid() {
   // RSI
-o}
+}
 
 function domainValid() {
   // RSI
