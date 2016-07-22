@@ -302,7 +302,7 @@ func maybeUpdateHorizonConfig(
 	})
 
 	newVersion, versionErr, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
-	ctx.Info("version %v (%v)", newVersion, err)
+	ctx.Info("version %v (err version: %v)", newVersion, err)
 	if err != nil {
 		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
 			project, hzConf, err)

@@ -101,7 +101,7 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 		})
 		ctx.Info("new KubeConfigVersion: %#v", kConfVer)
 		ctx.Info("HorizonConfigVersion: %#v", conf.HorizonConfigVersion)
-		hzConfVer := conf.KubeConfigVersion.MaybeConfigure(func() error {
+		hzConfVer := conf.HorizonConfigVersion.MaybeConfigure(func() error {
 			return applyHorizonConfig(k, ctx, conf)
 		})
 		ctx.Info("new HorizonConfigVersion: %#v", hzConfVer)

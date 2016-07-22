@@ -19,8 +19,8 @@ var (
 	ErrCanceled = errors.New("canceled")
 
 	projects = r.DB("hzc_api").Table("projects")
-	users    = r.DB("hzc_api").Table("users")
 	domains  = r.DB("hzc_api").Table("domains")
+	users    = r.DB("hzc_api").Table("users")
 )
 
 func New(addr string) (*DBConnection, error) {
@@ -141,14 +141,17 @@ func (d *DB) DelProjectUsers(project string, users []string) (*types.Project, er
 
 func (d *DB) MaybeUpdateHorizonConfig(
 	projectName string, hzConf types.HorizonConfig) (int64, string, error) {
+	hcv := "HorizonConfigVersion"
 	q := r.Expr(hzConf).Do(func(hzc r.Term) r.Term {
 		return projects.Get(util.TrueName(projectName)).Update(func(config r.Term) r.Term {
 			return r.Branch(
 				config.Field("HorizonConfig").Eq(hzc).Default(false),
 				nil,
-				map[string]r.Term{
-					"HorizonConfig":        r.Expr(hzc),
-					"HorizonConfigVersion": config.Field("HorizonConfigVersion").Default(0).Add(1),
+				map[string]interface{}{
+					"HorizonConfig": r.Expr(hzc),
+					hcv: map[string]interface{}{
+						"Desired": config.Field(hcv).Field("Desired").Default(0).Add(1),
+					},
 				})
 		}, r.UpdateOpts{ReturnChanges: "always"})
 	})
