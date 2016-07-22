@@ -2,18 +2,15 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/encryptio/go-meetup"
 	"github.com/rethinkdb/horizon-cloud/internal/api"
 	"github.com/rethinkdb/horizon-cloud/internal/hzhttp"
+	"github.com/rethinkdb/horizon-cloud/internal/types"
 )
 
 type NoHostMappingError struct {
@@ -28,137 +25,46 @@ type Handler struct {
 	conf        *config
 	targetCache *meetup.Cache
 	ctx         *hzhttp.Context
-
-	mu      sync.Mutex
-	proxies map[string]*httputil.ReverseProxy
+	proxy       *httputil.ReverseProxy
 }
 
 func NewHandler(conf *config, ctx *hzhttp.Context) *Handler {
 	h := &Handler{
 		conf: conf,
 		ctx:  ctx,
-		// TODO: remove ReverseProxies from this map if no requests are
-		// coming in for them.
-		proxies: make(map[string]*httputil.ReverseProxy, 128),
-	}
-
-	h.targetCache = meetup.New(meetup.Options{
-		Get: func(host string) (interface{}, error) {
-			return h.lookupTargetForHost(host)
+		proxy: &httputil.ReverseProxy{
+			Director: func(r *http.Request) {},
 		},
-
-		Concurrency:   20,
-		ErrorAge:      time.Second,
-		ExpireAge:     time.Hour,
-		RevalidateAge: time.Minute,
-	})
+		targetCache: meetup.New(meetup.Options{
+			Get: func(host string) (interface{}, error) {
+				resp, err := conf.APIClient.GetProjectAddrByDomain(api.GetProjectAddrByDomainReq{
+					Domain: host,
+				})
+				if err != nil {
+					ctx.Error("API server gave no response for `%v` (%v)", host, err)
+					return nil, err
+				}
+				if resp.ProjectAddr == nil {
+					return nil, &NoHostMappingError{host}
+				}
+				return resp.ProjectAddr, nil
+			},
+			Concurrency:   20,
+			ErrorAge:      time.Second,
+			ExpireAge:     time.Hour,
+			RevalidateAge: time.Minute,
+		}),
+	}
 
 	return h
 }
 
-func (h *Handler) getCachedTarget(host string) (string, error) {
+func (h *Handler) getCachedTarget(host string) (*types.ProjectAddr, error) {
 	v, err := h.targetCache.Get(host)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return v.(string), nil
-}
-
-func (h *Handler) lookupTargetForHost(host string) (string, error) {
-	resp, err := h.conf.APIClient.GetProjectAddrByDomain(api.GetProjectAddrByDomainReq{
-		Domain: host,
-	})
-	if err != nil {
-		h.ctx.Error("API server gave no response for `%v` (%v)", host, err)
-		return "", err
-	}
-	if resp.ProjectAddr == nil {
-		return "", &NoHostMappingError{host}
-	}
-	return resp.ProjectAddr.HTTPAddr, nil
-}
-
-func maybeCloseWrite(c net.Conn) {
-	cw, ok := c.(interface {
-		CloseWrite() error
-	})
-	if ok {
-		cw.CloseWrite()
-	} else {
-		c.Close()
-	}
-}
-
-func maybeCloseRead(c net.Conn) {
-	cw, ok := c.(interface {
-		CloseRead() error
-	})
-	if ok {
-		cw.CloseRead()
-	} else {
-		c.Close()
-	}
-}
-
-func websocketProxy(
-	target string, ctx *hzhttp.Context, w http.ResponseWriter, r *http.Request) {
-
-	d, err := net.Dial("tcp", target)
-	if err != nil {
-		http.Error(w, "Error contacting backend server.", 500)
-		ctx.Error("Error dialing websocket backend %s: %v", target, err)
-		return
-	}
-	defer d.Close()
-
-	hj, ok := w.(http.Hijacker)
-	if !ok {
-		ctx.Error("ResponseWriter was not a hijacker")
-		http.Error(w, "internal error", 500)
-		return
-	}
-	nc, buf, err := hj.Hijack()
-	if err != nil {
-		ctx.Error("ResponseWriter failed to hijack: %v", err)
-		http.Error(w, "internal error", 500)
-		return
-	}
-	defer nc.Close()
-
-	err = r.Write(d)
-	if err != nil {
-		ctx.Info("Failed to write request to backend: %v", err)
-		return
-	}
-
-	done := make(chan struct{})
-	go func() {
-		_, err := io.Copy(d, buf)
-		if err != nil && err != io.EOF {
-			ctx.Info("Failed to copy to backend: %v", err)
-		}
-		maybeCloseWrite(d)
-		maybeCloseRead(nc)
-		close(done)
-	}()
-	_, err = io.Copy(nc, d)
-	if err != nil && err != io.EOF {
-		ctx.Info("Failed to copy from client: %v", err)
-	}
-	maybeCloseWrite(nc)
-	maybeCloseRead(d)
-	<-done
-}
-
-func isWebsocket(req *http.Request) bool {
-	if strings.ToLower(req.Header.Get("Connection")) == "upgrade" {
-		for _, uhdr := range req.Header["Upgrade"] {
-			if strings.ToLower(uhdr) == "websocket" {
-				return true
-			}
-		}
-	}
-	return false
+	return v.(*types.ProjectAddr), nil
 }
 
 func (h *Handler) ServeHTTPContext(
@@ -186,26 +92,12 @@ func (h *Handler) ServeHTTPContext(
 
 	if isWebsocket(r) {
 		ctx.Info("serving as websocket")
-		websocketProxy(target, ctx, w, r)
+		websocketProxy(target.HTTPAddr, ctx, w, r)
 		return
 	}
 
-	h.mu.Lock()
-	p, ok := h.proxies[target]
-	if !ok {
-		url, err := url.Parse("http://" + target)
-		if err != nil {
-			h.mu.Unlock()
-			ctx.Error("Proxy information invalid for %s: %v", host, err)
-			http.Error(w, "Proxy information invalid for "+host,
-				http.StatusInternalServerError)
-			return
-		}
+	r.URL.Scheme = "http"
+	r.URL.Host = target.HTTPAddr
 
-		p = httputil.NewSingleHostReverseProxy(url)
-		h.proxies[target] = p
-	}
-	h.mu.Unlock()
-
-	p.ServeHTTP(w, r)
+	h.proxy.ServeHTTP(w, r)
 }
