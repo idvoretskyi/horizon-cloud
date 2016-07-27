@@ -25,6 +25,11 @@ backend api {
     .port = "80";
 }
 
+backend hzchttp {
+    .host = "hzc-http.$DOMAIN";
+    .port = "80";
+}
+
 sub vcl_recv {
     // Health check for Google load balancer and Kubernetes
     if (req.url == "/ebaefa90-3c6e-4eb4-b8d3-9e2d53aec696") {
@@ -57,14 +62,9 @@ sub vcl_recv {
         return (synth(850, "Moved"));
     }
 
-    // All other requests are subdirectories in the storage-bucket/domains dir
-
-    if (req.url ~ "/\$") {
-        set req.url = req.url + "index.html";
-    }
-    set req.url = "/$BUCKET/domains/" + req.http.host + req.url;
-    set req.http.host = "storage.googleapis.com";
-    set req.backend_hint = storage;
+    // All other requests go to hzc-http, to be proxied to horizon or GCS
+    set req.url = "/" + req.http.host + req.url;
+    set req.backend_hint = hzchttp;
     return (hash);
 }
 

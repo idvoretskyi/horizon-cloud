@@ -11,7 +11,7 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 gcr_id_path=docker/$name/gcr_image_id
 
-api_host=api.$(cat /secrets/"$DEPLOY"/names/domain)
+api_host=api.$(cat /config/"$DEPLOY"/secrets/names/domain)
 
 replicas=1
 if [ "$DEPLOY" == "prod" ]; then

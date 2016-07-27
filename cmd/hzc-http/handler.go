@@ -72,7 +72,7 @@ func (h *Handler) ServeHTTPContext(
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	slashIndex := strings.IndexByte(path, '/')
 	if slashIndex == -1 {
-		http.Error(w, "malformed", http.StatusNotFound)
+		http.Error(w, "malformed path", http.StatusNotFound)
 		return
 	}
 	host := path[:slashIndex]
@@ -90,14 +90,27 @@ func (h *Handler) ServeHTTPContext(
 		return
 	}
 
+	// Websocket requests proxied with TCP to the horizon pod
 	if isWebsocket(r) {
 		ctx.Info("serving as websocket")
 		websocketProxy(target.HTTPAddr, ctx, w, r)
 		return
 	}
 
-	r.URL.Scheme = "http"
-	r.URL.Host = target.HTTPAddr
+	// /horizon/ requests proxied with HTTP to the horizon pod
+	if strings.HasPrefix(r.URL.Path, "/horizon/") {
+		r.URL.Scheme = "http"
+		r.URL.Host = target.HTTPAddr
+		h.proxy.ServeHTTP(w, r)
+		return
+	}
 
+	// All other requests proxied with HTTP to GCS
+	r.URL.Scheme = "https"
+	r.URL.Host = "storage.googleapis.com"
+	r.URL.Path = target.GCSPrefix + strings.TrimPrefix(r.URL.Path, "/")
+	if strings.HasSuffix(r.URL.Path, "/") {
+		r.URL.Path += "index.html"
+	}
 	h.proxy.ServeHTTP(w, r)
 }
