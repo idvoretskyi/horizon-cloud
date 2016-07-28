@@ -363,33 +363,16 @@ func updateProjectManifest(
 		return
 	}
 
-	domains, err := ctx.DB().GetDomainsByProject(r.Project)
+	err = copyAllObjects(
+		ctx,
+		storageBucket, stagingPrefix,
+		storageBucket, "deploy/"+util.TrueName(r.Project)+"/active/")
 	if err != nil {
-		ctx.Error("Couldn't get domains for %v: %v", r.Project, err)
+		ctx.Error("Couldn't copy objects for %v to active location: %v",
+			r.Project, err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
 			errors.New("Internal error"))
 		return
-	}
-
-	if len(domains) == 0 {
-		ctx.Error("No domains for %v", r.Project)
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("No domains configured for %v", r.Project))
-		return
-	}
-
-	for _, domain := range domains {
-		err := copyAllObjects(
-			ctx,
-			storageBucket, stagingPrefix,
-			storageBucket, "domains/"+domain+"/")
-		if err != nil {
-			ctx.Error("Couldn't copy objects for %v to domains/%v: %v",
-				r.Project, domain, err)
-			api.WriteJSONError(rw, http.StatusInternalServerError,
-				errors.New("Internal error"))
-			return
-		}
 	}
 
 	api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
