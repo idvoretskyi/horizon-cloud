@@ -151,58 +151,6 @@ func deleteProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Reques
 	api.WriteJSONResp(rw, http.StatusOK, api.DeleteProjectResp{})
 }
 
-func userCreate(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.UserCreateReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	err := ctx.DB().UserCreate(r.Name)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.UserCreateResp{})
-}
-
-func userGet(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.UserGetReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	user, err := ctx.DB().UserGet(r.Name)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.UserGetResp{User: *user})
-}
-
-func userAddKeys(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.UserAddKeysReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	err := ctx.DB().UserAddKeys(r.Name, r.Keys)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.UserAddKeysResp{})
-}
-
-func userDelKeys(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.UserDelKeysReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	err := ctx.DB().UserDelKeys(r.Name, r.Keys)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.UserDelKeysResp{})
-}
-
 func setDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.SetDomainReq
 	if !decode(rw, req.Body, &r) {
@@ -538,10 +486,6 @@ var RootCmd = &cobra.Command{
 			{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
 			{api.AddProjectUsersPath, addProjectUsers, true},
 			{api.DelProjectUsersPath, delProjectUsers, true},
-			{api.UserCreatePath, userCreate, true},
-			{api.UserGetPath, userGet, true},
-			{api.UserAddKeysPath, userAddKeys, true},
-			{api.UserDelKeysPath, userDelKeys, true},
 			{api.SetDomainPath, setDomain, true},
 			{api.DelDomainPath, delDomain, true},
 			{api.GetDomainsByProjectPath, getDomainsByProject, true},

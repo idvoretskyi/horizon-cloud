@@ -33,10 +33,13 @@ httpsServer.on('listening', () => {
 
 const rdbHost = process.env.HZC_RDB_HOST || 'rethinkdb-web'
 const rdbPort = process.env.HZC_RDB_PORT || 28015
+// RSI: ready this shit out of secrets.
+// RSI: turn off all this dev mode shit.
 const options = {
   project_name: 'web_backend',
   auth: {
     token_secret: 'XvKNYSyetDxrRGqIiHayP9IpMnP5J',
+    // RSI: turn this off.
     allow_unauthenticated: true,
     success_redirect: 'http://localhost:8000/',
     failure_redirect: 'http://localhost:8000/',

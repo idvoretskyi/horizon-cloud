@@ -2,8 +2,12 @@ import * as kube from './kube';
 
 import assert from 'assert';
 
-function stubbedOut() {
-  return Promise.reject(new Error('STUBBED OUT'));
+function checkErr(summary) {
+  if (summary.skipped != 0) {
+    throw new Error('skipped write');
+  } else if (summary.errors != 0) {
+    throw new Error(JSON.stringify(summary));
+  }
 }
 
 function projectValid() {
@@ -22,84 +26,85 @@ function keysValid() {
   // RSI
 }
 
-const endpoints = {
-  '/api/projects/add': {
-    valid: {project: projectValid},
-    func: (user, params) => {
-      return kube.apiReq('/projects/setKubeConfig', {
-        Project: `${user}/${params.project}`,
-        KubeConfig: {
-          NumRDB: 1,
-          SizeRDB: 10,
-          NumHorizon: 1,
-        },
-      });
+function genEndpoints(r, conn) {
+  const usersTbl = r.db('web_backend_internal').table('users')
+  return {
+    '/api/projects/add': {
+      valid: {project: projectValid},
+      func: (user, params) => {
+        return kube.apiReq('/projects/setKubeConfig', {
+          Project: `${user}/${params.project}`,
+          KubeConfig: {
+            NumRDB: 1,
+            SizeRDB: 10,
+            NumHorizon: 1,
+          },
+        });
+      },
     },
-  },
-  '/api/projects/del': {
-    valid: {project: projectValid},
-    func: (user, params) => {
-      return kube.apiReq('/projects/delete', {
-        Project: `${user}/${params.project}`,
-      });
+    '/api/projects/del': {
+      valid: {project: projectValid},
+      func: (user, params) => {
+        return kube.apiReq('/projects/delete', {
+          Project: `${user}/${params.project}`,
+        });
+      },
     },
-  },
-  '/api/projects/addUsers': {
-    valid: {project: projectValid, users: usersValid},
-    func: (user, params) => {
-      return kube.apiReq('/projects/addUsers', {
-        Project: `${user}/${params.project}`,
-        Users: params.users,
-      });
+    '/api/projects/addUsers': {
+      valid: {project: projectValid, users: usersValid},
+      func: (user, params) => {
+        return kube.apiReq('/projects/addUsers', {
+          Project: `${user}/${params.project}`,
+          Users: params.users,
+        });
+      },
     },
-  },
-  '/api/projects/delUsers': {
-    valid: {project: projectValid, users: usersValid},
-    func: (user, params) => {
-      return kube.apiReq('/projects/delUsers', {
-        Project: `${user}/${params.project}`,
-        Users: params.users,
-      });
+    '/api/projects/delUsers': {
+      valid: {project: projectValid, users: usersValid},
+      func: (user, params) => {
+        return kube.apiReq('/projects/delUsers', {
+          Project: `${user}/${params.project}`,
+          Users: params.users,
+        });
+      },
     },
-  },
 
-  '/api/domains/add': {
-    valid: {project: projectValid, domain: domainValid},
-    func: (user, params) => {
-      return kube.apiReq('/domains/set', {
-        Project: `${user}/${params.project}`,
-        Domain: params.domain,
-      });
+    '/api/domains/add': {
+      valid: {project: projectValid, domain: domainValid},
+      func: (user, params) => {
+        return kube.apiReq('/domains/set', {
+          Project: `${user}/${params.project}`,
+          Domain: params.domain,
+        });
+      },
     },
-  },
-  '/api/domains/del': {
-    valid: {project: projectValid, domain: domainValid},
-    func: (user, params) => {
-      return kube.apiReq('/domains/del', {
-        Project: `${user}/${params.project}`,
-        Domain: params.domain,
-      });
+    '/api/domains/del': {
+      valid: {project: projectValid, domain: domainValid},
+      func: (user, params) => {
+        return kube.apiReq('/domains/del', {
+          Project: `${user}/${params.project}`,
+          Domain: params.domain,
+        });
+      },
     },
-  },
 
-  '/api/user/addKeys': {
-    valid: {keys: keysValid},
-    func: (user, params) => {
-      return kube.apiReq('/users/addKeys', {
-        Name: user,
-        Keys: params.keys,
-      });
+    '/api/user/addKeys': {
+      valid: {keys: keysValid},
+      func: (user, params) => {
+        return usersTbl.get(user).update(row => {
+          return {data: {keys: row('data')('keys').setUnion(params.keys)}};
+        }).run(conn).then(checkErr);
+      },
     },
-  },
-  '/api/user/delKeys': {
-    valid: {keys: keysValid},
-    func: (user, params) => {
-      return kube.apiReq('/users/delKeys', {
-        Name: user,
-        Keys: params.keys,
-      });
+    '/api/user/delKeys': {
+      valid: {keys: keysValid},
+      func: (user, params) => {
+        return usersTbl.get(user).update(row => {
+          return {data: {keys: row('data')('keys').setDifference(params.keys)}};
+        }).run(conn).then(checkErr);
+      },
     },
-  },
+  };
 }
 
 function sendErr(res) {
@@ -150,7 +155,10 @@ function withValidation(hz, spec) {
 }
 
 export function attach(hz, app) {
-  for (let ep in endpoints) {
-    app.post(ep, withValidation(hz, endpoints[ep]));
+  return hz._reql_conn.ready().then(() => {
+    const endpoints = genEndpoints(hz._r, hz._reql_conn.connection())
+    for (let ep in endpoints) {
+      app.post(ep, withValidation(hz, endpoints[ep]));
+    }
   }
 }

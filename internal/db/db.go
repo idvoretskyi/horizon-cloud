@@ -18,10 +18,21 @@ type DBConnection struct {
 var (
 	ErrCanceled = errors.New("canceled")
 
-	projects = r.DB("hzc_api").Table("projects")
-	domains  = r.DB("hzc_api").Table("domains")
-	users    = r.DB("hzc_api").Table("users")
+	projects = r.DB("web_backend").Table("projects")
+	domains  = r.DB("web_backend").Table("domains")
+	users    = r.DB("web_backend_internal").Table("users")
 )
+
+type hzUser struct {
+	Name string `gorethink:"id"`
+	Data struct {
+		PublicSSHKeys `gorethink:"keys"`
+	} `gorethink:"data"`
+}
+
+func (u *hzUser) toUser() {
+	return types.User{u.Name, u.Data.PublicSSHKeys}
+}
 
 func New(addr string) (*DBConnection, error) {
 	session, err := r.Connect(r.ConnectOpts{
@@ -219,22 +230,6 @@ func (d *DB) WaitForHorizonConfigVersion(
 	return HZState{}, err
 }
 
-func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
-	q := users.GetAllByIndex("PublicSSHKeys", publicKey)
-	cursor, err := q.Run(d.session)
-	if err != nil {
-		d.log.Error("Couldn't get users by key: %v", err)
-		return nil, err
-	}
-	defer cursor.Close()
-	var users []string
-	var u types.User
-	for cursor.Next(&u) {
-		users = append(users, u.Name)
-	}
-	return users, nil
-}
-
 func (d *DB) GetProjectNamesByKey(publicKey string) ([]string, error) {
 	q := projects.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
@@ -285,51 +280,6 @@ func (d *DB) GetProject(name string) (*types.Project, error) {
 	var p types.Project
 	err := d.getBasicType(projects, "project", util.TrueName(name), &p)
 	return &p, err
-}
-
-func (d *DB) UserCreate(name string) error {
-	q := users.Insert(types.User{Name: name, PublicSSHKeys: []string{}})
-	_, err := q.RunWrite(d.session)
-	return err
-}
-
-func (d *DB) UserGet(name string) (*types.User, error) {
-	var user types.User
-	err := d.getBasicType(users, "user", name, &user)
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
-func (d *DB) UserAddKeys(name string, keys []string) error {
-	q := users.Get(name).Update(func(row r.Term) r.Term {
-		return r.Expr(map[string]interface{}{
-			"PublicSSHKeys": row.Field("PublicSSHKeys").SetUnion(keys)})
-	})
-	resp, err := q.RunWrite(d.session)
-	if err != nil {
-		return err
-	}
-	if resp.Skipped > 0 {
-		return fmt.Errorf("user `%s` does not exist", name)
-	}
-	return nil
-}
-
-func (d *DB) UserDelKeys(name string, keys []string) error {
-	q := users.Get(name).Update(func(row r.Term) r.Term {
-		return r.Expr(map[string]interface{}{
-			"PublicSSHKeys": row.Field("PublicSSHKeys").SetDifference(keys)})
-	})
-	resp, err := q.RunWrite(d.session)
-	if err != nil {
-		return err
-	}
-	if resp.Skipped > 0 {
-		return fmt.Errorf("user `%s` does not exist", name)
-	}
-	return nil
 }
 
 func (d *DB) SetDomain(domain types.Domain) error {
