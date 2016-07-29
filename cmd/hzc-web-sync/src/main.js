@@ -42,19 +42,19 @@ function newToReady(conn, user) {
         return usersTbl.get(user.id).update({
           data: {githubLogin: login, githubId: authId, keys: keys, status: 'ready'},
         }).run(conn).then(checkErr);
-      }
+      });
     });
   });
 }
 
-function userPush(sys, web) {
+function userPush(conn) {
   console.log(`Initializing users in background...`);
   const opts = {includeInitial: true};
-  return usersTbl.changes(opts).run(web).then(cursor => {
+  return usersTbl.changes(opts).run(conn).then(cursor => {
     return cursor.eachAsync(c => {
       const user = c.new_val;
       switch (userStatus(user)) {
-      case 'new': return newToReady(web, user);
+      case 'new': return newToReady(conn, user);
 
       case 'ready': return;
       case 'unmanaged': return;

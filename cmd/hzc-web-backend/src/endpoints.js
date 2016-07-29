@@ -160,5 +160,5 @@ export function attach(hz, app) {
     for (let ep in endpoints) {
       app.post(ep, withValidation(hz, endpoints[ep]));
     }
-  }
+  });
 }

@@ -62,7 +62,7 @@ spec:
         - name: HZC_STORAGE_BUCKET_FILE
           value: /secrets/names/storage-bucket
         - name: HZC_RETHINKDB_ADDR
-          value: rethinkdb-sys:28015
+          value: rethinkdb-web:28015
         - name: HZC_KUBE_NAMESPACE
           value: $DEPLOY
         - name: RETHINKDB_GCR_ID

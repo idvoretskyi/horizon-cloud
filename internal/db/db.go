@@ -26,12 +26,8 @@ var (
 type hzUser struct {
 	Name string `gorethink:"id"`
 	Data struct {
-		PublicSSHKeys `gorethink:"keys"`
+		PublicSSHKeys []string `gorethink:"keys"`
 	} `gorethink:"data"`
-}
-
-func (u *hzUser) toUser() {
-	return types.User{u.Name, u.Data.PublicSSHKeys}
 }
 
 func New(addr string) (*DBConnection, error) {
@@ -228,6 +224,22 @@ func (d *DB) WaitForHorizonConfigVersion(
 	err = fmt.Errorf("Changefeed aborted unexpectedly.")
 	d.log.Error("WaitForHorizonConfigVersion(%s, %d): %v", project, version, err)
 	return HZState{}, err
+}
+
+func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
+	q := users.GetAllByIndex("PublicSSHKeys", publicKey)
+	cursor, err := q.Run(d.session)
+	if err != nil {
+		d.log.Error("Couldn't get users by key: %v", err)
+		return nil, err
+	}
+	defer cursor.Close()
+	var users []string
+	var u hzUser
+	for cursor.Next(&u) {
+		users = append(users, u.Name)
+	}
+	return users, nil
 }
 
 func (d *DB) GetProjectNamesByKey(publicKey string) ([]string, error) {
