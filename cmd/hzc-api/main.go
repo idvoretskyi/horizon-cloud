@@ -234,11 +234,12 @@ func getProjectAddrByDomain(
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	addr := types.ProjectAddrFromName(name, storageBucket)
-	api.WriteJSONResp(rw, http.StatusOK,
-		api.GetProjectAddrByDomainResp{
-			ProjectAddr: &addr,
-		})
+	var resp api.GetProjectAddrByDomainResp
+	if name != "" {
+		addr := types.ProjectAddrFromName(name, storageBucket)
+		resp.ProjectAddr = &addr
+	}
+	api.WriteJSONResp(rw, http.StatusOK, resp)
 }
 
 func maybeUpdateHorizonConfig(
