@@ -51,106 +51,6 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-func setProjectKubeConfig(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetProjectKubeConfigReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().SetProjectKubeConfig(r.Project, r.KubeConfig)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectKubeConfigResp{
-		Project: *project,
-	})
-}
-
-func addProjectUsers(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.AddProjectUsersReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().AddProjectUsers(r.Project, r.Users)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.AddProjectUsersResp{
-		Project: *project,
-	})
-}
-
-func delProjectUsers(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.DelProjectUsersReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().DelProjectUsers(r.Project, r.Users)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.DelProjectUsersResp{
-		Project: *project,
-	})
-}
-
-func getProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.GetProjectReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().GetProject(r.Project)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectResp{
-		Project: *project,
-	})
-}
-
-func deleteProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.DeleteProjectReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	success, err := ctx.DB().UpdateProject(util.TrueName(r.Project), types.Project{
-		Deleting: true,
-	})
-	ctx.MaybeError(err)
-	if !success {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to delete project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.DeleteProjectResp{})
-}
-
 func setDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.SetDomainReq
 	if !decode(rw, req.Body, &r) {
@@ -210,14 +110,14 @@ func getProjectAddrsByKey(
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	names, err := ctx.DB().GetProjectNamesByKey(gp.PublicKey)
+	projects, err := ctx.DB().GetProjectsByKey(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	addrs := make([]types.ProjectAddr, len(names))
-	for i, name := range names {
-		addrs[i] = types.ProjectAddrFromName(name, storageBucket)
+	addrs := make([]types.ProjectAddr, len(projects))
+	for i, p := range projects {
+		addrs[i] = p.Addr(storageBucket)
 	}
 	api.WriteJSONResp(rw, http.StatusOK,
 		api.GetProjectAddrsByKeyResp{ProjectAddrs: addrs})
@@ -229,36 +129,34 @@ func getProjectAddrByDomain(
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	name, err := ctx.DB().GetProjectNameByDomain(r.Domain)
+	id, err := ctx.DB().GetProjectIDByDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	addr := types.ProjectAddrFromName(name, storageBucket)
+	addr := id.Addr(storageBucket)
 	api.WriteJSONResp(rw, http.StatusOK,
-		api.GetProjectAddrByDomainResp{
-			ProjectAddr: &addr,
-		})
+		api.GetProjectAddrByDomainResp{ProjectAddr: &addr})
 }
 
 func maybeUpdateHorizonConfig(
-	ctx *hzhttp.Context, project string, hzConf types.HorizonConfig) error {
+	ctx *hzhttp.Context, projectID types.ProjectID, hzConf types.HorizonConfig) error {
 	// Note: errors from this function are passed to the user.
 
 	ctx = ctx.WithLog(map[string]interface{}{
 		"action": "maybeUpdateHorizonConfig",
 	})
 
-	newVersion, versionErr, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
+	newVersion, versionErr, err := ctx.DB().MaybeUpdateHorizonConfig(projectID, hzConf)
 	ctx.Info("version %v (err version: %v)", newVersion, err)
 	if err != nil {
-		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
-			project, hzConf, err)
+		ctx.Error("Error calling MaybeUpdateHorizonConfig(%v, %v): %v",
+			projectID, hzConf, err)
 		return fmt.Errorf("error talking to database")
 	}
 	if versionErr != "" {
 		ctx.Error("Version error calling MaybeUpdateHorizonConifg(%v, %v): %v",
-			project, hzConf, err)
+			projectID, hzConf, err)
 		return errors.New(versionErr)
 	}
 	// No need to do anything.
@@ -266,11 +164,11 @@ func maybeUpdateHorizonConfig(
 		return nil
 	}
 
-	hzState, err := ctx.DB().WaitForHorizonConfigVersion(project, newVersion)
+	hzState, err := ctx.DB().WaitForHorizonConfigVersion(projectID, newVersion)
 	ctx.Info("hzState %v (%v)", hzState, err)
 	if err != nil {
 		ctx.Error("Error calling WaitForHorizonConfigVersion(%v, %v): %v",
-			project, newVersion, err)
+			projectID, newVersion, err)
 		return fmt.Errorf("Error waiting for Horizon Config to be applied.")
 	}
 	switch hzState.Typ {
@@ -464,11 +362,6 @@ var RootCmd = &cobra.Command{
 			{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
 			// Web interface uses these.
-			{api.GetProjectPath, getProject, true},
-			{api.DeleteProjectPath, deleteProject, true},
-			{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
-			{api.AddProjectUsersPath, addProjectUsers, true},
-			{api.DelProjectUsersPath, delProjectUsers, true},
 			{api.SetDomainPath, setDomain, true},
 			{api.DelDomainPath, delDomain, true},
 			{api.GetDomainsByProjectPath, getDomainsByProject, true},

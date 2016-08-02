@@ -1,6 +1,8 @@
 package types
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -71,10 +73,48 @@ func (cv *ConfigVersion) MaybeConfigure(f func() error) ConfigVersion {
 	return cv.Success()
 }
 
+type ProjectID []string
+
+func (p *ProjectID) Owner() string {
+	return (*p)[0]
+}
+func (p *ProjectID) Name() string {
+	return (*p)[1]
+}
+
+const (
+	maxKubeObjectLength = 24
+	maxKubePrefixLength = 3
+
+	kubeNameLength = maxKubeObjectLength - maxKubePrefixLength
+)
+
+func (p *ProjectID) KubeName() string {
+	compositeName := p.Owner() + "/" + p.Name()
+	rawHash := sha256.Sum256([]byte(compositeName))
+	return hex.EncodeToString(rawHash[:])[0:kubeNameLength]
+}
+
+type ProjectAddr struct {
+	Owner     string
+	Name      string
+	HTTPAddr  string
+	GCSPrefix string
+}
+
+func (p *ProjectID) Addr(bucketName string) ProjectAddr {
+	kubeName := p.KubeName()
+	return ProjectAddr{
+		Owner:     p.Owner(),
+		Name:      p.Name(),
+		HTTPAddr:  "h-" + kubeName + ":8181",
+		GCSPrefix: bucketName + "/deploy/" + kubeName + "/active/",
+	}
+}
+
 type Project struct {
-	ID    string   `gorethink:"id,omitempty"`
-	Name  string   `gorethink:",omitempty"`
-	Users []string `gorethink:",omitempty"`
+	ID    ProjectID `gorethink:"id,omitempty"`
+	Users []string  `gorethink:",omitempty"`
 
 	Deleting bool `gorethink:",omitempty"`
 
@@ -85,24 +125,22 @@ type Project struct {
 	HorizonConfigVersion ConfigVersion `gorethink:",omitempty"`
 }
 
+func (p *Project) Owner() string {
+	return p.ID.Owner()
+}
+func (p *Project) Name() string {
+	return p.ID.Name()
+}
+func (p *Project) KubeName() string {
+	return p.ID.KubeName()
+}
+func (p *Project) Addr(bucketName string) ProjectAddr {
+	return p.ID.Addr(bucketName)
+}
+
 type Domain struct {
-	Domain  string `gorethink:"id"`
-	Project string
-}
-
-type ProjectAddr struct {
-	Name      string
-	HTTPAddr  string
-	GCSPrefix string
-}
-
-func ProjectAddrFromName(name string, bucketName string) ProjectAddr {
-	trueName := util.TrueName(name)
-	return ProjectAddr{
-		Name:      name,
-		HTTPAddr:  "h-" + trueName + ":8181",
-		GCSPrefix: bucketName + "/deploy/" + trueName + "/active/",
-	}
+	Domain    string `gorethink:"id"`
+	ProjectID ProjectID
 }
 
 type ClusterStartBool bool

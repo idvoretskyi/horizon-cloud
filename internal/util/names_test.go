@@ -18,9 +18,9 @@ func TestNames(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		out := TrueName(test.Input)
+		out := KubeName(test.Input)
 		if out != test.Output {
-			t.Errorf("TrueName(%#v) = %#v, expected %#v",
+			t.Errorf("KubeName(%#v) = %#v, expected %#v",
 				test.Input, out, test.Output)
 		}
 	}
