@@ -12,7 +12,7 @@ github.com/docker/docker 0f5c9d301b9b1cca66b3ea0f9dec3b5317d3686d
 github.com/docker/go-units 0bbddae09c5a5419a8c6dcdd7ff90da3d450393b
 github.com/docker/spdystream 106e140db2cb50923efe088bf2906b2ee5a45fec
 github.com/emicklei/go-restful 777bb3f19bcafe2575ffb2a3e46af92509ae9594
-github.com/encryptio/go-meetup 8c6057b24dc8b21d9ffbc73ccd45895656d6c889
+github.com/encryptio/go-meetup 755fb270c209065a5242e60431973ff2ce2f4307
 github.com/evanphx/json-patch 7dd4489c2eb6073e5a9d7746c3274c5b5f0387df
 github.com/fsouza/go-dockerclient 0099401a7342ad77e71ca9f9a57c5e72fb80f6b2
 github.com/ghodss/yaml 73d445a93680fa1a78ae23a5839bad48f32ba1ee

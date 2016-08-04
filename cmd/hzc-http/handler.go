@@ -51,8 +51,8 @@ func NewHandler(conf *config, ctx *hzhttp.Context) *Handler {
 			},
 			Concurrency:   20,
 			ErrorAge:      time.Second,
-			ExpireAge:     time.Hour,
 			RevalidateAge: time.Minute,
+			MaxSize:       100000, // very roughly 64MB of stuff (TODO: more precisely derive this)
 		}),
 	}
 
