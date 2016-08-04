@@ -90,7 +90,8 @@ func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
 	return p, err
 }
 
-func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, error) {
+func (d *DB) UpdateProject(
+	projectID types.ProjectID, projectPatch types.Project) (bool, error) {
 	q := projects.Get(projectID).Update(projectPatch)
 	res, err := q.RunWrite(d.session)
 	if err != nil {

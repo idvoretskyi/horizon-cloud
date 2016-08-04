@@ -129,10 +129,11 @@ func projectSync(ctx *hzhttp.Context) {
 			func() {
 				projectsLock.Lock()
 				defer projectsLock.Unlock()
-				_, workerRunning := projects[c.NewVal.ID]
-				projects[c.NewVal.ID] = c.NewVal
+				kubeName := c.NewVal.ID.KubeName()
+				_, workerRunning := projects[kubeName]
+				projects[kubeName] = c.NewVal
 				if !workerRunning {
-					go applyProjects(ctx, c.NewVal.ID)
+					go applyProjects(ctx, kubeName)
 				}
 			}()
 		} else {
