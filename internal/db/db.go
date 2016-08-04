@@ -99,7 +99,7 @@ func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, 
 	return res.Replaced == 1, nil
 }
 
-func (d *DB) DeleteProject(projectID string) error {
+func (d *DB) DeleteProject(projectID types.ProjectID) error {
 	q := projects.Get(projectID).Delete()
 	_, err := q.RunWrite(d.session)
 	return err
@@ -235,7 +235,7 @@ func (d *DB) GetProjectsByUsers(users []string) ([]*types.Project, error) {
 	return projects, nil
 }
 
-func (d *DB) GetProjectIDByDomain(domainName string) (types.ProjectID, error) {
+func (d *DB) GetProjectIDByDomain(domainName string) (*types.ProjectID, error) {
 	var domain types.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
@@ -244,7 +244,7 @@ func (d *DB) GetProjectIDByDomain(domainName string) (types.ProjectID, error) {
 		}
 		return nil, nil
 	}
-	return domain.ProjectID, nil
+	return &domain.ProjectID, nil
 }
 
 func (d *DB) SetDomain(domain types.Domain) error {

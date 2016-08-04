@@ -23,7 +23,6 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
-	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
 // TODO: find a way to figure out which fields were parsed and which
@@ -193,9 +192,7 @@ func updateProjectManifest(
 		return
 	}
 
-	ctx = ctx.WithLog(map[string]interface{}{
-		"project": util.TrueName(r.Project),
-	})
+	ctx = ctx.WithLog(map[string]interface{}{"project": r.ProjectID})
 
 	tokData, err := api.VerifyToken(r.Token, tokenSecret)
 	if err != nil {
@@ -205,7 +202,7 @@ func updateProjectManifest(
 		return
 	}
 
-	allowedProjectNames, err := ctx.DB().GetProjectNamesByUsers(tokData.Users)
+	allowedProjects, err := ctx.DB().GetProjectsByUsers(tokData.Users)
 	if err != nil {
 		ctx.Error("Couldn't get project list for users: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -214,8 +211,8 @@ func updateProjectManifest(
 	}
 
 	found := false
-	for _, projectName := range allowedProjectNames {
-		if util.TrueName(projectName) == util.TrueName(r.Project) {
+	for _, project := range allowedProjects {
+		if r.ProjectID == project.ID {
 			found = true
 			break
 		}
@@ -223,13 +220,13 @@ func updateProjectManifest(
 
 	if !found {
 		ctx.UserError(
-			"User %v not allowed to deploy to project %v", tokData.Users, r.Project)
+			"User %v not allowed to deploy to project %v", tokData.Users, r.ProjectID)
 		api.WriteJSONError(rw, http.StatusBadRequest,
 			errors.New("You are not allowed to deploy to that project"))
 		return
 	}
 
-	stagingPrefix := "deploy/" + util.TrueName(r.Project) + "/staging/"
+	stagingPrefix := "deploy/" + r.ProjectID.KubeName() + "/staging/"
 
 	requests, err := requestsForFilelist(
 		ctx,
@@ -253,7 +250,7 @@ func updateProjectManifest(
 	// If we get here, the user has successfully uploaded all the files
 	// they need to upload.
 
-	err = maybeUpdateHorizonConfig(ctx, r.Project, r.HorizonConfig)
+	err = maybeUpdateHorizonConfig(ctx, r.ProjectID, r.HorizonConfig)
 	if err != nil {
 		ctx.Error("Unable to update Horizon config: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -264,10 +261,10 @@ func updateProjectManifest(
 	err = copyAllObjects(
 		ctx,
 		storageBucket, stagingPrefix,
-		storageBucket, "deploy/"+util.TrueName(r.Project)+"/active/")
+		storageBucket, "deploy/"+r.ProjectID.KubeName()+"/active/")
 	if err != nil {
 		ctx.Error("Couldn't copy objects for %v to active location: %v",
-			r.Project, err)
+			r.ProjectID, err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
 			errors.New("Internal error"))
 		return

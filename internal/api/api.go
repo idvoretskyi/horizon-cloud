@@ -123,13 +123,13 @@ var UpdateProjectManifestPath = "/v1/projects/updateManifest"
 
 type UpdateProjectManifestReq struct {
 	Token         string
-	Project       string
+	ProjectID     types.ProjectID
 	Files         []types.FileDescription
 	HorizonConfig types.HorizonConfig
 }
 
 func (r *UpdateProjectManifestReq) Validate() error {
-	err := util.ValidateProjectName(r.Project, "Project")
+	err := r.ProjectID.Validate()
 	if err != nil {
 		return err
 	}

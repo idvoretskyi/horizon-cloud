@@ -73,7 +73,16 @@ func (cv *ConfigVersion) MaybeConfigure(f func() error) ConfigVersion {
 	return cv.Success()
 }
 
-type ProjectID []string
+type ProjectID [2]string
+
+func newProjectId(userName string, projectName string) ProjectID {
+	return [2]string{userName, projectName}
+}
+
+func (p *ProjectID) Validate() error {
+	// RSI: do something smarter?
+	return nil
+}
 
 func (p *ProjectID) Owner() string {
 	return (*p)[0]
