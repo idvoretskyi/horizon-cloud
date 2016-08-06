@@ -210,19 +210,33 @@ func updateProjectManifest(
 		return
 	}
 
-	found := false
+	var candidateProjects []*types.Project
 	for _, project := range allowedProjects {
-		if r.ProjectID == project.ID {
-			found = true
-			break
+		if r.ProjectID.Owner() == "" || r.ProjectID.Owner() == project.ID.Owner() {
+			if r.ProjectID.Name() == project.ID.Name() {
+				candidateProjects = append(candidateProjects, project)
+				if r.ProjectID.Owner() != "" {
+					break
+				}
+			}
 		}
 	}
 
-	if !found {
+	if len(candidateProjects) == 0 {
 		ctx.UserError(
 			"User %v not allowed to deploy to project %v", tokData.Users, r.ProjectID)
 		api.WriteJSONError(rw, http.StatusBadRequest,
-			errors.New("You are not allowed to deploy to that project"))
+			fmt.Errorf("That project is not in the set of projects you can deploy to: %v",
+				allowedProjects))
+		return
+	} else if len(candidateProjects) > 1 {
+		ctx.UserError(
+			"User %v allowed to deploy to multiple projects for %v: %v",
+			tokData.Users, r.ProjectID, candidateProjects)
+		api.WriteJSONError(rw, http.StatusBadRequest,
+			fmt.Errorf("Ambiguous project name %s.  Unable to distinguish: %v."+
+				"Please specify the owner of the project like `OWNER/%s`",
+				r.ProjectID.Name(), candidateProjects, r.ProjectID.Name()))
 		return
 	}
 

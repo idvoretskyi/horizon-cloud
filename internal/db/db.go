@@ -90,9 +90,8 @@ func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
 	return p, err
 }
 
-func (d *DB) UpdateProject(
-	projectID types.ProjectID, projectPatch types.Project) (bool, error) {
-	q := projects.Get(projectID).Update(projectPatch)
+func (d *DB) UpdateProject(projectPatch types.Project) (bool, error) {
+	q := projects.Get(projectPatch.ID).Update(projectPatch)
 	res, err := q.RunWrite(d.session)
 	if err != nil {
 		return false, err
@@ -243,7 +242,7 @@ func (d *DB) GetProjectIDByDomain(domainName string) (*types.ProjectID, error) {
 		if err != r.ErrEmptyResult {
 			return nil, err
 		}
-		return nil, nil
+		return nil, fmt.Errorf("No such domain.")
 	}
 	return &domain.ProjectID, nil
 }

@@ -116,8 +116,20 @@ var deployCmd = &cobra.Command{
 
 			log.Printf("Checking local manifest against server...")
 
+			nameParts := strings.Split(name, "/")
+			userName := ""
+			projectName := ""
+			if len(nameParts) == 1 {
+				projectName = nameParts[0]
+			} else if len(nameParts) == 2 {
+				userName = nameParts[0]
+				projectName = nameParts[1]
+			} else {
+				log.Fatalf("invalid project name `%s` (has %d parts, needs 1 or 2)",
+					name, len(nameParts))
+			}
 			resp, err := apiClient.UpdateProjectManifest(api.UpdateProjectManifestReq{
-				Project:       name,
+				ProjectID:     types.NewProjectID(userName, projectName),
 				Files:         files,
 				Token:         token,
 				HorizonConfig: schema,

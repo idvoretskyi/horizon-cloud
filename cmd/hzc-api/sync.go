@@ -105,7 +105,8 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 			return applyHorizonConfig(k, ctx, conf)
 		})
 		ctx.Info("new HorizonConfigVersion: %#v", hzConfVer)
-		_, err := ctx.DB().UpdateProject(conf.ID, types.Project{
+		_, err := ctx.DB().UpdateProject(types.Project{
+			ID:                   conf.ID,
 			KubeConfigVersion:    kConfVer,
 			HorizonConfigVersion: hzConfVer,
 		})

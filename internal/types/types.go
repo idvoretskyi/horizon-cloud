@@ -75,7 +75,7 @@ func (cv *ConfigVersion) MaybeConfigure(f func() error) ConfigVersion {
 
 type ProjectID [2]string
 
-func newProjectId(userName string, projectName string) ProjectID {
+func NewProjectID(userName string, projectName string) ProjectID {
 	return [2]string{userName, projectName}
 }
 
