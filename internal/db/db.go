@@ -8,7 +8,6 @@ import (
 	r "github.com/dancannon/gorethink"
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
-	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
 type DBConnection struct {
@@ -62,6 +61,7 @@ func getBasicError(typeName string, name string) error {
 
 type projectWriteResp struct {
 	Errors     int    `gorethink:"errors"`
+	Skipped    int    `gorethink:"skipped"`
 	Unchanged  int    `gorethink:"unchanged"`
 	FirstError string `gorethink:"first_error"`
 	Changes    []struct {
@@ -80,10 +80,17 @@ func (d *DB) runProjectWriteDetailed(
 	if resp.Errors != 0 {
 		return nil, nil, errors.New(resp.FirstError)
 	}
+	if resp.Skipped != 0 {
+		return nil, nil, fmt.Errorf("project was deleted before write could complete")
+	}
 	if len(resp.Changes) != 1 {
 		return nil, nil, fmt.Errorf("Unexpected number of changes in response: %v", resp)
 	}
-	return resp.Changes[0].NewVal, &resp, nil
+	ret := resp.Changes[0].NewVal
+	if ret == nil {
+		return nil, nil, fmt.Errorf("internal error: no value after write")
+	}
+	return ret, &resp, nil
 }
 
 func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
@@ -91,30 +98,8 @@ func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
 	return p, err
 }
 
-func (d *DB) SetProjectKubeConfig(
-	project string, kc types.KubeConfig) (*types.Project, error) {
-	q := projects.Insert(types.Project{
-		ID:    util.TrueName(project),
-		Name:  project,
-		Users: []string{},
-
-		KubeConfig:        kc,
-		KubeConfigVersion: types.ConfigVersion{Desired: 1},
-
-		HorizonConfig: []byte{},
-	}, r.InsertOpts{Conflict: func(id r.Term, oldVal r.Term, newVal r.Term) r.Term {
-		return oldVal.Merge(map[string]r.Term{
-			"KubeConfig": newVal.Field("KubeConfig"),
-			"KubeConfigVersion": r.Expr(map[string]r.Term{
-				"Desired": oldVal.Field("KubeConfigVersion").Field("Desired").Add(1),
-			}),
-		})
-	}, ReturnChanges: "always"})
-	return d.runProjectWrite(q)
-}
-
-func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, error) {
-	q := projects.Get(projectID).Update(projectPatch)
+func (d *DB) UpdateProject(projectPatch types.Project) (bool, error) {
+	q := projects.Get(projectPatch.ID).Update(projectPatch)
 	res, err := q.RunWrite(d.session)
 	if err != nil {
 		return false, err
@@ -122,35 +107,17 @@ func (d *DB) UpdateProject(projectID string, projectPatch types.Project) (bool, 
 	return res.Replaced == 1, nil
 }
 
-func (d *DB) DeleteProject(projectID string) error {
+func (d *DB) DeleteProject(projectID types.ProjectID) error {
 	q := projects.Get(projectID).Delete()
 	_, err := q.RunWrite(d.session)
 	return err
 }
 
-func (d *DB) AddProjectUsers(project string, users []string) (*types.Project, error) {
-	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
-		return r.Expr(map[string]r.Term{
-			"Users": oldVal.Field("Users").Default([]string{}).SetUnion(users),
-		})
-	}, r.UpdateOpts{ReturnChanges: "always"})
-	return d.runProjectWrite(q)
-}
-
-func (d *DB) DelProjectUsers(project string, users []string) (*types.Project, error) {
-	q := projects.Get(util.TrueName(project)).Update(func(oldVal r.Term) r.Term {
-		return r.Expr(map[string]r.Term{
-			"Users": oldVal.Field("Users").Default([]string{}).SetDifference(users),
-		})
-	}, r.UpdateOpts{ReturnChanges: "always"})
-	return d.runProjectWrite(q)
-}
-
 func (d *DB) MaybeUpdateHorizonConfig(
-	projectName string, hzConf types.HorizonConfig) (int64, string, error) {
+	projectID types.ProjectID, hzConf types.HorizonConfig) (int64, string, error) {
 	hcv := "HorizonConfigVersion"
 	q := r.Expr(hzConf).Do(func(hzc r.Term) r.Term {
-		return projects.Get(util.TrueName(projectName)).Update(func(config r.Term) r.Term {
+		return projects.Get(projectID).Update(func(config r.Term) r.Term {
 			return r.Branch(
 				config.Field("HorizonConfig").Eq(hzc).Default(false),
 				nil,
@@ -193,11 +160,11 @@ type HZState struct {
 }
 
 func (d *DB) WaitForHorizonConfigVersion(
-	project string, version int64) (HZState, error) {
-	q := projects.Get(util.TrueName(project)).Changes(r.ChangesOpts{IncludeInitial: true})
+	projectID types.ProjectID, version int64) (HZState, error) {
+	q := projects.Get(projectID).Changes(r.ChangesOpts{IncludeInitial: true})
 	cursor, err := q.Run(d.session)
 	if err != nil {
-		d.log.Error("WaitForHorizonConfigVersion(%s, %d): %v", project, version, err)
+		d.log.Error("WaitForHorizonConfigVersion(%v, %d): %v", projectID, version, err)
 		return HZState{}, err
 	}
 	defer cursor.Close()
@@ -222,7 +189,7 @@ func (d *DB) WaitForHorizonConfigVersion(
 	}
 
 	err = fmt.Errorf("Changefeed aborted unexpectedly.")
-	d.log.Error("WaitForHorizonConfigVersion(%s, %d): %v", project, version, err)
+	d.log.Error("WaitForHorizonConfigVersion(%v, %d): %v", projectID, version, err)
 	return HZState{}, err
 }
 
@@ -242,7 +209,7 @@ func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
 	return users, nil
 }
 
-func (d *DB) GetProjectNamesByKey(publicKey string) ([]string, error) {
+func (d *DB) GetProjectsByKey(publicKey string) ([]*types.Project, error) {
 	q := projects.GetAllByIndex("Users",
 		r.Args(users.GetAllByIndex("PublicSSHKeys", publicKey).
 			Field("id").CoerceTo("array")))
@@ -252,89 +219,40 @@ func (d *DB) GetProjectNamesByKey(publicKey string) ([]string, error) {
 		return nil, err
 	}
 	defer cursor.Close()
-	var names []string
+	var projects []*types.Project
 	var p types.Project
 	for cursor.Next(&p) {
-		names = append(names, p.Name)
+		projects = append(projects, &p)
 	}
-	return names, nil
+	return projects, nil
 }
 
-func (d *DB) GetProjectNamesByUsers(users []string) ([]string, error) {
+func (d *DB) GetProjectsByUsers(users []string) ([]*types.Project, error) {
 	q := projects.GetAllByIndex("Users", r.Args(users))
 	cursor, err := q.Run(d.session)
 	if err != nil {
-		d.log.Error("Couldn't get projects by key: %v", err)
+		d.log.Error("Couldn't get projects by users: %v", err)
 		return nil, err
 	}
 	defer cursor.Close()
-	var names []string
+	var projects []*types.Project
 	var p types.Project
 	for cursor.Next(&p) {
-		names = append(names, p.Name)
+		projects = append(projects, &p)
 	}
-	return names, nil
+	return projects, nil
 }
 
-func (d *DB) GetProjectNameByDomain(domainName string) (string, error) {
+func (d *DB) GetProjectIDByDomain(domainName string) (*types.ProjectID, error) {
 	var domain types.Domain
 	err := runOne(domains.Get(domainName), d.session, &domain)
 	if err != nil {
 		if err != r.ErrEmptyResult {
-			return "", err
+			return nil, err
 		}
-		return "", nil
+		return nil, fmt.Errorf("No such domain.")
 	}
-	return domain.Project, nil
-}
-
-func (d *DB) GetProject(name string) (*types.Project, error) {
-	var p types.Project
-	err := d.getBasicType(projects, "project", util.TrueName(name), &p)
-	return &p, err
-}
-
-func (d *DB) SetDomain(domain types.Domain) error {
-	res, err := domains.Insert(domain).RunWrite(d.session)
-	if err != nil {
-		d.log.Error("Couldn't set %v %#v: %v", "domain", domain.Domain, err)
-		return setBasicError("domain", domain.Domain)
-	}
-	if res.Inserted+res.Unchanged+res.Replaced != 1 {
-		d.log.Error("Couldn't set %v %#v: unexpected result counts", "domain", domain.Domain)
-		return setBasicError("domain", domain.Domain)
-	}
-	return nil
-}
-
-func (d *DB) DelDomain(domain types.Domain) error {
-	res, err := domains.Get(domain.Domain).Replace(func(row r.Term) r.Term {
-		return r.Branch(
-			row.Field("Project").Eq(domain.Project),
-			nil,
-			r.Error("Project name didn't match domain."))
-	}).RunWrite(d.session)
-	if err != nil {
-		return err
-	}
-	if res.Deleted != 1 {
-		return fmt.Errorf("unable to delete domain `%s`", domain.Domain)
-	}
-	return nil
-}
-
-func (d *DB) GetDomainsByProject(project string) ([]string, error) {
-	cursor, err := domains.GetAllByIndex("Project", project).Run(d.session)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close()
-	domains := []string{}
-	var dom types.Domain
-	for cursor.Next(&dom) {
-		domains = append(domains, dom.Domain)
-	}
-	return domains, nil
+	return &domain.ProjectID, nil
 }
 
 type ProjectChange struct {

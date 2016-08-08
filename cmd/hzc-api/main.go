@@ -23,7 +23,6 @@ import (
 	"github.com/rethinkdb/horizon-cloud/internal/hzlog"
 	"github.com/rethinkdb/horizon-cloud/internal/kube"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
-	"github.com/rethinkdb/horizon-cloud/internal/util"
 )
 
 // TODO: find a way to figure out which fields were parsed and which
@@ -51,146 +50,6 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-func setProjectKubeConfig(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetProjectKubeConfigReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().SetProjectKubeConfig(r.Project, r.KubeConfig)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetProjectKubeConfigResp{
-		Project: *project,
-	})
-}
-
-func addProjectUsers(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.AddProjectUsersReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().AddProjectUsers(r.Project, r.Users)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.AddProjectUsersResp{
-		Project: *project,
-	})
-}
-
-func delProjectUsers(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.DelProjectUsersReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().DelProjectUsers(r.Project, r.Users)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.DelProjectUsersResp{
-		Project: *project,
-	})
-}
-
-func getProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.GetProjectReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	project, err := ctx.DB().GetProject(r.Project)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	if project == nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to retrieve project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectResp{
-		Project: *project,
-	})
-}
-
-func deleteProject(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.DeleteProjectReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	success, err := ctx.DB().UpdateProject(util.TrueName(r.Project), types.Project{
-		Deleting: true,
-	})
-	ctx.MaybeError(err)
-	if !success {
-		api.WriteJSONError(rw, http.StatusInternalServerError,
-			fmt.Errorf("Unable to delete project."))
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.DeleteProjectResp{})
-}
-
-func setDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetDomainReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	err := ctx.DB().SetDomain(r.Domain)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetDomainResp{})
-}
-
-func delDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.DelDomainReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	err := ctx.DB().DelDomain(r.Domain)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.DelDomainResp{})
-}
-
-func getDomainsByProject(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.GetDomainsByProjectReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	domains, err := ctx.DB().GetDomainsByProject(r.Project)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetDomainsByProjectResp{domains})
-}
-
 func getUsersByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var gu api.GetUsersByKeyReq
 	if !decode(rw, req.Body, &gu) {
@@ -210,14 +69,14 @@ func getProjectAddrsByKey(
 	if !decode(rw, req.Body, &gp) {
 		return
 	}
-	names, err := ctx.DB().GetProjectNamesByKey(gp.PublicKey)
+	projects, err := ctx.DB().GetProjectsByKey(gp.PublicKey)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	addrs := make([]types.ProjectAddr, len(names))
-	for i, name := range names {
-		addrs[i] = types.ProjectAddrFromName(name, storageBucket)
+	addrs := make([]types.ProjectAddr, len(projects))
+	for i, p := range projects {
+		addrs[i] = p.Addr(storageBucket)
 	}
 	api.WriteJSONResp(rw, http.StatusOK,
 		api.GetProjectAddrsByKeyResp{ProjectAddrs: addrs})
@@ -229,36 +88,34 @@ func getProjectAddrByDomain(
 	if !decode(rw, req.Body, &r) {
 		return
 	}
-	name, err := ctx.DB().GetProjectNameByDomain(r.Domain)
+	id, err := ctx.DB().GetProjectIDByDomain(r.Domain)
 	if err != nil {
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	addr := types.ProjectAddrFromName(name, storageBucket)
+	addr := id.Addr(storageBucket)
 	api.WriteJSONResp(rw, http.StatusOK,
-		api.GetProjectAddrByDomainResp{
-			ProjectAddr: &addr,
-		})
+		api.GetProjectAddrByDomainResp{ProjectAddr: &addr})
 }
 
 func maybeUpdateHorizonConfig(
-	ctx *hzhttp.Context, project string, hzConf types.HorizonConfig) error {
+	ctx *hzhttp.Context, projectID types.ProjectID, hzConf types.HorizonConfig) error {
 	// Note: errors from this function are passed to the user.
 
 	ctx = ctx.WithLog(map[string]interface{}{
 		"action": "maybeUpdateHorizonConfig",
 	})
 
-	newVersion, versionErr, err := ctx.DB().MaybeUpdateHorizonConfig(project, hzConf)
+	newVersion, versionErr, err := ctx.DB().MaybeUpdateHorizonConfig(projectID, hzConf)
 	ctx.Info("version %v (err version: %v)", newVersion, err)
 	if err != nil {
-		ctx.Error("Error calling MaybeUpdateHorizonConifg(%v, %v): %v",
-			project, hzConf, err)
+		ctx.Error("Error calling MaybeUpdateHorizonConfig(%v, %v): %v",
+			projectID, hzConf, err)
 		return fmt.Errorf("error talking to database")
 	}
 	if versionErr != "" {
 		ctx.Error("Version error calling MaybeUpdateHorizonConifg(%v, %v): %v",
-			project, hzConf, err)
+			projectID, hzConf, err)
 		return errors.New(versionErr)
 	}
 	// No need to do anything.
@@ -266,11 +123,11 @@ func maybeUpdateHorizonConfig(
 		return nil
 	}
 
-	hzState, err := ctx.DB().WaitForHorizonConfigVersion(project, newVersion)
+	hzState, err := ctx.DB().WaitForHorizonConfigVersion(projectID, newVersion)
 	ctx.Info("hzState %v (%v)", hzState, err)
 	if err != nil {
 		ctx.Error("Error calling WaitForHorizonConfigVersion(%v, %v): %v",
-			project, newVersion, err)
+			projectID, newVersion, err)
 		return fmt.Errorf("Error waiting for Horizon Config to be applied.")
 	}
 	switch hzState.Typ {
@@ -295,9 +152,7 @@ func updateProjectManifest(
 		return
 	}
 
-	ctx = ctx.WithLog(map[string]interface{}{
-		"project": util.TrueName(r.Project),
-	})
+	ctx = ctx.WithLog(map[string]interface{}{"project": r.ProjectID})
 
 	tokData, err := api.VerifyToken(r.Token, tokenSecret)
 	if err != nil {
@@ -307,7 +162,7 @@ func updateProjectManifest(
 		return
 	}
 
-	allowedProjectNames, err := ctx.DB().GetProjectNamesByUsers(tokData.Users)
+	allowedProjects, err := ctx.DB().GetProjectsByUsers(tokData.Users)
 	if err != nil {
 		ctx.Error("Couldn't get project list for users: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -315,23 +170,39 @@ func updateProjectManifest(
 		return
 	}
 
-	found := false
-	for _, projectName := range allowedProjectNames {
-		if util.TrueName(projectName) == util.TrueName(r.Project) {
-			found = true
-			break
+	var candidateProjects []*types.Project
+	for _, project := range allowedProjects {
+		if r.ProjectID.Owner() == "" || r.ProjectID.Owner() == project.ID.Owner() {
+			if r.ProjectID.Name() == project.ID.Name() {
+				candidateProjects = append(candidateProjects, project)
+				if r.ProjectID.Owner() != "" {
+					break
+				}
+			}
 		}
 	}
 
-	if !found {
+	if len(candidateProjects) == 0 {
 		ctx.UserError(
-			"User %v not allowed to deploy to project %v", tokData.Users, r.Project)
+			"User %v not allowed to deploy to project %v", tokData.Users, r.ProjectID)
 		api.WriteJSONError(rw, http.StatusBadRequest,
-			errors.New("You are not allowed to deploy to that project"))
+			fmt.Errorf("That project is not in the set of projects you can deploy to: %v",
+				allowedProjects))
+		return
+	} else if len(candidateProjects) > 1 {
+		ctx.UserError(
+			"User %v allowed to deploy to multiple projects for %v: %v",
+			tokData.Users, r.ProjectID, candidateProjects)
+		api.WriteJSONError(rw, http.StatusBadRequest,
+			fmt.Errorf("Ambiguous project name %s.  Unable to distinguish: %v."+
+				"Please specify the owner of the project like `OWNER/%s`",
+				r.ProjectID.Name(), candidateProjects, r.ProjectID.Name()))
 		return
 	}
 
-	stagingPrefix := "deploy/" + util.TrueName(r.Project) + "/staging/"
+	trueProjectID := candidateProjects[0].ID
+
+	stagingPrefix := "deploy/" + trueProjectID.KubeName() + "/staging/"
 
 	requests, err := requestsForFilelist(
 		ctx,
@@ -355,7 +226,7 @@ func updateProjectManifest(
 	// If we get here, the user has successfully uploaded all the files
 	// they need to upload.
 
-	err = maybeUpdateHorizonConfig(ctx, r.Project, r.HorizonConfig)
+	err = maybeUpdateHorizonConfig(ctx, trueProjectID, r.HorizonConfig)
 	if err != nil {
 		ctx.Error("Unable to update Horizon config: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -366,10 +237,10 @@ func updateProjectManifest(
 	err = copyAllObjects(
 		ctx,
 		storageBucket, stagingPrefix,
-		storageBucket, "deploy/"+util.TrueName(r.Project)+"/active/")
+		storageBucket, "deploy/"+trueProjectID.KubeName()+"/active/")
 	if err != nil {
 		ctx.Error("Couldn't copy objects for %v to active location: %v",
-			r.Project, err)
+			trueProjectID, err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
 			errors.New("Internal error"))
 		return
@@ -463,19 +334,11 @@ var RootCmd = &cobra.Command{
 			// Client uses these.
 			{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
-			// Web interface uses these.
-			{api.GetProjectPath, getProject, true},
-			{api.DeleteProjectPath, deleteProject, true},
-			{api.SetProjectKubeConfigPath, setProjectKubeConfig, true},
-			{api.AddProjectUsersPath, addProjectUsers, true},
-			{api.DelProjectUsersPath, delProjectUsers, true},
-			{api.SetDomainPath, setDomain, true},
-			{api.DelDomainPath, delDomain, true},
-			{api.GetDomainsByProjectPath, getDomainsByProject, true},
-
 			// Other server stuff uses these.
 			{api.GetUsersByKeyPath, getUsersByKey, true},
 			{api.GetProjectAddrsByKeyPath, getProjectAddrsByKey, true},
+			// hz-http uses this and doesn't have access to the secret
+			// because it runs in the user cluster.
 			{api.GetProjectAddrByDomainPath, getProjectAddrByDomain, false},
 		}
 

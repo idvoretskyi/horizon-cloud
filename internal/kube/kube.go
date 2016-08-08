@@ -11,7 +11,6 @@ import (
 
 	"github.com/rethinkdb/horizon-cloud/internal/gcloud"
 	"github.com/rethinkdb/horizon-cloud/internal/types"
-	"github.com/rethinkdb/horizon-cloud/internal/util"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrors "k8s.io/kubernetes/pkg/api/errors"
@@ -82,12 +81,11 @@ func New(templatePath string, userNamespace string, gc *gcloud.GCloud) *Kube {
 	}
 }
 
-func (k *Kube) GetHorizonPodsForProject(projectName string) ([]string, error) {
-	trueName := util.TrueName(projectName)
+func (k *Kube) GetHorizonPodsForProject(projectID types.ProjectID) ([]string, error) {
 	pods, err := k.C.Pods(k.userNamespace).List(kapi.ListOptions{
 		LabelSelector: labels.Set(map[string]string{
 			"app":     "horizon",
-			"project": trueName,
+			"project": projectID.KubeName(),
 		}).AsSelector(),
 	})
 	if err != nil {

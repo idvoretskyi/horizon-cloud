@@ -52,7 +52,7 @@ func applyKubeConfig(
 	// Errors returned from this are shown to users.
 	k *kube.Kube, ctx *hzhttp.Context, conf *types.Project) error {
 	ctx.Info("Applying Kube config: %#v", conf.KubeConfig)
-	project, err := k.EnsureProject(conf.ID, conf.KubeConfig)
+	project, err := k.EnsureProject(conf.ID.KubeName(), conf.KubeConfig)
 	if err != nil {
 		ctx.Error(err.Error())
 		return fmt.Errorf("error applying Kube config")
@@ -89,7 +89,7 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 		k := ctx.Kube
 		if conf.Deleting {
 			ctx.Info("deleting project")
-			err := k.DeleteProject(conf.ID)
+			err := k.DeleteProject(conf.ID.KubeName())
 			ctx.MaybeError(err)
 			err = ctx.DB().DeleteProject(conf.ID)
 			ctx.MaybeError(err)
@@ -105,7 +105,8 @@ func applyProjects(ctx *hzhttp.Context, trueName string) {
 			return applyHorizonConfig(k, ctx, conf)
 		})
 		ctx.Info("new HorizonConfigVersion: %#v", hzConfVer)
-		_, err := ctx.DB().UpdateProject(conf.ID, types.Project{
+		_, err := ctx.DB().UpdateProject(types.Project{
+			ID:                   conf.ID,
 			KubeConfigVersion:    kConfVer,
 			HorizonConfigVersion: hzConfVer,
 		})
@@ -129,10 +130,11 @@ func projectSync(ctx *hzhttp.Context) {
 			func() {
 				projectsLock.Lock()
 				defer projectsLock.Unlock()
-				_, workerRunning := projects[c.NewVal.ID]
-				projects[c.NewVal.ID] = c.NewVal
+				kubeName := c.NewVal.ID.KubeName()
+				_, workerRunning := projects[kubeName]
+				projects[kubeName] = c.NewVal
 				if !workerRunning {
-					go applyProjects(ctx, c.NewVal.ID)
+					go applyProjects(ctx, kubeName)
 				}
 			}()
 		} else {

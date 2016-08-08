@@ -29,15 +29,6 @@ func NewClient(baseURL string, sharedSecret string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetProject(opts GetProjectReq) (*GetProjectResp, error) {
-	var ret GetProjectResp
-	err := c.jsonRoundTrip(GetProjectPath, opts, &ret)
-	if err != nil {
-		return nil, err
-	}
-	return &ret, nil
-}
-
 func (c *Client) GetUsersByKey(
 	opts GetUsersByKeyReq) (*GetUsersByKeyResp, error) {
 

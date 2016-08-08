@@ -18,8 +18,15 @@ func main() {
 var configFile string
 var schemaFile string
 
+func programName() string {
+	if os.Getenv("HZC_FROM_HZ") == "1" {
+		return "hz\u00a0cloud" // unicode space because cobra trims the command name at the first space
+	}
+	return "hzc-client"
+}
+
 var RootCmd = &cobra.Command{
-	Use:   "hzc-client",
+	Use:   programName(),
 	Short: "Horizon Cloud Client",
 	Long:  `A client for accessing Horizon Cloud.`,
 }

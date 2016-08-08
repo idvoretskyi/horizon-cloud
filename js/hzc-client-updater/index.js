@@ -151,7 +151,7 @@ function runBin(args) {
     return new Promise(function (fulfill, reject) {
         const ch = child_process.spawn(binPath, args, {
             stdio: 'inherit',
-            env: Object.assign(process.env, {"HZC_FROM_HZ": "1"}),
+            env: Object.assign({}, process.env, {"HZC_FROM_HZ": "1"}),
         });
         ch.on('close', function (code) {
             if (code != 0) {
