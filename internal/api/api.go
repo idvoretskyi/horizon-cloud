@@ -11,55 +11,6 @@ import (
 var ProjectEnvVarName = "HORIZON_PROJECT"
 
 ////////////////////////////////////////////////////////////////////////////////
-// SetDomain
-
-var SetDomainPath = "/v1/domains/set"
-
-type SetDomainReq struct {
-	types.Domain
-}
-
-// RSI: rip this out.
-func (r *SetDomainReq) Validate() error {
-	return util.ValidateDomainName(r.Domain.Domain, "Domain")
-}
-
-type SetDomainResp struct{}
-
-////////////////////////////////////////////////////////////////////////////////
-// DelDomain
-
-var DelDomainPath = "/v1/domains/del"
-
-type DelDomainReq struct {
-	types.Domain
-}
-
-// RSI: rip this out.
-func (r *DelDomainReq) Validate() error {
-	return util.ValidateDomainName(r.Domain.Domain, "Domain")
-}
-
-type DelDomainResp struct{}
-
-////////////////////////////////////////////////////////////////////////////////
-// GetDomainsByProject
-
-var GetDomainsByProjectPath = "/v1/domains/getByProject"
-
-type GetDomainsByProjectReq struct {
-	Project string
-}
-
-func (r *GetDomainsByProjectReq) Validate() error {
-	return util.ValidateProjectName(r.Project, "Project")
-}
-
-type GetDomainsByProjectResp struct {
-	Domains []string
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // GetUsersByKey
 
 var GetUsersByKeyPath = "/v1/users/getByKey"

@@ -80,7 +80,7 @@ func NewProjectID(userName string, projectName string) ProjectID {
 }
 
 func (p *ProjectID) Validate() error {
-	// RSI: do something smarter?
+	// TODO: do something smarter?
 	return nil
 }
 

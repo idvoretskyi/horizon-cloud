@@ -255,49 +255,6 @@ func (d *DB) GetProjectIDByDomain(domainName string) (*types.ProjectID, error) {
 	return &domain.ProjectID, nil
 }
 
-func (d *DB) SetDomain(domain types.Domain) error {
-	res, err := domains.Insert(domain).RunWrite(d.session)
-	if err != nil {
-		d.log.Error("Couldn't set %v %#v: %v", "domain", domain.Domain, err)
-		return setBasicError("domain", domain.Domain)
-	}
-	if res.Inserted+res.Unchanged+res.Replaced != 1 {
-		d.log.Error("Couldn't set %v %#v: unexpected result counts", "domain", domain.Domain)
-		return setBasicError("domain", domain.Domain)
-	}
-	return nil
-}
-
-func (d *DB) DelDomain(domain types.Domain) error {
-	res, err := domains.Get(domain.Domain).Replace(func(row r.Term) r.Term {
-		return r.Branch(
-			row.Field("ProjectID").Eq(domain.ProjectID),
-			nil,
-			r.Error("Project name didn't match domain."))
-	}).RunWrite(d.session)
-	if err != nil {
-		return err
-	}
-	if res.Deleted != 1 {
-		return fmt.Errorf("unable to delete domain `%s`", domain.Domain)
-	}
-	return nil
-}
-
-func (d *DB) GetDomainsByProject(project string) ([]string, error) {
-	cursor, err := domains.GetAllByIndex("Project", project).Run(d.session)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close()
-	domains := []string{}
-	var dom types.Domain
-	for cursor.Next(&dom) {
-		domains = append(domains, dom.Domain)
-	}
-	return domains, nil
-}
-
 type ProjectChange struct {
 	OldVal *types.Project `gorethink:"old_val"`
 	NewVal *types.Project `gorethink:"new_val"`

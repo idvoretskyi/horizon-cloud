@@ -50,46 +50,6 @@ func decode(rw http.ResponseWriter, r io.Reader, body validator) bool {
 	return true
 }
 
-func setDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.SetDomainReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	err := ctx.DB().SetDomain(r.Domain)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.SetDomainResp{})
-}
-
-func delDomain(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.DelDomainReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	err := ctx.DB().DelDomain(r.Domain)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.DelDomainResp{})
-}
-
-func getDomainsByProject(
-	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
-	var r api.GetDomainsByProjectReq
-	if !decode(rw, req.Body, &r) {
-		return
-	}
-	domains, err := ctx.DB().GetDomainsByProject(r.Project)
-	if err != nil {
-		api.WriteJSONError(rw, http.StatusInternalServerError, err)
-		return
-	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetDomainsByProjectResp{domains})
-}
-
 func getUsersByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var gu api.GetUsersByKeyReq
 	if !decode(rw, req.Body, &gu) {
@@ -374,14 +334,11 @@ var RootCmd = &cobra.Command{
 			// Client uses these.
 			{api.UpdateProjectManifestPath, updateProjectManifest, false},
 
-			// Web interface uses these.
-			{api.SetDomainPath, setDomain, true},
-			{api.DelDomainPath, delDomain, true},
-			{api.GetDomainsByProjectPath, getDomainsByProject, true},
-
 			// Other server stuff uses these.
 			{api.GetUsersByKeyPath, getUsersByKey, true},
 			{api.GetProjectAddrsByKeyPath, getProjectAddrsByKey, true},
+			// hz-http uses this and doesn't have access to the secret
+			// because it runs in the user cluster.
 			{api.GetProjectAddrByDomainPath, getProjectAddrByDomain, false},
 		}
 
