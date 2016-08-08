@@ -84,9 +84,8 @@ func New(templatePath string, userNamespace string, gc *gcloud.GCloud) *Kube {
 func (k *Kube) GetHorizonPodsForProject(projectID types.ProjectID) ([]string, error) {
 	pods, err := k.C.Pods(k.userNamespace).List(kapi.ListOptions{
 		LabelSelector: labels.Set(map[string]string{
-			"app":          "horizon",
-			"projectOwner": projectID.Owner(),
-			"projectName":  projectID.Name(),
+			"app":     "horizon",
+			"project": projectID.KubeName(),
 		}).AsSelector(),
 	})
 	if err != nil {

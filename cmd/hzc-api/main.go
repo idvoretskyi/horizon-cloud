@@ -240,7 +240,9 @@ func updateProjectManifest(
 		return
 	}
 
-	stagingPrefix := "deploy/" + r.ProjectID.KubeName() + "/staging/"
+	trueProjectID := candidateProjects[0].ID
+
+	stagingPrefix := "deploy/" + trueProjectID.KubeName() + "/staging/"
 
 	requests, err := requestsForFilelist(
 		ctx,
@@ -264,7 +266,7 @@ func updateProjectManifest(
 	// If we get here, the user has successfully uploaded all the files
 	// they need to upload.
 
-	err = maybeUpdateHorizonConfig(ctx, r.ProjectID, r.HorizonConfig)
+	err = maybeUpdateHorizonConfig(ctx, trueProjectID, r.HorizonConfig)
 	if err != nil {
 		ctx.Error("Unable to update Horizon config: %v", err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
@@ -275,10 +277,10 @@ func updateProjectManifest(
 	err = copyAllObjects(
 		ctx,
 		storageBucket, stagingPrefix,
-		storageBucket, "deploy/"+r.ProjectID.KubeName()+"/active/")
+		storageBucket, "deploy/"+trueProjectID.KubeName()+"/active/")
 	if err != nil {
 		ctx.Error("Couldn't copy objects for %v to active location: %v",
-			r.ProjectID, err)
+			trueProjectID, err)
 		api.WriteJSONError(rw, http.StatusInternalServerError,
 			errors.New("Internal error"))
 		return

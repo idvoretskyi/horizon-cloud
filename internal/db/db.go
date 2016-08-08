@@ -61,6 +61,7 @@ func getBasicError(typeName string, name string) error {
 
 type projectWriteResp struct {
 	Errors     int    `gorethink:"errors"`
+	Skipped    int    `gorethink:"skipped"`
 	Unchanged  int    `gorethink:"unchanged"`
 	FirstError string `gorethink:"first_error"`
 	Changes    []struct {
@@ -79,10 +80,17 @@ func (d *DB) runProjectWriteDetailed(
 	if resp.Errors != 0 {
 		return nil, nil, errors.New(resp.FirstError)
 	}
+	if resp.Skipped != 0 {
+		return nil, nil, fmt.Errorf("project was deleted before write could complete")
+	}
 	if len(resp.Changes) != 1 {
 		return nil, nil, fmt.Errorf("Unexpected number of changes in response: %v", resp)
 	}
-	return resp.Changes[0].NewVal, &resp, nil
+	ret := resp.Changes[0].NewVal
+	if ret == nil {
+		return nil, nil, fmt.Errorf("internal error: no value after write")
+	}
+	return ret, &resp, nil
 }
 
 func (d *DB) runProjectWrite(q r.Term) (*types.Project, error) {
