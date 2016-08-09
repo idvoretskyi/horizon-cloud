@@ -137,14 +137,21 @@ type Project struct {
 func (p *Project) Owner() string {
 	return p.ID.Owner()
 }
+
 func (p *Project) Name() string {
 	return p.ID.Name()
 }
+
 func (p *Project) KubeName() string {
 	return p.ID.KubeName()
 }
+
 func (p *Project) Addr(bucketName string) ProjectAddr {
 	return p.ID.Addr(bucketName)
+}
+
+func (p *Project) HasBeenDeployedTo() bool {
+	return p.HorizonConfigVersion.Desired > 0
 }
 
 type Domain struct {

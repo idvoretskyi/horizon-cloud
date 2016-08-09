@@ -104,3 +104,23 @@ func (r *UpdateProjectManifestReq) Validate() error {
 type UpdateProjectManifestResp struct {
 	NeededRequests []types.FileUploadRequest
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// GetProjectsByToken
+
+var GetProjectsByTokenPath = "/v1/projects/getByToken"
+
+type GetProjectsByTokenReq struct {
+	Token string
+}
+
+func (r *GetProjectsByTokenReq) Validate() error {
+	if !util.ReasonableToken(r.Token) {
+		return errors.New("Token is not of the correct form")
+	}
+	return nil
+}
+
+type GetProjectsByTokenResp struct {
+	Projects []*types.Project
+}

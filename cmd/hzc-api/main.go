@@ -144,6 +144,32 @@ func maybeUpdateHorizonConfig(
 	panic("hzState.Typ switch is not exhaustive")
 }
 
+func getProjectsByToken(
+	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
+	var r api.GetProjectsByTokenReq
+	if !decode(rw, req.body, &r) {
+		return
+	}
+
+	tokData, err := api.VerifyToken(r.Token, tokenSecret)
+	if err != nil {
+		err = fmt.Errorf("bad token in request: %v", err)
+		ctx.UserError("%v", err)
+		api.WriteJSONError(rw, http.StatusBadRequest, err)
+		return
+	}
+
+	projects, err := ctx.DB().GetProjectsByUsers(tokData.Users)
+	if err != nil {
+		ctx.Error("Couldn't get project list for users: %v", err)
+		api.WriteJSONError(rw, http.StatusInternalServerError,
+			errors.New("Internal error"))
+		return
+	}
+
+	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsByTokenResp{projects})
+}
+
 func updateProjectManifest(
 	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 
@@ -333,6 +359,7 @@ var RootCmd = &cobra.Command{
 		}{
 			// Client uses these.
 			{api.UpdateProjectManifestPath, updateProjectManifest, false},
+			{api.GetProjectsByTokenPath, getProjectsByToken, false},
 
 			// Other server stuff uses these.
 			{api.GetUsersByKeyPath, getUsersByKey, true},
