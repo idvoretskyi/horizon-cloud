@@ -337,7 +337,8 @@ var RootCmd = &cobra.Command{
 			// Other server stuff uses these.
 			{api.GetUsersByKeyPath, getUsersByKey, true},
 			{api.GetProjectAddrsByKeyPath, getProjectAddrsByKey, true},
-			// hz-http uses this and doesn't have access to the secret
+
+			// hzc-http uses this and doesn't have access to the secret
 			// because it runs in the user cluster.
 			{api.GetProjectAddrByDomainPath, getProjectAddrByDomain, false},
 		}
