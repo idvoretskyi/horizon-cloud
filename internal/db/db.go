@@ -188,7 +188,11 @@ func (d *DB) WaitForHorizonConfigVersion(
 		}
 	}
 
-	err = fmt.Errorf("Changefeed aborted unexpectedly.")
+	err = cursor.Err()
+	if err != nil {
+		err = fmt.Errorf("Changefeed aborted unexpectedly.")
+	}
+
 	d.log.Error("WaitForHorizonConfigVersion(%v, %d): %v", projectID, version, err)
 	return HZState{}, err
 }
@@ -205,6 +209,9 @@ func (d *DB) GetUsersByKey(publicKey string) ([]string, error) {
 	var u hzUser
 	for cursor.Next(&u) {
 		users = append(users, u.Name)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
 	}
 	return users, nil
 }
@@ -224,6 +231,9 @@ func (d *DB) GetProjectsByKey(publicKey string) ([]*types.Project, error) {
 	for cursor.Next(&p) {
 		projects = append(projects, &p)
 	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
 	return projects, nil
 }
 
@@ -239,6 +249,9 @@ func (d *DB) GetProjectsByUsers(users []string) ([]*types.Project, error) {
 	var p types.Project
 	for cursor.Next(&p) {
 		projects = append(projects, &p)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
 	}
 	return projects, nil
 }
