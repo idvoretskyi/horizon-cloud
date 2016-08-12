@@ -60,7 +60,7 @@ func getUsersByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Reques
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetUsersByKeyResp{Users: users})
+	api.WriteJSON(rw, http.StatusOK, api.GetUsersByKeyResp{Users: users})
 }
 
 func getProjectAddrsByKey(
@@ -78,7 +78,7 @@ func getProjectAddrsByKey(
 	for i, p := range projects {
 		addrs[i] = p.Addr(storageBucket)
 	}
-	api.WriteJSONResp(rw, http.StatusOK,
+	api.WriteJSON(rw, http.StatusOK,
 		api.GetProjectAddrsByKeyResp{ProjectAddrs: addrs})
 }
 
@@ -94,7 +94,7 @@ func getProjectAddrByDomain(
 		return
 	}
 	addr := id.Addr(storageBucket)
-	api.WriteJSONResp(rw, http.StatusOK,
+	api.WriteJSON(rw, http.StatusOK,
 		api.GetProjectAddrByDomainResp{ProjectAddr: &addr})
 }
 
@@ -167,7 +167,7 @@ func getProjectsByToken(
 		return
 	}
 
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsByTokenResp{projects})
+	api.WriteJSON(rw, http.StatusOK, api.GetProjectsByTokenResp{projects})
 }
 
 func updateProjectManifest(
@@ -243,7 +243,7 @@ func updateProjectManifest(
 	}
 
 	if len(requests) > 0 {
-		api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
+		api.WriteJSON(rw, http.StatusOK, api.UpdateProjectManifestResp{
 			NeededRequests: requests,
 		})
 		return
@@ -272,7 +272,7 @@ func updateProjectManifest(
 		return
 	}
 
-	api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
+	api.WriteJSON(rw, http.StatusOK, api.UpdateProjectManifestResp{
 		NeededRequests: []types.FileUploadRequest{},
 	})
 }
@@ -285,9 +285,8 @@ func main() {
 }
 
 var RootCmd = &cobra.Command{
-	Use:   "hzc-client",
-	Short: "Horizon Cloud Client",
-	Long:  `A client for accessing Horizon Cloud.`,
+	Use:   "hzc-api",
+	Short: "Horizon Cloud API Server",
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetFlags(log.Lshortfile)
 
