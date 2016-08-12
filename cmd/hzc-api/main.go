@@ -285,9 +285,8 @@ func main() {
 }
 
 var RootCmd = &cobra.Command{
-	Use:   "hzc-client",
-	Short: "Horizon Cloud Client",
-	Long:  `A client for accessing Horizon Cloud.`,
+	Use:   "hzc-api",
+	Short: "Horizon Cloud API Server",
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetFlags(log.Lshortfile)
 
