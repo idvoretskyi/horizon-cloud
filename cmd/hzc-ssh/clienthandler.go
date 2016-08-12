@@ -99,26 +99,14 @@ func (c *clientConn) handleSSHChannel(
 	var err error
 	response.Token, err = c.getToken(logger)
 	if err != nil {
-		enc.Encode(api.Resp{
-			Success: false,
-			Error:   err.Error(),
+		enc.Encode(map[string]string{
+			"error": err.Error(),
 		})
 		channel.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
 		return
 	}
 
-	msg, err := json.Marshal(response)
-	if err != nil {
-		panic("unable to marshal string")
-	}
-
-	rawMsg := json.RawMessage(msg)
-
-	enc.Encode(api.Resp{
-		Success: true,
-		Content: &rawMsg,
-	})
-
+	enc.Encode(response)
 	channel.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
 }
 

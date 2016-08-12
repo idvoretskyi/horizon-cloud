@@ -60,7 +60,7 @@ func getUsersByKey(ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Reques
 		api.WriteJSONError(rw, http.StatusInternalServerError, err)
 		return
 	}
-	api.WriteJSONResp(rw, http.StatusOK, api.GetUsersByKeyResp{Users: users})
+	api.WriteJSON(rw, http.StatusOK, api.GetUsersByKeyResp{Users: users})
 }
 
 func getProjectAddrsByKey(
@@ -78,7 +78,7 @@ func getProjectAddrsByKey(
 	for i, p := range projects {
 		addrs[i] = p.Addr(storageBucket)
 	}
-	api.WriteJSONResp(rw, http.StatusOK,
+	api.WriteJSON(rw, http.StatusOK,
 		api.GetProjectAddrsByKeyResp{ProjectAddrs: addrs})
 }
 
@@ -94,7 +94,7 @@ func getProjectAddrByDomain(
 		return
 	}
 	addr := id.Addr(storageBucket)
-	api.WriteJSONResp(rw, http.StatusOK,
+	api.WriteJSON(rw, http.StatusOK,
 		api.GetProjectAddrByDomainResp{ProjectAddr: &addr})
 }
 
@@ -147,7 +147,7 @@ func maybeUpdateHorizonConfig(
 func getProjectsByToken(
 	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.GetProjectsByTokenReq
-	if !decode(rw, req.body, &r) {
+	if !decode(rw, req.Body, &r) {
 		return
 	}
 
@@ -167,7 +167,7 @@ func getProjectsByToken(
 		return
 	}
 
-	api.WriteJSONResp(rw, http.StatusOK, api.GetProjectsByTokenResp{projects})
+	api.WriteJSON(rw, http.StatusOK, api.GetProjectsByTokenResp{projects})
 }
 
 func updateProjectManifest(
@@ -243,7 +243,7 @@ func updateProjectManifest(
 	}
 
 	if len(requests) > 0 {
-		api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
+		api.WriteJSON(rw, http.StatusOK, api.UpdateProjectManifestResp{
 			NeededRequests: requests,
 		})
 		return
@@ -272,7 +272,7 @@ func updateProjectManifest(
 		return
 	}
 
-	api.WriteJSONResp(rw, http.StatusOK, api.UpdateProjectManifestResp{
+	api.WriteJSON(rw, http.StatusOK, api.UpdateProjectManifestResp{
 		NeededRequests: []types.FileUploadRequest{},
 	})
 }

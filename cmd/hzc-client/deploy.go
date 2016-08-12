@@ -55,20 +55,17 @@ func getToken() (string, error) {
 		return "", fmt.Errorf("error %s: %s", err, buf.String())
 	}
 
-	var resp api.Resp
-	err = json.Unmarshal(buf.Bytes(), &resp)
-	if err != nil {
-		return "", fmt.Errorf("couldn't unmarshal %#v: %v", buf.String(), err)
+	var errResp struct {
+		Error string `json:"error"`
 	}
-
-	if !resp.Success {
-		return "", errors.New(resp.Error)
+	if json.Unmarshal(buf.Bytes(), &errResp) == nil && errResp.Error != "" {
+		return "", errors.New(errResp.Error)
 	}
 
 	var realResponse struct {
 		Token string
 	}
-	err = json.Unmarshal([]byte(*resp.Content), &realResponse)
+	err = json.Unmarshal(buf.Bytes(), &realResponse)
 	if err != nil {
 		return "", fmt.Errorf("couldn't unmarshal %#v: %v", buf.String(), err)
 	}

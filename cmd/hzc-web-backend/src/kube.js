@@ -40,11 +40,13 @@ export function apiReq(path, obj) {
           res.on('end', () => {
             try {
               const parsed = JSON.parse(data);
-              if (parsed.Success) {
-                resolve(parsed.Content);
-              } else {
-                reject(new Error('API error: ' + parsed.Error));
+              if (res.statusCode < 200 || res.statusCode >= 300) {
+                if (parsed.error) {
+                  reject(new Error(`API error: ${parsed.error}`));
+                }
+                reject(new Error(`Unexpected status code ${res.statusCode}: ${data}`));
               }
+              resolve(parsed);
             } catch (e) {
               reject(e);
             }
