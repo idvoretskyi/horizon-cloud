@@ -82,7 +82,12 @@ var deployCmd = &cobra.Command{
 		log.Printf("Fetching deploy token...")
 		token, err := getToken()
 		if err != nil {
-			log.Fatalf("Couldn't get token: %v", err)
+			fmt.Println("Couldn't get an API token: %v", err)
+			fmt.Println()
+			fmt.Println("Horizon Cloud is in private alpha. If you have been invited already,")
+			fmt.Println("make sure your SSH key has been " +
+				"added to your Horizon Cloud account.")
+			os.Exit(1)
 		}
 
 		apiClient, err := api.NewClient(viper.GetString("api_server"), "")
@@ -99,8 +104,7 @@ var deployCmd = &cobra.Command{
 				log.Fatal(err)
 			}
 			if len(resp.Projects) == 0 {
-				log.Fatalf("You aren't allowed to deploy to any projects using `%s`.",
-					viper.GetString("identity_file"))
+				log.Fatalf("You aren't allowed to deploy to any projects.")
 			}
 			var newProjects []*types.Project
 			var oldProjects []*types.Project
@@ -232,7 +236,7 @@ var deployCmd = &cobra.Command{
 		if saveName {
 			log.Printf("Saving name `%s` to `%s`.", name, configFile)
 
-			f, err := os.OpenFile(configFile, os.O_APPEND|os.O_WRONLY)
+			f, err := os.OpenFile(configFile, os.O_APPEND|os.O_WRONLY, 0666)
 			if err != nil {
 				log.Fatal("error opening `%s` for appending: %v", configFile, err)
 			}
