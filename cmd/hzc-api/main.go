@@ -147,7 +147,7 @@ func maybeUpdateHorizonConfig(
 func getProjectsByToken(
 	ctx *hzhttp.Context, rw http.ResponseWriter, req *http.Request) {
 	var r api.GetProjectsByTokenReq
-	if !decode(rw, req.body, &r) {
+	if !decode(rw, req.Body, &r) {
 		return
 	}
 

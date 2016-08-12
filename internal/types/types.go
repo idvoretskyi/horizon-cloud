@@ -142,6 +142,10 @@ func (p *Project) Name() string {
 	return p.ID.Name()
 }
 
+func (p *Project) SlashName() string {
+	return p.Owner() + "/" + p.Name()
+}
+
 func (p *Project) KubeName() string {
 	return p.ID.KubeName()
 }

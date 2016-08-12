@@ -227,9 +227,10 @@ func (d *DB) GetProjectsByKey(publicKey string) ([]*types.Project, error) {
 	}
 	defer cursor.Close()
 	var projects []*types.Project
-	var p types.Project
+	var p *types.Project
 	for cursor.Next(&p) {
-		projects = append(projects, &p)
+		projects = append(projects, p)
+		p = nil
 	}
 	if err := cursor.Err(); err != nil {
 		return nil, err
@@ -246,9 +247,10 @@ func (d *DB) GetProjectsByUsers(users []string) ([]*types.Project, error) {
 	}
 	defer cursor.Close()
 	var projects []*types.Project
-	var p types.Project
+	var p *types.Project
 	for cursor.Next(&p) {
-		projects = append(projects, &p)
+		projects = append(projects, p)
+		p = nil
 	}
 	if err := cursor.Err(); err != nil {
 		return nil, err

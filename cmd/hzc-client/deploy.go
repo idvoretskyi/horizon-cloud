@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/md5"
 	"encoding/json"
@@ -81,9 +82,10 @@ var deployCmd = &cobra.Command{
 	Short: "deploy a project",
 	Long:  `Deploy the specified project.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		name := viper.GetString("name")
-		if name == "" {
-			log.Fatalf("no project name specified (use `-n` or `%s`)", configFile)
+		log.Printf("Fetching deploy token...")
+		token, err := getToken()
+		if err != nil {
+			log.Fatalf("Couldn't get token: %v", err)
 		}
 
 		apiClient, err := api.NewClient(viper.GetString("api_server"), "")
@@ -91,12 +93,88 @@ var deployCmd = &cobra.Command{
 			log.Fatalf("Couldn't create API client: %v", err)
 		}
 
-		log.Printf("Deploying %s...", name)
+		name := viper.GetString("name")
+		saveName := false
+		if name == "" {
+			saveName = true
+			resp, err := apiClient.GetProjectsByToken(api.GetProjectsByTokenReq{token})
+			if err != nil {
+				log.Fatal(err)
+			}
+			if len(resp.Projects) == 0 {
+				log.Fatalf("You aren't allowed to deploy to any projects using `%s`.",
+					viper.GetString("identity_file"))
+			}
+			var newProjects []*types.Project
+			var oldProjects []*types.Project
+			for _, p := range resp.Projects {
+				if p.HasBeenDeployedTo() {
+					oldProjects = append(oldProjects, p)
+				} else {
+					newProjects = append(newProjects, p)
+				}
+			}
+			fmt.Printf("No project name specified.  "+
+				"Choose which project you wish to deploy to (it will be saved to %s):\n",
+				configFile)
 
-		token, err := getToken()
-		if err != nil {
-			log.Fatalf("Couldn't get token: %v", err)
+			width := len(fmt.Sprintf("%d", len(resp.Projects)))
+			fmtSpec := fmt.Sprintf("%%%dd", width)
+			fmt.Printf("%s\n", fmtSpec)
+			offset := 1
+			for _, p := range newProjects {
+				fmt.Printf(fmtSpec+". NEW: %s\n", offset, p.SlashName())
+				offset++
+			}
+			for _, p := range oldProjects {
+				fmt.Printf(fmtSpec+". %s\n", offset, p.SlashName())
+				offset++
+			}
+
+			var defaultProject *types.Project
+			if len(newProjects) == 1 {
+				defaultProject = newProjects[0]
+			} else if len(newProjects) == 0 && len(oldProjects) == 1 {
+				defaultProject = oldProjects[0]
+			}
+
+			if defaultProject != nil {
+				fmt.Printf("(default 1) > ")
+			} else {
+				fmt.Printf("> ")
+			}
+
+			reader := bufio.NewReader(os.Stdin)
+			name, err = reader.ReadString('\n')
+			name = strings.TrimSpace(name)
+			if err != nil {
+				log.Fatalf("error reading name: %v", err)
+			}
+
+			if name == "" && defaultProject != nil {
+				name = defaultProject.SlashName()
+			} else {
+				if strings.Count(name, "/") == 0 {
+					nameOffset := -1
+					scanned, err := fmt.Sscanf(name, "%d", &nameOffset)
+					nameOffset -= 1
+					if scanned == len(name) && err == nil {
+						if nameOffset >= 0 {
+							if nameOffset < len(newProjects) {
+								name = newProjects[nameOffset].SlashName()
+							} else {
+								nameOffset -= len(newProjects)
+								if nameOffset < len(oldProjects) {
+									name = oldProjects[nameOffset].SlashName()
+								}
+							}
+						}
+					}
+				}
+			}
 		}
+
+		log.Printf("Deploying %s...", name)
 
 		log.Printf("Generating local file list...")
 
@@ -152,6 +230,20 @@ var deployCmd = &cobra.Command{
 
 		if triesLeft == 0 {
 			log.Fatal("Couldn't deploy; too many retries. Maybe another deploy is running?")
+		}
+
+		if saveName {
+			log.Printf("Saving name `%s` to `%s`.", name, configFile)
+
+			f, err := os.OpenFile(configFile, os.O_APPEND|os.O_WRONLY)
+			if err != nil {
+				log.Fatal("error opening `%s` for appending: %v", configFile, err)
+			}
+			defer f.Close()
+			_, err = f.WriteString(fmt.Sprintf("\nname = \"%s\"\n", name))
+			if err != nil {
+				log.Fatal("error writing to `%s`: %v", configFile, err)
+			}
 		}
 
 		log.Printf("Deploy complete!\n")

@@ -61,6 +61,16 @@ func (c *Client) GetProjectAddrByDomain(
 	return &ret, nil
 }
 
+func (c *Client) GetProjectsByToken(
+	opts GetProjectsByTokenReq) (*GetProjectsByTokenResp, error) {
+	var ret GetProjectsByTokenResp
+	err := c.jsonRoundTrip(GetProjectsByTokenPath, opts, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return &ret, nil
+}
+
 func (c *Client) UpdateProjectManifest(
 	opts UpdateProjectManifestReq) (*UpdateProjectManifestResp, error) {
 	var ret UpdateProjectManifestResp
