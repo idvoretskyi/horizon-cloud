@@ -87,9 +87,6 @@ func (c *clientConn) handleSSHChannel(
 		"channelid": fmt.Sprintf("%p", channel),
 	})
 
-	logger.Info("Opened channel")
-	defer logger.Info("Done with channel")
-
 	enc := json.NewEncoder(channel)
 
 	var response struct {
@@ -122,8 +119,6 @@ func handleClientConn(baseLogger *hzlog.Logger, sock net.Conn, config *config) {
 		log:    logger,
 	}
 
-	c.log.Info("Accepted new connection")
-	defer c.log.Info("Done with connection")
 	defer sock.Close()
 
 	serverConfig := c.makeServerConfig()

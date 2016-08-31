@@ -7,6 +7,7 @@ output = /dev/null
 syslog = no
 pid =
 setuid = daemon
+debug = 2
 
 [wsproxy]
 accept = 443

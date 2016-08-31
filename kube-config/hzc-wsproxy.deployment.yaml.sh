@@ -11,7 +11,7 @@ cd "$(dirname "$(readlink -f "$0")")"
 
 gcr_id_path=docker/$name/gcr_image_id
 
-hzc_http_host=hzc-http.$(cat /secrets/"$DEPLOY"/names/domain)
+hzc_http_host=hzc-http.$(cat /secrets/names/domain)
 
 replicas=1
 if [ "$DEPLOY" == "prod" ]; then
